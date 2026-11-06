@@ -1218,28 +1218,44 @@ export const signForRivi = async (
 
 /* ---------- the customer's side ---------- */
 
-/** Whether the customer may still open a request: while it is open, and for `SIGNING_DAYS` after it was signed. */
-const customerMayOpen = (r: SigningRequest, at: number): boolean => {
-  const state = signingState(r, at);
-
-  if (state === "completed") {
-    return (
-      !!r.completedAt &&
-      Date.parse(r.completedAt) + SIGNING_DAYS * 86_400_000 > at
-    );
+/**
+ * Until when the customer may open a request as it stands, in milliseconds, or null for no end: until it expires
+ * while it waits for their signature, as long as the workspace takes once they signed, and `SIGNING_DAYS` once it
+ * completed. Their pass never outlives it, so one made while the request waits for them ends at its expiry at the
+ * latest, and one made after they signed still lets them in.
+ */
+const customerOpenUntil = (r: SigningRequest): number | null => {
+  if (r.status === "sent") {
+    return Date.parse(r.expiresAt);
   }
 
-  return state === "awaiting-customer" || state === "awaiting-rivi";
+  if (r.status === "customer-signed") {
+    return null;
+  }
+
+  if (r.status === "completed" && r.completedAt) {
+    return Date.parse(r.completedAt) + SIGNING_DAYS * 86_400_000;
+  }
+
+  // Declined or cancelled: it opens no more.
+  return 0;
+};
+
+/** Whether the customer may still open a request: while it is open, and for `SIGNING_DAYS` after it was signed. */
+const customerMayOpen = (r: SigningRequest, at: number): boolean => {
+  const until = customerOpenUntil(r);
+
+  return until === null || until > at;
 };
 
 /**
  * What a signing request brings to `visitor.server.ts`: the customer's code goes to their address and is recorded in
- * the request's history, and their pass lasts its 24 hours.
+ * the request's history, and their pass never outlives `customerOpenUntil`.
  */
 export const requestVisits: Visits<SigningRequest> = {
   name: "signing",
   pass: { seal: "signing-pass", cookie: "sign_pass_", field: "r" },
-  endsAt: () => null,
+  endsAt: customerOpenUntil,
   codeTo: (r) => r.customerEmail,
   codeOpens: (r) => `"${r.name}" for signing`,
   codeSent: (r, { db, request, at }) =>

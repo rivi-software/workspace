@@ -59,6 +59,8 @@ import {
   visitor,
 } from "./signing-fixtures";
 
+const HOUR = 3_600_000;
+
 /** The signed copies filed whole in a person's drive. */
 const signedCopiesOf = async (userId: string) => {
   const driveNodesRows = await db.query.driveNodes.findMany({
@@ -896,6 +898,113 @@ describe("the customer's side", () => {
       // { signingRequestView: await signingRequestView( env, db, stranger.id, request.id ), sig...
       { signingRequestView: null, signingDocument: null },
     ]);
+  });
+
+  it("ends a pass made while the request waits for the customer at its expiry, and lets them in again after they signed", async () => {
+    const { mail, request, token } = await sent("sg-late");
+    const expiry = Date.parse(request.expiresAt);
+    const page = `/s/sign/${token}`;
+
+    /** The customer through the code at `at`: their pass, and how long their browser keeps it. */
+    const confirmAt = async (at: number) => {
+      await customerPost(
+        mail.env,
+        db,
+        visitor(page, { method: "POST", body: form({ intent: "send-code" }) }),
+        token,
+        at
+      );
+
+      const [code] = defined(
+        String(defined(mail.sent.at(-1)).subject).match(/\d{6}/u)
+      );
+
+      const done = await customerPost(
+        mail.env,
+        db,
+        visitor(page, { method: "POST", body: form({ intent: "code", code }) }),
+        token,
+        at
+      );
+
+      const cookie = defined(done.headers.get("set-cookie"));
+
+      return {
+        cookie: defined(cookie.split(";")[0]),
+        maxAge: cookie.match(/Max-Age=(?<seconds>\d+)/u)?.groups?.seconds,
+      };
+    };
+
+    const stateAt = async (cookie: string, at: number) => {
+      const shown = await customerPage(
+        mail.env,
+        db,
+        visitor(page, {}, cookie),
+        token,
+        at
+      );
+
+      return shown?.state;
+    };
+
+    // Confirmed an hour before the request expires: the pass lasts that hour, not 24.
+    const early = await confirmAt(expiry - HOUR);
+    const opened = await stateAt(early.cookie, expiry - HOUR + 60_000);
+
+    const signed = await customerPost(
+      mail.env,
+      db,
+      visitor(
+        page,
+        {
+          method: "POST",
+          body: JSON.stringify({
+            intent: "sign",
+            values: { "c-name": "Cas Customer", "c-ok": "yes" },
+            signature: SIGNATURE,
+            agree: true,
+          }),
+          headers: { "content-type": "application/json" },
+        },
+        early.cookie
+      ),
+      token,
+      expiry - HOUR + 120_000
+    );
+
+    // Past the expiry the signed request waits for the workspace and the customer may still open it, but not with
+    // that pass.
+    const after = await stateAt(early.cookie, expiry + 60_000);
+
+    const { status: documentStatus } = await customerDocument(
+      mail.env,
+      db,
+      visitor("/x", {}, early.cookie),
+      token,
+      false,
+      expiry + 60_000
+    );
+
+    // A new code lets them in again, for 24 hours: a request they signed has no end of its own.
+    const again = await confirmAt(expiry + 120_000);
+
+    expect({
+      maxAge: early.maxAge,
+      opened,
+      signed: await signed.json(),
+      after,
+      documentStatus,
+      maxAgeAgain: again.maxAge,
+      again: await stateAt(again.cookie, expiry + 180_000),
+    }).toStrictEqual({
+      maxAge: "3600",
+      opened: "sign",
+      signed: { ok: true },
+      after: "confirm",
+      documentStatus: 404,
+      maxAgeAgain: "86400",
+      again: "signed",
+    });
   });
 
   it("takes the code's forms from its own page or from no browser, never from another site", async () => {
