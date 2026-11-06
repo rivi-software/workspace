@@ -1,8 +1,43 @@
-# Workspace
+<p align="center">
+  <a href="https://rivi.software">
+    <picture>
+      <source media="(prefers-color-scheme: dark)" srcset="assets/rivi-workspace-on-dark.svg">
+      <img src="assets/rivi-workspace.svg" alt="RIVI Workspace" width="405">
+    </picture>
+  </a>
+</p>
+
+<p align="center">
+  Mail, Drive, an Assistant, Calendar and Tasks for a team, in one Cloudflare Worker.<br>
+  Open source, from <a href="https://rivi.software">RIVI Software</a>.
+</p>
+
+<p align="center">
+  <a href="https://github.com/rivi-software/workspace/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/rivi-software/workspace/ci.yml?branch=main&label=CI" alt="CI status"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-0b6b3a" alt="MIT License"></a>
+</p>
+
+<p align="center">
+  <a href="#run-locally">Run locally</a>
+  ·
+  <a href="#deploy">Deploy</a>
+  ·
+  <a href="#commands">Commands</a>
+  ·
+  <a href="docs/ARCHITECTURE.md">Architecture</a>
+  ·
+  <a href="docs/API.md">API</a>
+  ·
+  <a href="GLOSSARY.md">Glossary</a>
+  ·
+  <a href="AGENTS.md">AGENTS.md</a>
+  ·
+  <a href="https://rivi.software">rivi.software</a>
+</p>
+
+<br>
 
 Workspace is an open-source workspace that runs on Cloudflare: **Mail** (receiving through Email Routing, sending through Email Sending or Amazon SES; the mailboxes in D1, the raw messages and files in R2), **Drive** (every person's folders and files in R2, shared with colleagues, or outside the workspace by link and invite, with PDFs sent for signatures), an **Assistant** (a chat over your own mail and files, on Workers AI through AI Gateway, or Anthropic), **Calendar** and **Tasks** (events with invited colleagues, to-dos linked with GitHub Issues). One Worker, one D1 database, two R2 buckets and two KV namespaces; a TanStack Start app built with the Cloudflare Vite plugin, sign-in on Better Auth.
-
-[Run locally](#run-locally) · [Deploy](#deploy) · [Commands](#commands) · [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) · [docs/API.md](docs/API.md) · [GLOSSARY.md](GLOSSARY.md) · [AGENTS.md](AGENTS.md)
 
 ## Mail
 
@@ -240,4 +275,19 @@ See [CONTRIBUTING.md](CONTRIBUTING.md): setup, `pnpm run verify`, conventional c
 
 ## License
 
-[MIT](LICENSE). The deploy helpers `@rivi-software/cloudflare-deploy`, `@rivi-software/deploy-watch`, `@rivi-software/workers-mail` and `@rivi-software/posthog-tanstack-start` are MIT too, from [github.com/rivi-software/tools](https://github.com/rivi-software/tools).
+[MIT](LICENSE). Copyright © 2026 RIVI Software. The deploy helpers `@rivi-software/cloudflare-deploy`, `@rivi-software/deploy-watch`, `@rivi-software/workers-mail` and `@rivi-software/posthog-tanstack-start` are MIT too, from [github.com/rivi-software/tools](https://github.com/rivi-software/tools).
+
+<br>
+
+<p align="center">
+  <a href="https://rivi.software">
+    <picture>
+      <source media="(prefers-color-scheme: dark)" srcset="assets/rivi-mark-on-dark.svg">
+      <img src="assets/rivi-mark.svg" alt="RIVI Software" width="36" height="36">
+    </picture>
+  </a>
+</p>
+
+<p align="center">
+  <sub>RIVI Workspace is made by <a href="https://rivi.software">RIVI Software</a>, which builds software for radio stations.</sub>
+</p>
