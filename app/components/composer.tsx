@@ -76,6 +76,28 @@ const draftStatus = (
   return !dirty && savedAt ? "Draft saved" : "";
 };
 
+/**
+ * A switch that turns once: `take()` answers true the first time only. A held send is settled by Undo, the countdown or
+ * the beacon on leaving, and only the first of them may act. It lives outside the component because the React Compiler
+ * skips a component that reassigns a local from a callback.
+ */
+const oneWay = () => {
+  let taken = false;
+
+  return {
+    take: () => {
+      if (taken) {
+        return false;
+      }
+
+      taken = true;
+
+      return true;
+    },
+    taken: () => taken,
+  };
+};
+
 /** The fields the composer posts that the person never edits: the conversation it answers, its mode and the plain-text start. */
 const ReplyFields = ({ prefill }: { prefill: Prefill }) => (
   <>
@@ -491,7 +513,7 @@ export const Composer = ({
           }
 
           fd.set("draftId", id);
-          let sent = false;
+          const settled = oneWay();
           toast.show({
             message: `Sending in ${undoSendSeconds} s…`,
             duration: undoSendSeconds * 1000,
@@ -499,23 +521,18 @@ export const Composer = ({
             action: {
               label: "Undo",
               onClick: () => {
-                if (sent) {
-                  return;
+                if (settled.take()) {
+                  navigate({ to: "/mail/compose", search: { draft: id } });
                 }
-
-                sent = true;
-                navigate({ to: "/mail/compose", search: { draft: id } });
               },
             },
             onExpire: () => {
-              if (sent) {
-                return;
+              if (settled.take()) {
+                deliver(fd);
               }
-
-              sent = true;
-              deliver(fd);
             },
-            beacon: () => (sent ? null : { url: sendAction.url, body: fd }),
+            beacon: () =>
+              settled.taken() ? null : { url: sendAction.url, body: fd },
           });
         } else {
           await deliver(fd);
