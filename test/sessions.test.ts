@@ -441,6 +441,35 @@ describe("a reset link mailed before", () => {
     }).toStrictEqual({ linkResets: false, changed: true, renewed: user.id });
   });
 
+  it("cannot outlive a password changed around the revocation: Better Auth's own change-password endpoint is closed", async () => {
+    const user = await mailbox("closed-change", "Closed Change");
+    const cookie = await sessionFor(user);
+
+    // As a browser on this site would post it, so only the closed path stands in the way.
+    const post = (auth: Record<string, string>) =>
+      SELF.fetch(`${env.APP_URL}/api/auth/change-password`, {
+        method: "POST",
+        headers: {
+          ...auth,
+          origin: new URL(env.APP_URL).origin,
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({
+          currentPassword: PASSWORD,
+          newPassword: NEW_PASSWORD,
+        }),
+      });
+
+    const byCookie = await post({ cookie });
+    const byBearer = await post({ authorization: `Bearer ${tokenOf(cookie)}` });
+
+    expect({
+      byCookie: byCookie.status,
+      byBearer: byBearer.status,
+      changed: await checkPassword(db, user.id, NEW_PASSWORD),
+    }).toStrictEqual({ byCookie: 404, byBearer: 404, changed: false });
+  });
+
   it("no longer resets the password once the person is deactivated, even after they are reactivated", async () => {
     const admin = await mailbox("void-deactivation-admin");
     const user = await withConfirmedAddress("void-deactivation");

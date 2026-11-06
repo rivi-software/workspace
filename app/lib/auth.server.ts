@@ -274,8 +274,11 @@ export const createAuth = async (env: Env, db: Database = createDb(env.DB)) => {
       customStorage: kvRateLimit(env.KV),
     },
     // Sign-up, Better Auth's own password reset and email verification are off: admins make the mailboxes, and a
-    // forgotten password goes through the recovery addresses (`recovery.server.ts`).
+    // forgotten password goes through the recovery addresses (`recovery.server.ts`). Its change-password endpoint is
+    // off too: the person's own change goes through `changeOwnPassword`, which calls `auth.api.changePassword` on the
+    // server (these paths close only the HTTP routes) and then ends the reset links mailed before (`revoke`).
     disabledPaths: [
+      "/change-password",
       "/sign-up/email",
       "/request-password-reset",
       "/reset-password",
