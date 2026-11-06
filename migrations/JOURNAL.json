@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "migrations": [
+    {
+      "name": "0000_init.sql",
+      "sha256": "5240f97e73ddf3466a4e26082505e9bbbde5728b3cc769648cf39a0bdc31dd0f"
+    }
+  ]
+}

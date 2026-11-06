@@ -3,7 +3,7 @@
  * actions and their undo, the composer's start, sending, drafts, contacts and labels, over the same server modules
  * the console's mail routes and `app/lib/mail/actions.ts` call.
  */
-import type { Address, Thread } from "~/db/schema";
+import type { Thread } from "~/db/schema";
 import { parseAddressList, parseJsonAddresses } from "~/lib/mail/addresses";
 import { composeData } from "~/lib/mail/compose.server";
 import { searchContacts } from "~/lib/mail/contacts.server";
@@ -17,11 +17,10 @@ import {
 } from "~/lib/mail/reads.server";
 import { mailDocument, mailReading } from "~/lib/mail/sanitize";
 import {
+  checkedRecipients,
   deleteDraft,
-  draftFilesForSending,
   saveDraft,
-  sendMail,
-  sendableAddresses,
+  sendComposed,
 } from "~/lib/mail/send.server";
 import type { OutgoingFile } from "~/lib/mail/send.server";
 import {
@@ -246,57 +245,31 @@ const filesOf = (body: JsonBody): OutgoingFile[] =>
     };
   });
 
-const recipients = (body: JsonBody) => {
-  const to = parseAddressList(field(body, "to"));
-  const cc = parseAddressList(field(body, "cc"));
-  const bcc = parseAddressList(field(body, "bcc"));
-  const invalid = [...to.invalid, ...cc.invalid, ...bcc.invalid];
+/** The To, Cc and Bcc a request names, as typed: what is not an address is kept, for the send to name it. */
+const addressLists = (body: JsonBody) => ({
+  to: parseAddressList(field(body, "to")),
+  cc: parseAddressList(field(body, "cc")),
+  bcc: parseAddressList(field(body, "bcc")),
+});
 
-  if (invalid.length) {
-    throw new ApiRequestError(`Check these addresses: ${invalid.join(", ")}`);
-  }
+/** A draft's recipients, refused by name as a send refuses them when one is not an address. */
+const recipients = (body: JsonBody) => checkedRecipients(addressLists(body));
 
-  return { to: to.addresses, cc: cc.addresses, bcc: bcc.addresses };
-};
-
+/** The console's send (`sendComposed`): a SendError answers `400` with its words (`problemOf`). */
 const send = async (context: ApiContext): Promise<Response> => {
   const { db, env, user, request } = context;
   const body = await readBody(request);
-  const { to, cc, bcc } = recipients(body);
-  const from = (field(body, "from") || user.email).toLowerCase();
-  const sendable = await sendableAddresses(db, user);
 
-  const fromAddress: Address | undefined = sendable.find(
-    (a) => a.email === from
-  );
-
-  if (!fromAddress) {
-    throw new ApiRequestError(`You cannot send as ${from}.`);
-  }
-
-  const draftId = fieldOrNull(body, "draftId");
-
-  // As the console's send does: the draft's stored files go with the message, before the ones sent along.
-  const files = [
-    ...(draftId ? await draftFilesForSending(db, env, user.id, draftId) : []),
-    ...filesOf(body),
-  ];
-
-  const sent = await sendMail(env, db, user, {
-    from: fromAddress,
-    to,
-    cc,
-    bcc,
+  const sent = await sendComposed(env, db, user, {
+    from: (field(body, "from") || user.email).toLowerCase(),
+    ...addressLists(body),
     subject: field(body, "subject"),
     text: field(body, "text"),
     inReplyToId: fieldOrNull(body, "inReplyToId"),
     signatureId: fieldOrNull(body, "signatureId"),
-    files,
+    draftId: fieldOrNull(body, "draftId"),
+    files: filesOf(body),
   });
-
-  if (draftId) {
-    await deleteDraft(db, env, user.id, draftId);
-  }
 
   return json({ ok: true, threadId: sent.threadId });
 };

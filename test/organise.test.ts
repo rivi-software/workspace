@@ -807,7 +807,7 @@ describe("the contacts", () => {
     });
     const { env: testEnv } = recordingEmail();
     await sendMail(testEnv, db, user, {
-      from: { email: user.email, name: user.name },
+      from: user.email,
       to: [{ email: "zed@acme.com", name: null }],
       cc: [{ email: "noreply@acme.com", name: null }],
       bcc: [],

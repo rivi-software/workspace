@@ -256,6 +256,12 @@ importers:
       '@cloudflare/vitest-plugin':
         specifier: 1.5.1
         version: 1.5.1(@types/node@26.6.6)(vitest@5.1.0(@opentelemetry/api@1.10.0)(@types/node@26.6.6)(vite@8.3.5(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1)))
+      '@rivi-software/d1-migrations':
+        specifier: 0.1.1
+        version: 0.1.1(wrangler@4.157.0(@types/node@26.6.6))
+      '@rivi-software/workers-bundle-check':
+        specifier: 0.1.1
+        version: 0.1.1
       '@tailwindcss/vite':
         specifier: 4.3.4
         version: 4.3.4(vite@8.3.5(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1))
@@ -1690,6 +1696,16 @@ packages:
     engines: {node: '>=22'}
     hasBin: true
 
+  '@rivi-software/d1-migrations@0.1.1':
+    resolution: {integrity: sha512-QhZ0JoFgqGN2u7NDsib/dNKk4fB0usY56Bco7woEpNQhA7iDQFTam0Tz0lIU9KCkZLUN052yy9CMzhlNivEm4A==}
+    engines: {node: '>=22'}
+    hasBin: true
+    peerDependencies:
+      wrangler: ^4.0.0
+    peerDependenciesMeta:
+      wrangler:
+        optional: true
+
   '@rivi-software/deploy-watch@0.7.0':
     resolution: {integrity: sha512-AhSJjDrZZg80zfzqVyKKqu35UFEaCEnurWkODMUqBJISBpFH09aRC+lUHl22AG58X2TFryPM0JlynR2dxe1oLQ==}
     peerDependencies:
@@ -1721,6 +1737,11 @@ packages:
         optional: true
       vite:
         optional: true
+
+  '@rivi-software/workers-bundle-check@0.1.1':
+    resolution: {integrity: sha512-6o4G5ORefmCpY3VpL50Riy2Gadsh+DendLHtw1Fk6KwE/Dt8NZphIr/TzFQB6obq8pvtNlishv/RHf8mWY6RUQ==}
+    engines: {node: '>=22'}
+    hasBin: true
 
   '@rivi-software/workers-mail@0.1.1':
     resolution: {integrity: sha512-8j4be5QedjZ5yIzUphAJIYkh5KNgIKT8hzRqeb+lGju419+W9gsrO0JZtdArdStGzKujB4agIqGkGKuSQMD9dQ==}
@@ -2530,6 +2551,10 @@ packages:
   babel-dead-code-elimination@1.0.12:
     resolution: {integrity: sha512-GERT7L2TiYcYDtYk1IpD+ASAYXjKbLTDPhBtYj7X1NuRMDTMtAx9kyBenub1Ev41lo91OHCKdmP+egTDmfQ7Ig==}
 
+  balanced-match@4.0.4:
+    resolution: {integrity: sha512-BLrgEcRTwX2o6gGxGOCNyMvGSp35YofuYzw9h1IMTRmKqttAZZVU67bdb9Pr2vUHA8+j3i2tJfjO6C6+4myGTA==}
+    engines: {node: 18 || 20 || >=22}
+
   baseline-browser-mapping@2.11.35:
     resolution: {integrity: sha512-GNk8KX52CHqeNKGk8+7tZnQab/2k1t/BgrUHPKNdijzpEhF1saPQZHVKb6m5loSAxB39gyrTYw34Qf9CQ3u1qQ==}
     engines: {node: '>=6.0.0'}
@@ -2604,6 +2629,10 @@ packages:
 
   blake3-wasm@2.1.5:
     resolution: {integrity: sha512-F1+K8EbfOZE49dtoPtmxUQrpXaBIl3ICvasLh+nJta0xkz+9kF/7uet9fLnwKqhDrmj6g+6K3Tw9yQPUg2ka5g==}
+
+  brace-expansion@5.0.12:
+    resolution: {integrity: sha512-YovQ3rzhaLMIrDjNDMkNS01tea93qhEhG5xy8f6+R0l+dw3Ki+5sCoIoI942iuLZTHWogWktgwVDhU09iNEimQ==}
+    engines: {node: 20 || >=22}
 
   braces@3.0.3:
     resolution: {integrity: sha512-yQbXgO/OSZVD2IsiLlro+7Hf6Q18EJrKSEsdoMzKePKXct3gvD8oLcOQdIzGupr5Fj+EDe8gO/lxc1BzfMpxvA==}
@@ -2942,6 +2971,10 @@ packages:
     resolution: {integrity: sha512-eKCa6bwnJhvxj14kZk5NCPc6Hb6BdsU9DZcOnmQKSnO1VKrfV0zCvtttPZUsBvjmNDn8rpcJfpwSYnHBjc95MQ==}
     engines: {node: '>=18.18.0'}
 
+  ignore@5.3.2:
+    resolution: {integrity: sha512-hsBTNUqQTDwkWtcdYI2i06Y/nUBEsNEDJKjWdigLvegy8kDuJAS8uRlpkkcQpyEXL0Z/pjDy5HBmMjRCJ2gq+g==}
+    engines: {node: '>= 4'}
+
   import-meta-resolve@4.2.0:
     resolution: {integrity: sha512-Iqv2fzaTQN28s/FwZAoFq0ZSs/7hMAHJVX+w8PZl3cY19Pxk6jFFalxQoIfW2826i/fDLXv8IiEZRIT0lDuWcg==}
 
@@ -3153,6 +3186,10 @@ packages:
   miniflare@5.20261103.0-beta:
     resolution: {integrity: sha512-wghSXG3KHzMbAYvcrHFxN6JNI1Or3LSxpBe1qHdnFXFOPIDIlXCNvsRVF2J97rXsfFSJr7EzxRSjoUCmgVDEUA==}
     engines: {node: '>=22.0.0'}
+
+  minimatch@10.2.6:
+    resolution: {integrity: sha512-vpLQEs+VLCr1nU0BXS07maYoFwlDAH0gngQuuttxIwutDFEMHq2blX+8vpgxDdK3J1PwjCJiep77OitTZ4Ll1A==}
+    engines: {node: 18 || 20 || >=22}
 
   mlly@1.8.2:
     resolution: {integrity: sha512-d+ObxMQFmbt10sretNDytwt85VrbkhhUA/JBGm1MPaWJ65Cl4wOgLaB1NYvJSZ0Ef03MMEU/0xpPMXUIQ29UfA==}
@@ -4932,6 +4969,12 @@ snapshots:
 
   '@rivi-software/cloudflare-deploy@0.3.0': {}
 
+  '@rivi-software/d1-migrations@0.1.1(wrangler@4.157.0(@types/node@26.6.6))':
+    dependencies:
+      minimatch: 10.2.6
+    optionalDependencies:
+      wrangler: 4.157.0(@types/node@26.6.6)
+
   '@rivi-software/deploy-watch@0.7.0(react@19.3.1)(vite@8.3.5(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1))':
     optionalDependencies:
       react: 19.3.1
@@ -4946,6 +4989,11 @@ snapshots:
       '@tanstack/react-start': 1.169.4(esbuild@0.28.2)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(rolldown@1.2.16)(rollup@4.67.5)(supports-color@10.2.2)(vite@8.3.5(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1))
       posthog-js: 1.445.4(@types/react@19.3.0)(react@19.3.1)
       vite: 8.3.5(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1)
+
+  '@rivi-software/workers-bundle-check@0.1.1':
+    dependencies:
+      ignore: 5.3.2
+      minimatch: 10.2.6
 
   '@rivi-software/workers-mail@0.1.1(ai@7.0.163(zod@4.6.7))(react-dom@19.3.1(react@19.3.1))(react@19.3.1)':
     dependencies:
@@ -5566,6 +5614,8 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
+  balanced-match@4.0.4: {}
+
   baseline-browser-mapping@2.11.35: {}
 
   better-auth@1.7.18(@opentelemetry/api@1.10.0)(@tanstack/react-start@1.169.4(esbuild@0.28.2)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(rolldown@1.2.16)(rollup@4.67.5)(supports-color@10.2.2)(vite@8.3.5(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1)))(drizzle-kit@0.31.11)(drizzle-orm@0.45.4(@opentelemetry/api@1.10.0)(kysely@0.29.8))(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(vitest@5.1.0(@opentelemetry/api@1.10.0)(@types/node@26.6.6)(vite@8.3.5(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1))):
@@ -5607,6 +5657,10 @@ snapshots:
       zod: 4.6.7
 
   blake3-wasm@2.1.5: {}
+
+  brace-expansion@5.0.12:
+    dependencies:
+      balanced-match: 4.0.4
 
   braces@3.0.3:
     dependencies:
@@ -5875,6 +5929,8 @@ snapshots:
 
   human-signals@8.0.1: {}
 
+  ignore@5.3.2: {}
+
   import-meta-resolve@4.2.0: {}
 
   is-extglob@2.1.1: {}
@@ -6054,6 +6110,10 @@ snapshots:
       - '@types/node'
       - bufferutil
       - utf-8-validate
+
+  minimatch@10.2.6:
+    dependencies:
+      brace-expansion: 5.0.12
 
   mlly@1.8.2:
     dependencies:

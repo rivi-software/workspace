@@ -68,7 +68,7 @@ const conversation = async (user: User, subject: string) => {
   );
 
   await sendMail(mailEnv, db, user, {
-    from: { email: user.email, name: user.name },
+    from: user.email,
     to: [{ email: "jane@wavelength.fm", name: "Jane Wave" }],
     cc: [],
     bcc: [{ email: "secret@elsewhere.org", name: null }],

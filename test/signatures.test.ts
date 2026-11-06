@@ -409,7 +409,7 @@ describe("HTML signatures", () => {
     const { sent, env: testEnv } = recordingEmail();
 
     const { messageId } = await sendMail(testEnv, db, user, {
-      from: { email: user.email, name: user.name },
+      from: user.email,
       to: [{ email: "jane@acme.com", name: null }],
       cc: [],
       bcc: [],
@@ -493,7 +493,7 @@ describe("HTML signatures", () => {
 
     const { sent, env: testEnv } = recordingEmail();
     await sendMail(testEnv, db, user, {
-      from: { email: user.email, name: user.name },
+      from: user.email,
       to: [{ email: "jane@acme.com", name: null }],
       cc: [],
       bcc: [],

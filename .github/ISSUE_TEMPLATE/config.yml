@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Report a vulnerability
+    url: https://github.com/rivi-software/workspace/security/policy
+    about: Privately, as the security policy says; never in a public issue.
