@@ -1,0 +1,41 @@
+name: Feature request
+description: Something new, or a change to what the workspace does
+type: Feature
+body:
+  - type: dropdown
+    id: module
+    attributes:
+      label: Where
+      options:
+        - Mail
+        - Drive
+        - Signing
+        - Assistant
+        - Calendar
+        - Tasks
+        - Sign-in and accounts
+        - Workspace API
+        - Setup and deploy
+        - Something new
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: The problem
+      description: What you are trying to do, and what gets in the way today.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What you propose
+      description: The change you have in mind. A sketch of the page or the request helps.
+  - type: dropdown
+    id: contribute
+    attributes:
+      label: Would you write the pull request?
+      options:
+        - Yes, once we agree on the approach
+        - Yes, with some help
+        - No

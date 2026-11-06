@@ -13,6 +13,9 @@ concurrency:
   group: deploy-production
   cancel-in-progress: false
 
+permissions:
+  contents: read
+
 jobs:
   deploy:
     name: Deploy to production
@@ -25,11 +28,13 @@ jobs:
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
       WRANGLER_SEND_METRICS: "false"
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
-      - uses: pnpm/action-setup@v6
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
 
-      - uses: actions/setup-node@v7
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: .node-version
           cache: pnpm
@@ -39,6 +44,11 @@ jobs:
       # The production build: dist/server/wrangler.json, which the steps below deploy.
       - run: pnpm run build
 
+      # Before anything reaches Cloudflare: a run on main only (a manual run can pick any branch), no placeholder D1 or
+      # KV id left from wrangler.jsonc, and nothing in the build it must not carry (workers-bundle-check.config.ts).
+      - run: node scripts/deploy-checks.mjs before
+      - run: pnpm exec workers-bundle-check
+
       # The D1 migrations first, so the Worker that follows finds its schema.
       - run: pnpm run db:migrate:remote
 
@@ -47,3 +57,6 @@ jobs:
       - run: pnpm run deploy:assets
 
       - run: pnpm exec wrangler deploy
+
+      # APP_URL answers /api/health, within about a minute: a custom domain takes a few seconds to roll over.
+      - run: node scripts/deploy-checks.mjs after

@@ -1,0 +1,39 @@
+# What RIVI Bot does here (.github/workflows/rivi-bot.yml), read from main: a change to this file takes effect once it
+# merges. The settings and their defaults: https://github.com/rivi-software/tools/tree/main/rivi-bot#configuration
+
+# Every pull request by someone with write access, and any other once a maintainer adds `rivi-bot:review`. The review
+# reads AGENTS.md and CONTRIBUTING.md; `focus` is what costs most here when it slips through.
+review:
+  focus: |
+    - Access: Drive is reached only through app/lib/drive/access.server.ts (reachAll, reach, reachFile, openLink); a
+      read of drive_shares, a node or a file that skips it is a finding. So is a Workspace API route that answers what
+      the console's own loader would not.
+    - Mail HTML: a message's HTML is shown only inside HtmlMessage's sandboxed frame, and sanitizeHtml's output stays
+      canonical (test/sanitize.test.ts). Anything that renders a message's markup elsewhere, or loosens the frame's
+      sandbox or CSP, is a finding.
+    - Secrets in URLs: Workers Logs keep every request's full URL, so a token in a query string is a finding; a one-time
+      link carries its token in the fragment.
+    - D1: a query binds at most 100 values, so a list of ids that can reach 100 goes through json_each or in slices,
+      never inArray or a multi-row values.
+    - Migrations: a schema change is app/db/schema.ts plus a generated file under migrations/ and its meta snapshot; a
+      recorded migration never changes (migrations/JOURNAL.json); an added REFERENCES needs its ON DELETE by hand; a
+      dropped column takes two releases.
+
+# On request only: `@rivi-bot describe`, `@rivi-bot triage`, or a question or a fix in plain words.
+describe:
+  enabled: true
+  auto: "off"
+
+triage:
+  enabled: true
+  auto: "off"
+
+fix:
+  enabled: true
+  instructions: |
+    Never edit a file under migrations/: a schema change is made in app/db/schema.ts and generated with
+    `pnpm run db:generate`, which the fix cannot run, so leave such a finding for the author. Keep AGENTS.md,
+    docs/API.md and docs/ARCHITECTURE.md true to what the fix changes.
+
+ask:
+  enabled: true

@@ -1,0 +1,64 @@
+# Semgrep on every pull request: what the pull request adds over its base, as one comment that
+# `@rivi-software/semgrep-github-report` keeps up to date (and says so once the findings are gone). A pull request from
+# a fork has a read-only token, so its findings go in the job summary instead. Run by hand, it scans the whole
+# repository into the job summary. It never fails the check over a finding: Semgrep exits 0 with findings, and only
+# a scan that breaks fails the step.
+#
+# The rules are the Semgrep Registry's default, TypeScript and React packs, with Semgrep's metrics off (`--config auto`
+# would need them on). No Semgrep account or token.
+name: Semgrep
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# A newer run on the same pull request cancels the older, so two runs never write the comment at once.
+concurrency:
+  group: semgrep-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  semgrep:
+    name: Semgrep
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      pull-requests: write # the findings comment
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0 # --baseline-commit needs the base branch's history
+          persist-credentials: false
+
+      - name: Install Semgrep
+        run: |
+          python3 -m venv "$RUNNER_TEMP/semgrep"
+          "$RUNNER_TEMP/semgrep/bin/pip" install semgrep==1.178.0
+          echo "$RUNNER_TEMP/semgrep/bin" >> "$GITHUB_PATH"
+
+      # A pull request's scan reports only what it adds over its base.
+      - name: Scan
+        env:
+          BASELINE: ${{ github.event.pull_request.base.sha }}
+        run: |
+          args=(--config p/default --config p/typescript --config p/react --metrics off --json --output semgrep-findings.json)
+          if [ -n "$BASELINE" ]; then args+=(--baseline-commit "$BASELINE"); fi
+          semgrep scan "${args[@]}"
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .node-version
+
+      - name: Comment the findings on the pull request
+        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: npx --yes @rivi-software/semgrep-github-report@0.1.1 --mode pr --findings semgrep-findings.json
+
+      - name: List the findings in the job summary
+        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.repository
+        run: npx --yes @rivi-software/semgrep-github-report@0.1.1 --mode summary --findings semgrep-findings.json

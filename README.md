@@ -194,17 +194,17 @@ Optional. With `POSTHOG_PROJECT_TOKEN` and `POSTHOG_HOST` set in `wrangler.jsonc
 | --- | --- |
 | `pnpm run dev` | `wrangler types`, then the Vite dev server on http://localhost:5174 with every binding in Miniflare. |
 | `pnpm run build` | `wrangler types`, then the production build into `dist/`. |
-| `pnpm run build:check` | `wrangler deploy --dry-run` of the build. |
+| `pnpm run build:check` | `wrangler deploy --dry-run` of the build, then `workers-bundle-check`: no source map the assets would serve, no value shaped like a secret, no forbidden marker in the Worker (`workers-bundle-check.config.ts`). |
 | `pnpm run preview` | The build, served by `vite preview`. |
 | `pnpm run check` | `wrangler types`, then the TypeScript project build (`tsc -b`). |
 | `pnpm run lint`, `pnpm run fix` | Oxlint; the autofixes. |
 | `pnpm run format`, `pnpm run format:check` | Oxfmt; the check CI runs. |
-| `pnpm run contracts:check` | Fails when `migrations/` does not match `app/db/schema.ts`. |
+| `pnpm run contracts:check` | Fails when `migrations/` does not match `app/db/schema.ts`, or a recorded migration no longer matches its hash in `migrations/JOURNAL.json`. |
 | `pnpm run verify:static` | `check`, `lint`, `contracts:check` and `format:check`. |
 | `pnpm run verify` | `verify:static`, then `test`, `build` and `build:check`: the full gate. |
 | `pnpm run test` | Vitest inside workerd, with the migrations applied to a fresh database. |
 | `pnpm run types` | `wrangler types` alone (`worker-configuration.d.ts`). |
-| `pnpm run db:generate` | A new migration from `app/db/schema.ts` (drizzle-kit). |
+| `pnpm run db:generate` | A new migration from `app/db/schema.ts` (drizzle-kit), recorded in `migrations/JOURNAL.json`. |
 | `pnpm run db:migrate`, `pnpm run db:migrate:remote` | Apply the migrations to the local, or the remote, D1 database. |
 | `pnpm run db:seed` | The seed (`seed/seed.sql`, rendered with a real password hash) into the local database. |
 | `pnpm run db:reset` | Drop the local state, migrate and seed again. |
@@ -220,12 +220,15 @@ Optional. With `POSTHOG_PROJECT_TOKEN` and `POSTHOG_HOST` set in `wrangler.jsonc
 
 ## CI
 
-Two GitHub Actions workflows:
+GitHub Actions workflows:
 
-- **CI** (`.github/workflows/ci.yml`), on every pull request and push to `main`: `pnpm install --frozen-lockfile`, `pnpm run verify:static`, `pnpm run test`, `pnpm run build` and `pnpm run build:check`; then a smoke job that migrates and seeds a local database, serves the build with `wrangler dev --local` and runs `pnpm run smoke` against it. Nothing in it reaches Cloudflare.
-- **Deploy** (`.github/workflows/deploy.yml`), on a push to `main` and by hand from the Actions tab: install, build, `pnpm run db:migrate:remote`, `pnpm run deploy:assets`, `wrangler deploy`. It runs only while the repository variable `DEPLOYMENTS_ENABLED` is `true`, in the `production` environment, with the secrets `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`. The token needs **Workers Scripts: Edit**, **D1: Edit**, **Workers KV Storage: Edit**, **Workers R2 Storage: Edit**, **Email Routing Addresses: Edit** on the account and **Email Routing Rules: Edit** on the zone (and, for a custom domain, **Workers Routes: Edit** and **DNS: Edit** on it).
+- **CI** (`.github/workflows/ci.yml`), on every pull request and push to `main`: `pnpm install --frozen-lockfile`, `pnpm run verify:static`, `pnpm run test`, `pnpm run build` and `pnpm run build:check` (with the bundle check); then a smoke job that migrates and seeds a local database, serves the build with `wrangler dev --local` and runs `pnpm run smoke` against it. Nothing in it reaches Cloudflare.
+- **Deploy** (`.github/workflows/deploy.yml`), on a push to `main` and by hand from the Actions tab: install, build, the guards (`scripts/deploy-checks.mjs before`: a run on `main` only, no placeholder id left in `wrangler.jsonc`; and the bundle check), `pnpm run db:migrate:remote`, `pnpm run deploy:assets`, `wrangler deploy`, then `scripts/deploy-checks.mjs after`, which waits for `APP_URL` to answer `/api/health`. It runs only while the repository variable `DEPLOYMENTS_ENABLED` is `true`, in the `production` environment, with the secrets `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`. The token needs **Workers Scripts: Edit**, **D1: Edit**, **Workers KV Storage: Edit**, **Workers R2 Storage: Edit**, **Email Routing Addresses: Edit** on the account and **Email Routing Rules: Edit** on the zone (and, for a custom domain, **Workers Routes: Edit** and **DNS: Edit** on it).
 
-`.github/dependabot.yml` asks for weekly updates of the npm packages and the actions.
+- **Semgrep** (`.github/workflows/semgrep.yml`), on every pull request: the Semgrep Registry's default, TypeScript and React rules, metrics off, on what the pull request adds; [`@rivi-software/semgrep-github-report`](https://github.com/rivi-software/tools/tree/main/packages/semgrep-github-report#readme) keeps one comment with the findings up to date (the job summary for a pull request from a fork). Findings never fail the check. Run it by hand for a scan of the whole repository.
+- **rivi-bot** (`.github/workflows/rivi-bot.yml`): [RIVI Bot](https://github.com/rivi-software/tools/tree/main/rivi-bot#readme) reviews a pull request by someone with write access when it opens and after every push, and any other once a maintainer adds the `rivi-bot:review` label; someone with write access asks it to describe, triage, fix or answer with a comment to `@rivi-bot`. `.github/rivi-bot.yml` on `main` says what it does. It needs the secret `ANTHROPIC_REVIEW_API_KEY`, and posts as the organisation's App with the variable `AUTOMATION_APP_CLIENT_ID` and the secret `AUTOMATION_APP_PRIVATE_KEY` (else as `github-actions`). It runs in `rivi-software/workspace` only: a fork that wants it names itself in the job's `if` and adds the secrets.
+
+`.github/dependabot.yml` asks for weekly updates of the npm packages and the actions (pinned by commit), each release once it is a week old; minor and patch updates come grouped, a major on its own.
 
 ## Architecture
 
