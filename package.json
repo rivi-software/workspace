@@ -127,7 +127,7 @@
         "description": "What the pages, the mails and the passkeys call the workspace."
       },
       "APP_URL": {
-        "description": "The workspace's address: the project name above on your subdomain (on **Workers & Pages**), such as `https://rivi-workspace.your-subdomain.workers.dev`, or a custom domain. Sign-in and passkeys work at this address only."
+        "description": "The workspace's address, with `https://`: the project name above on your subdomain (the subdomain is on **Workers & Pages**), or a custom domain. Sign-in and passkeys work at this address only."
       },
       "MAIL_DOMAIN": {
         "description": "The domain every mailbox is an address on, such as `example.com`. It must be a zone on this account; onboard it in **Email Routing** and **Email Sending** after the deploy."
