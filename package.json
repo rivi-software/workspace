@@ -21,17 +21,17 @@
     "test": "vitest run",
     "types": "wrangler types",
     "db:generate": "drizzle-kit generate && d1-migrations journal",
-    "db:migrate": "wrangler d1 migrations apply workspace-db --local",
-    "db:migrate:remote": "wrangler d1 migrations apply workspace-db --remote",
-    "db:seed": "node scripts/build-seed.mjs && wrangler d1 execute workspace-db --local --file=./seed/seed.generated.sql",
+    "db:migrate": "wrangler d1 migrations apply DB --local",
+    "db:migrate:remote": "wrangler d1 migrations apply DB --remote",
+    "db:seed": "node scripts/build-seed.mjs && wrangler d1 execute DB --local --file=./seed/seed.generated.sql",
     "db:reset": "rm -rf .wrangler/state && pnpm run db:migrate && pnpm run db:seed",
     "setup": "pnpm run db:migrate && pnpm run db:seed",
     "admin:create": "node scripts/create-admin.mjs",
     "smoke": "node scripts/smoke.mjs",
     "email:simulate": "node scripts/simulate-inbound-email.mjs",
     "deploy:assets": "cloudflare-retain-assets --config dist/server/wrangler.json",
-    "deploy": "pnpm run db:migrate:remote && wrangler deploy",
-    "deploy:production": "pnpm run db:migrate:remote && pnpm run deploy:assets && wrangler deploy",
+    "deploy": "pnpm run db:migrate:remote && pnpm run deploy:assets && wrangler deploy",
+    "deploy:production": "pnpm run deploy",
     "deploy:production:dry-run": "wrangler deploy --dry-run",
     "clean": "rm -rf dist .wrangler/deploy worker-configuration.d.ts tsconfig.node.tsbuildinfo tsconfig.cloudflare.tsbuildinfo seed/seed.generated.sql"
   },
@@ -87,5 +87,72 @@
   "engines": {
     "node": ">=24.2",
     "pnpm": ">=12"
+  },
+  "cloudflare": {
+    "bindings": {
+      "DB": {
+        "description": "The database: mailboxes, conversations, Drive's folders, calendars, tasks and sign-in."
+      },
+      "KV": {
+        "description": "Throttles, the vacation responder and other small state. Name it `workspace-kv`: the two namespaces need different names."
+      },
+      "PREVIOUS_ASSETS": {
+        "description": "An earlier build's files for seven days, so a tab left open survives a deploy. Name it `workspace-previous-assets`."
+      },
+      "MAIL": {
+        "description": "Every message as it arrived (`.eml`) and every attachment."
+      },
+      "DRIVE": {
+        "description": "The files in Drive, and the original and signed copy of every signing request."
+      },
+      "SESSION_SECRET": {
+        "description": "**Required.** Signs the session cookies, the file links and every sealed value. Paste the output of `openssl rand -base64 48`; changing it later signs everyone out."
+      },
+      "MICROSOFT_CLIENT_ID": {
+        "description": "Optional, for the [Microsoft 365 import](https://github.com/rivi-software/workspace#microsoft-365-import): the Entra application's client id. Leave empty to keep the import off."
+      },
+      "MICROSOFT_CLIENT_SECRET": {
+        "description": "Optional, for the Microsoft 365 import: the Entra application's client secret."
+      },
+      "MICROSOFT_TENANT_ID": {
+        "description": "Optional, for the Microsoft 365 import: the directory (tenant) id. Empty lets any work account connect."
+      },
+      "SES_ACCESS_KEY_ID": {
+        "description": "Optional, to send through [Amazon SES](https://github.com/rivi-software/workspace#amazon-ses): the IAM user's access key id. Leave empty to send through Cloudflare Email Sending."
+      },
+      "SES_SECRET_ACCESS_KEY": {
+        "description": "Optional, for Amazon SES: the IAM user's secret access key."
+      },
+      "APP_NAME": {
+        "description": "What the pages, the mails and the passkeys call the workspace."
+      },
+      "APP_URL": {
+        "description": "The workspace's address, with `https://`: the project name above on your subdomain (the subdomain is on **Workers & Pages**), or a custom domain. Sign-in and passkeys work at this address only."
+      },
+      "MAIL_DOMAIN": {
+        "description": "The domain every mailbox is an address on, such as `example.com`. It must be a zone on this account; onboard it in **Email Routing** and **Email Sending** after the deploy."
+      },
+      "SES_REGION": {
+        "description": "Amazon SES's region, used only once the two SES secrets are set."
+      },
+      "AI_PROVIDER": {
+        "description": "The Assistant's model: `workers-ai` (Workers AI through AI Gateway), `anthropic` (Claude through AI Gateway, which holds the key) or `mock` (no model)."
+      },
+      "AI_GATEWAY_ID": {
+        "description": "The AI Gateway the Assistant calls through. `default` is created on the first call."
+      },
+      "AI_CHAT_MODEL": {
+        "description": "The model `workers-ai` runs."
+      },
+      "AI_TEXT_ANALYTICS": {
+        "description": "`on` sends the Assistant's prompts and answers to PostHog beside the counts; anything else sends counts only."
+      },
+      "POSTHOG_PROJECT_TOKEN": {
+        "description": "Optional: a PostHog project token for error tracking. Empty keeps PostHog off."
+      },
+      "POSTHOG_HOST": {
+        "description": "PostHog's ingestion host, used only with a project token."
+      }
+    }
   }
 }

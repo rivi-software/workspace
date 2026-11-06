@@ -102,7 +102,7 @@ const res = spawnSync(
     "wrangler",
     "d1",
     "execute",
-    "workspace-db",
+    "DB",
     remote ? "--remote" : "--local",
     "--command",
     sql,

@@ -8,8 +8,9 @@
   // Workers Logs and traces in the Cloudflare dashboard. Workers Logs keep every request's full URL, query included.
   "observability": { "enabled": true },
 
-  // Public, non-secret configuration. Secrets live in .dev.vars / `wrangler secret put` (README, Deploy).
-  // Local development overrides any of these in .dev.vars (see .dev.vars.example).
+  // Public, non-secret configuration. The secrets are named in .dev.vars.example and set with `wrangler secret put`
+  // or the Deploy to Cloudflare button (README, Deploy). Local development overrides any of these in .dev.vars (see
+  // .dev.vars.local.example).
   "vars": {
     "APP_NAME": "Workspace",
     // Where the workspace runs: the origin of every link in a mail, the relying party of every passkey and the
@@ -37,7 +38,7 @@
     "AI_TEXT_ANALYTICS": "off",
     // PostHog, optional: error tracking (app/lib/posthog-config.ts) and, from the Worker alone, the Assistant's AI
     // observability. The project token is public (the browser SDK ships it). Leave the token empty to keep PostHog
-    // off, as .dev.vars.example does for local development.
+    // off, as .dev.vars.local.example does for local development.
     "POSTHOG_PROJECT_TOKEN": "",
     "POSTHOG_HOST": "https://eu.i.posthog.com"
   },
@@ -71,7 +72,8 @@
   // creates. Nothing to make beforehand; the binding is free until a model is called.
   "ai": { "binding": "AI" },
 
-  // The database: `wrangler d1 create workspace-db` once, then paste its id here (README, Deploy).
+  // The database: `wrangler d1 create workspace-db` once, then paste its id here (README, Deploy); the Deploy to
+  // Cloudflare button makes it and writes the id itself. The scripts name it by its binding, DB, never by this name.
   "d1_databases": [
     {
       "binding": "DB",

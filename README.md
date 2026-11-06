@@ -18,6 +18,10 @@
 </p>
 
 <p align="center">
+  <a href="https://deploy.workers.cloudflare.com/?url=https://github.com/rivi-software/workspace"><img src="https://deploy.workers.cloudflare.com/button" alt="Deploy to Cloudflare"></a>
+</p>
+
+<p align="center">
   <a href="#run-locally">Run locally</a>
   ·
   <a href="#deploy">Deploy</a>
@@ -135,7 +139,7 @@ Sign-in runs on [Better Auth](https://www.better-auth.com) (`app/lib/auth.server
 Node 24 and pnpm 12 (`corepack enable` installs the pinned version).
 
 ```sh
-cp .dev.vars.example .dev.vars   # example.com mailboxes, a dev session secret, the mock Assistant, PostHog off
+cp .dev.vars.local.example .dev.vars   # example.com mailboxes, a dev session secret, the mock Assistant, PostHog off
 pnpm install
 pnpm run setup                   # the local D1 migrations and the seed
 pnpm run dev                     # http://localhost:5174
@@ -151,7 +155,27 @@ The seed has two accounts, **admin@example.com** and **sam@example.com**, both w
 
 ## Deploy
 
-The tested path is the command line below. Once your fork is on GitHub you can also add Cloudflare's [Deploy to Cloudflare button](https://developers.cloudflare.com/workers/platform/deploy-buttons/), which creates the Worker and the resources named in `wrangler.jsonc` from the repository; the mail domain, the secrets and the first admin still take steps 4 to 7.
+With the button, or from the command line. Either way the mail domain and the first admin take a step of their own afterwards.
+
+### Deploy to Cloudflare
+
+[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/rivi-software/workspace)
+
+The [button](https://developers.cloudflare.com/workers/platform/deploy-buttons/) copies this repository to your GitHub or GitLab account, creates the database, the two KV namespaces and the two buckets, writes their ids into the copy's `wrangler.jsonc`, builds and deploys the Worker, and deploys again on every push to the copy (Workers Builds). Its page asks for:
+
+| Field | What to enter |
+| --- | --- |
+| Git account, project name | Where the copy goes, and the Worker's name. |
+| The KV namespaces | Different names for the two: `workspace-kv` for `KV` and `workspace-previous-assets` for `PREVIOUS_ASSETS`. |
+| The database and the buckets | The names it suggests, unless the account already runs a workspace: then it selects that workspace's `workspace-db`, `workspace-mail` and `workspace-drive`, and a second workspace needs **new** ones of its own. |
+| `SESSION_SECRET` | The output of `openssl rand -base64 48`. The other secrets stay empty unless you send through [Amazon SES](#amazon-ses) or use the [Microsoft 365 import](#microsoft-365-import). |
+| `APP_URL` | The Worker's address: `https://<project name>.<your subdomain>.workers.dev` (the subdomain is on **Workers & Pages**), or a custom domain. |
+| `MAIL_DOMAIN` | The domain the mailboxes are on; it must be a zone on the same account. The other variables are in the table of step 3 below. |
+| Build and deploy commands | Keep `pnpm run build` and `pnpm run deploy` (step 6 below says what it does), and turn **preview builds** off: the workspace runs at one address, `APP_URL`. |
+
+Then clone the copy, run `pnpm install` and `wrangler login`, and continue with the mail domain (step 4 below) and the first admin (step 7). A later change to `wrangler.jsonc` in the copy, such as `addresses` or a custom domain in `routes`, deploys with the push that makes it.
+
+### From the command line
 
 1. `wrangler login` (an account with Workers, D1, KV, R2 and Email Routing).
 2. Create the resources and paste their ids into `wrangler.jsonc` (`database_id`, the two KV `id`s; the buckets are bound by name):
@@ -192,7 +216,7 @@ The tested path is the command line below. Once your fork is on GitHub you can a
 
    `AI_PROVIDER=anthropic` needs no secret in the Worker: the AI Gateway holds the Anthropic key (BYOK, in the gateway's settings).
 
-6. `pnpm run deploy`: the D1 migrations on the remote database, then `wrangler deploy`. `pnpm run deploy:production` also copies the build's client files into the `PREVIOUS_ASSETS` namespace first, so a tab open on an earlier build can still load its chunks for seven days (`@rivi-software/cloudflare-deploy`).
+6. `pnpm run build`, then `pnpm run deploy`: the D1 migrations on the remote database, the build's client files into the `PREVIOUS_ASSETS` namespace, so a tab open on an earlier build can still load its chunks for seven days (`@rivi-software/cloudflare-deploy`), then `wrangler deploy`. Workers Builds runs the same two commands for a deploy made with the button.
 7. The first admin: `pnpm run admin:create --remote --email you@<MAIL_DOMAIN> --name "You"` prints a one-time password. Sign in, change it under Settings → Account, then add the team under Settings → People. The same command resets a locked-out admin (a new password, every session ended, the authenticator app reset).
 
 ### Email Routing
@@ -221,7 +245,7 @@ Settings → Mail → Import then shows **Connect Microsoft 365**.
 
 ### PostHog
 
-Optional. With `POSTHOG_PROJECT_TOKEN` and `POSTHOG_HOST` set in `wrangler.jsonc`, the browser reports errors only (no autocapture, pageviews, replay or heatmaps: a page here shows a person's mail), through [`@rivi-software/posthog-tanstack-start`](https://github.com/rivi-software/tools/tree/main/packages/posthog-tanstack-start#readme), with every address stripped of its query and fragment. The Worker reports server errors, and the Assistant's calls to PostHog AI observability (`app/lib/ai-telemetry/`): a turn is a trace on the person, each step a generation and each tool a span, with the prompts and answers only when `AI_TEXT_ANALYTICS` is `on`. Set `POSTHOG_PERSONAL_API_KEY` in the build's environment to upload source maps. An empty token keeps all of it off, as `.dev.vars.example` does for local development and CI.
+Optional. With `POSTHOG_PROJECT_TOKEN` and `POSTHOG_HOST` set in `wrangler.jsonc`, the browser reports errors only (no autocapture, pageviews, replay or heatmaps: a page here shows a person's mail), through [`@rivi-software/posthog-tanstack-start`](https://github.com/rivi-software/tools/tree/main/packages/posthog-tanstack-start#readme), with every address stripped of its query and fragment. The Worker reports server errors, and the Assistant's calls to PostHog AI observability (`app/lib/ai-telemetry/`): a turn is a trace on the person, each step a generation and each tool a span, with the prompts and answers only when `AI_TEXT_ANALYTICS` is `on`. Set `POSTHOG_PERSONAL_API_KEY` in the build's environment to upload source maps. An empty token keeps all of it off, as `.dev.vars.local.example` does for local development and CI.
 
 ## Commands
 
@@ -247,9 +271,9 @@ Optional. With `POSTHOG_PROJECT_TOKEN` and `POSTHOG_HOST` set in `wrangler.jsonc
 | `pnpm run admin:create` | Create or reset an admin: `--remote` or `--local`, `--email`, `--name`, optionally `--password` (12+ characters; else one is generated and printed). |
 | `pnpm run smoke` | The end-to-end smoke test against a running server (`BASE_URL`). |
 | `pnpm run email:simulate` | Deliver an inbound message to the dev server (`"Subject" "Body"`, `TO=`, `FROM=`, `IN_REPLY_TO=`). |
-| `pnpm run deploy` | The remote migrations, then `wrangler deploy`. |
+| `pnpm run deploy` | The remote migrations, `deploy:assets`, then `wrangler deploy`, of the build `pnpm run build` made. |
 | `pnpm run deploy:assets` | Copy the build's client files into the `PREVIOUS_ASSETS` namespace. |
-| `pnpm run deploy:production` | The remote migrations, `deploy:assets`, then `wrangler deploy`. |
+| `pnpm run deploy:production` | The same as `deploy`. |
 | `pnpm run deploy:production:dry-run` | `wrangler deploy --dry-run`. |
 | `pnpm run clean` | Remove the build, the generated types and the rendered seed. |
 

@@ -1,25 +1,13 @@
-# Copy to .dev.vars for local development. Never commit .dev.vars.
-# Values here override the production `vars` in wrangler.jsonc while developing (and in CI).
-# Signs the session cookies (Better Auth), the file links and every sealed value: a long random string in
-# production (`openssl rand -base64 48`).
-SESSION_SECRET=dev-session-secret-change-me-and-make-it-long
-APP_NAME=Workspace
-APP_URL=http://localhost:5174
-# The seed's mailboxes are on example.com; Miniflare delivers mail for any address to email() and keeps sent mail on disk.
-MAIL_DOMAIN=example.com
-# Optional: importing a Microsoft 365 mailbox (README, Microsoft 365 import). The Entra application's client id and
-# secret, and its tenant id (empty: any work account). Its redirect URIs must include
-# http://localhost:5174/api/import/microsoft/callback for local development.
+# The Worker's secrets, and nothing else: the Deploy to Cloudflare button asks for every name in this file as a secret
+# (README, Deploy), with the description `cloudflare.bindings` in package.json gives it. On a Worker deployed from the
+# command line, `wrangler secret put <NAME>` sets each one. The public settings are `vars` in wrangler.jsonc; local
+# development copies .dev.vars.local.example to .dev.vars instead of this file.
+# Required. Signs the session cookies (Better Auth), the file links and every sealed value: `openssl rand -base64 48`.
+SESSION_SECRET=
+# Optional: importing a Microsoft 365 mailbox (README, Microsoft 365 import). Empty: the import is off.
 MICROSOFT_CLIENT_ID=
 MICROSOFT_CLIENT_SECRET=
 MICROSOFT_TENANT_ID=
-# Optional: Amazon SES (README, Amazon SES). Empty: mail goes through the EMAIL binding, which Miniflare writes to disk;
-# with a key, local dev sends real mail through SES.
+# Optional: Amazon SES (README, Amazon SES). Empty: mail goes out through Cloudflare Email Sending.
 SES_ACCESS_KEY_ID=
 SES_SECRET_ACCESS_KEY=
-# The Assistant's model: mock answers without a model (and calls its tools on "search my mail for …", "find files
-# named …", "read conversation th_…", "draft a reply to th_… saying …"); workers-ai or anthropic run the real one through
-# the AI binding, which needs `wrangler login`.
-AI_PROVIDER=mock
-# PostHog stays off locally and in CI. Set a project token to send local errors.
-POSTHOG_PROJECT_TOKEN=
