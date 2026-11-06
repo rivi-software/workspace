@@ -7,7 +7,7 @@ Thanks for helping. This page is the short version; [AGENTS.md](AGENTS.md) has t
 Node 24 (`.node-version`) and pnpm 12 (`packageManager` in `package.json`; `corepack enable` installs it).
 
 ```sh
-cp .dev.vars.example .dev.vars   # local settings: example.com mailboxes, the mock Assistant, no PostHog
+cp .dev.vars.local.example .dev.vars   # local settings: example.com mailboxes, the mock Assistant, no PostHog
 pnpm install
 pnpm run setup                   # the local D1 migrations and the seed
 pnpm run dev                     # http://localhost:5174, admin@example.com / password

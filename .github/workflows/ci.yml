@@ -39,7 +39,7 @@ jobs:
       - run: pnpm install --frozen-lockfile
 
       # Local settings: example.com mailboxes, the mock Assistant, PostHog off.
-      - run: cp .dev.vars.example .dev.vars
+      - run: cp .dev.vars.local.example .dev.vars
 
       # The typecheck, Oxlint, the check that migrations/ matches app/db/schema.ts and that no recorded migration
       # changed (migrations/JOURNAL.json), and Oxfmt.
@@ -70,7 +70,7 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
-      - run: cp .dev.vars.example .dev.vars
+      - run: cp .dev.vars.local.example .dev.vars
 
       # The build writes dist/server/wrangler.json and points Wrangler at it (.wrangler/deploy), so the
       # `wrangler dev` below serves the built Worker, not the sources.
