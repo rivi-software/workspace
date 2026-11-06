@@ -424,6 +424,16 @@ if (html.includes(mailbox)) {
   fail("the link's page shows the owner's address");
 }
 
+// The page's own forms name its origin only when it sends its referrer there: under `no-referrer` a browser without
+// `Sec-Fetch-Site` posts `Origin: null`, which the post check refuses (`sameOriginPost`).
+if (
+  !/<meta(?=[^>]*\bname="referrer")(?=[^>]*\bcontent="same-origin")[^>]*>/u.test(
+    html
+  )
+) {
+  fail("the link's page does not keep its referrer to its own origin");
+}
+
 r = await fetch(`${base}/s/${linkToken}/file/${fileId}`);
 
 if (!r.ok || (await r.text()) !== "hello drive") {

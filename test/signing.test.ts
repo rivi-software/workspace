@@ -1205,10 +1205,14 @@ describe("the customer's side", () => {
       // Only a person typing an address sends `none`; no form or script on a page does.
       await post({ "sec-fetch-site": "none" }),
       await post({ origin: "https://elsewhere.example" }),
+      // `null` is a sandboxed frame or a page with no referrer; this page sends its referrer to its own origin, so
+      // its forms always name it.
+      await post({ origin: "null" }),
       await post({ "sec-fetch-site": "same-origin" }),
       await post({ origin: appOrigin }),
       await post({}),
     ]).toStrictEqual([
+      { status: 403, location: null, mailed: 0 },
       { status: 403, location: null, mailed: 0 },
       { status: 403, location: null, mailed: 0 },
       { status: 403, location: null, mailed: 0 },

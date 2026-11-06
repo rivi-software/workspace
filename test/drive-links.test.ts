@@ -1155,6 +1155,9 @@ describe("invitations", () => {
           origin: "https://elsewhere.example",
         })
       ),
+      // `null` is a sandboxed frame or a page with no referrer; this page sends its referrer to its own origin, so
+      // its forms always name it.
+      answered(await post(invite, sendCodeForm, { origin: "null" })),
       // The page's own form, a browser before `Sec-Fetch-Site`, and a script that is no browser at all.
       answered(
         await post(invite, sendCodeForm, { "sec-fetch-site": "same-origin" })
@@ -1162,6 +1165,7 @@ describe("invitations", () => {
       answered(await post(invite, sendCodeForm, { origin })),
       answered(await post(locked, password, {})),
     ]).toStrictEqual([
+      { status: 403, location: null, pass: false, mailed: 1 },
       { status: 403, location: null, pass: false, mailed: 1 },
       { status: 403, location: null, pass: false, mailed: 1 },
       { status: 403, location: null, pass: false, mailed: 1 },
