@@ -110,15 +110,25 @@ export const PdfPages = ({
   }, []);
 
   useEffect(() => {
-    let live = true;
-    let destroy: (() => void) | null = null;
+    // Aborted when the file changes or the page goes: the drawing stops and pdf.js lets go of the document.
+    const drawing = new AbortController();
+    const { signal } = drawing;
     (async () => {
       try {
         const lib = await loadPdfJs();
+
+        if (signal.aborted) {
+          return;
+        }
+
         const task = lib.getDocument({ url: src });
-        destroy = () => {
-          task.destroy();
-        };
+        signal.addEventListener(
+          "abort",
+          () => {
+            task.destroy();
+          },
+          { once: true }
+        );
 
         const doc = await task.promise;
         const sizes: { number: number; width: number; height: number }[] = [];
@@ -134,7 +144,7 @@ export const PdfPages = ({
           });
         }
 
-        if (!live) {
+        if (signal.aborted) {
           return;
         }
 
@@ -144,7 +154,7 @@ export const PdfPages = ({
         await nextFrame();
 
         for (let i = 1; i <= doc.numPages; i += 1) {
-          if (!live) {
+          if (signal.aborted) {
             break;
           }
 
@@ -168,16 +178,13 @@ export const PdfPages = ({
           await page.render({ canvas, viewport }).promise;
         }
       } catch {
-        if (live) {
+        if (!signal.aborted) {
           setFailed(true);
         }
       }
     })();
 
-    return () => {
-      live = false;
-      destroy?.();
-    };
+    return () => drawing.abort();
   }, [src]);
 
   return (
