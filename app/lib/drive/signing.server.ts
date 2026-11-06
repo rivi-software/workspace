@@ -15,7 +15,7 @@ import type { SigningEvent, SigningRequest, User } from "~/db/schema";
  * it (themselves or a colleague) to sign it: they place the fields, fill in the workspace's texts and boxes, and send.
  * The PDF is copied for the request, so what is signed is what was sent. The request goes out from the person's own
  * mailbox (Mail's `sendAsPerson`) with a link under `/s/sign/`; the customer confirms their address with a one-time
- * code mailed there (as an invite does, `links.server.ts`), fills in their fields and signs, or declines. Then the
+ * code mailed there (`visitor.server.ts`, as an invite's), fills in their fields and signs, or declines. Then the
  * workspace signs: its signer, or, when the request was sent with `auto_sign`, the person who asked with their saved
  * signature (`hand_signatures`), at once. The signed copy (`signing-pdf.server.ts`: the fields drawn in, a
  * certificate page after the last) is kept with the request, filed in Drive beside the original and mailed to the
@@ -28,7 +28,6 @@ import type { SigningEvent, SigningRequest, User } from "~/db/schema";
 import { randomToken, sha256Hex } from "~/lib/crypto";
 import { defined, errorMessage } from "~/lib/guards";
 
-import { isSecure } from "../auth.server";
 import { newId } from "../ids";
 import { domainOf, isValidEmail } from "../mail/addresses";
 import { sendAsPerson } from "../mail/mail.server";
@@ -38,7 +37,7 @@ import { externalSharingOn } from "../workspace-settings.server";
 import { reachFile } from "./access.server";
 import { maskEmail } from "./drive";
 import { DriveError, finishUpload, startUpload } from "./drive.server";
-import { mailOut } from "./links.server";
+import { mailOut } from "./mail-out.server";
 import {
   MAX_MESSAGE,
   MAX_SIGNATURE_BASE64,
@@ -63,30 +62,23 @@ import {
   readSignablePdf,
   signedPdf,
 } from "./signing-pdf.server";
+import {
+  admit,
+  readPasses,
+  tooManyRequests,
+  visitorPost,
+} from "./visitor.server";
+import type { Visits } from "./visitor.server";
 
 export class SigningError extends Error {
   override name = "SigningError";
 }
 
-/** A code works this long, for this many tries; a request is mailed this many codes in an hour. */
-const CODE_TTL_MS = 10 * 60 * 1000;
-const CODE_ATTEMPTS = 5;
-const CODES_PER_HOUR = 5;
-
 /** Requests one person sends in an hour, and how soon a reminder may follow the last mail. */
 const REQUESTS_PER_HOUR = 20;
 const REMIND_AFTER_MS = 60 * 60 * 1000;
 
-/** Tokens that open nothing, from one client in `THROTTLE_SECONDS`, before it is refused outright. */
-const LOOKUP_MISSES = 30;
-const THROTTLE_SECONDS = 15 * 60;
-
-/** A pass (a code confirmed) lasts this long. */
-const PASS_TTL_SECONDS = 24 * 60 * 60;
-
 const SEAL_TOKEN = "signing-link";
-const SEAL_PASS = "signing-pass";
-const PASS_COOKIE = "sign_pass_";
 
 const log = (
   event: string,
@@ -94,9 +86,6 @@ const log = (
 ) => {
   console.log(JSON.stringify({ event, ...fields }));
 };
-
-/** What a customer's pass says: the request it opens and when it ends. */
-const passSchema = z.object({ r: z.string(), exp: z.number() });
 
 const notFound = () =>
   new Response("not found", {
@@ -1228,102 +1217,6 @@ export const signForRivi = async (
 
 /* ---------- the customer's side ---------- */
 
-const clientOf = (request: Request): string =>
-  request.headers.get("cf-connecting-ip") ?? "unknown";
-
-const counted = async (kv: KVNamespace, key: string): Promise<number> =>
-  Number((await kv.get(key)) ?? 0);
-
-/** The pass a customer carries once their code was right: sealed, naming its request, sent only under `/s/`. */
-const passCookie = async (
-  request: Request,
-  env: Env,
-  r: SigningRequest,
-  at: number
-) => {
-  const end = at + PASS_TTL_SECONDS * 1000;
-
-  const value = await sealSecret(
-    env,
-    SEAL_PASS,
-    JSON.stringify({ r: r.id, exp: end })
-  );
-
-  return `${PASS_COOKIE}${r.id}=${value}; Path=/s/; Max-Age=${PASS_TTL_SECONDS}; HttpOnly; SameSite=Lax${isSecure(request) ? "; Secure" : ""}`;
-};
-
-const hasPass = async (
-  request: Request,
-  env: Env,
-  r: SigningRequest,
-  at: number
-) => {
-  const name = `${PASS_COOKIE}${r.id}`;
-
-  for (const part of (request.headers.get("cookie") ?? "")
-    .split(";")
-    .slice(0, 50)) {
-    const [key, ...rest] = part.trim().split("=");
-
-    if (key !== name) {
-      continue;
-    }
-
-    // oxlint-disable-next-line eslint/no-await-in-loop -- a cookie that opens ends the walk
-    const opened = await openSecret(env, SEAL_PASS, rest.join("="));
-
-    if (!opened) {
-      continue;
-    }
-
-    try {
-      const pass = passSchema.safeParse(JSON.parse(opened));
-
-      if (pass.success && pass.data.r === r.id && pass.data.exp > at) {
-        return true;
-      }
-    } catch {
-      // not ours
-    }
-  }
-
-  return false;
-};
-
-/**
- * The request a token opens, throttled as a link's: a client whose tokens opened nothing `LOOKUP_MISSES` times in
- * `THROTTLE_SECONDS` is refused before any lookup. With whether the request carries the customer's pass.
- */
-const admitCustomer = async (
-  env: Env,
-  db: Database,
-  request: Request,
-  token: string,
-  at: number
-): Promise<{ r: SigningRequest; confirmed: boolean } | null | "throttled"> => {
-  const missKey = `signing:miss:${clientOf(request)}`;
-
-  if ((await counted(env.KV, missKey)) >= LOOKUP_MISSES) {
-    return "throttled";
-  }
-
-  const r = token
-    ? await db.query.signingRequests.findFirst({
-        where: eq(signingRequests.tokenHash, await sha256Hex(token)),
-      })
-    : undefined;
-
-  if (!r) {
-    await env.KV.put(missKey, String((await counted(env.KV, missKey)) + 1), {
-      expirationTtl: THROTTLE_SECONDS,
-    });
-
-    return null;
-  }
-
-  return { r, confirmed: await hasPass(request, env, r, at) };
-};
-
 /** Whether the customer may still open a request: while it is open, and for `SIGNING_DAYS` after it was signed. */
 const customerMayOpen = (r: SigningRequest, at: number): boolean => {
   const state = signingState(r, at);
@@ -1336,6 +1229,64 @@ const customerMayOpen = (r: SigningRequest, at: number): boolean => {
   }
 
   return state === "awaiting-customer" || state === "awaiting-rivi";
+};
+
+/**
+ * What a signing request brings to `visitor.server.ts`: the customer's code goes to their address and is recorded in
+ * the request's history, and their pass lasts its 24 hours.
+ */
+export const requestVisits: Visits<SigningRequest> = {
+  name: "signing",
+  pass: { seal: "signing-pass", cookie: "sign_pass_", field: "r" },
+  endsAt: () => null,
+  codeTo: (r) => r.customerEmail,
+  codeOpens: (r) => `"${r.name}" for signing`,
+  codeSent: (r, { db, request, at }) =>
+    record(
+      db,
+      r.id,
+      "code-sent",
+      customerOf(r),
+      request && originOf(request),
+      at
+    ),
+  confirmed: (r, { db, request, at }) =>
+    record(
+      db,
+      r.id,
+      "confirmed",
+      customerOf(r),
+      request && originOf(request),
+      at
+    ),
+};
+
+/**
+ * The request a token opens, under the visitor's lookup throttle (`admit`), with whether the request carries the
+ * customer's pass.
+ */
+const admitCustomer = async (
+  env: Env,
+  db: Database,
+  request: Request,
+  token: string,
+  at: number
+): Promise<{ r: SigningRequest; confirmed: boolean } | null | "throttled"> => {
+  const r = await admit(env, request, requestVisits, async () =>
+    token
+      ? ((await db.query.signingRequests.findFirst({
+          where: eq(signingRequests.tokenHash, await sha256Hex(token)),
+        })) ?? null)
+      : null
+  );
+
+  if (r === "throttled" || !r) {
+    return r;
+  }
+
+  const passes = await readPasses(request, env, requestVisits, at);
+
+  return { r, confirmed: passes.has(r.id) };
 };
 
 /** What `/s/sign/$token` shows. */
@@ -1445,13 +1396,7 @@ export const customerDocument = async (
   const admitted = await admitCustomer(env, db, request, token, at);
 
   if (admitted === "throttled") {
-    return new Response("too many requests", {
-      status: 429,
-      headers: {
-        "Retry-After": String(THROTTLE_SECONDS),
-        "Cache-Control": "no-store",
-      },
-    });
+    return tooManyRequests();
   }
 
   if (!admitted?.confirmed || !customerMayOpen(admitted.r, at)) {
@@ -1459,108 +1404,6 @@ export const customerDocument = async (
   }
 
   return (await pdfResponse(env, admitted.r, signed)) ?? notFound();
-};
-
-const codeHashOf = (r: SigningRequest, code: string) =>
-  sha256Hex(`${r.id}:${code}`);
-
-const sendCode = async (
-  env: Env,
-  db: Database,
-  r: SigningRequest,
-  origin: Origin,
-  at: number
-) => {
-  const key = `signing:codes:${r.id}`;
-  const sent = await counted(env.KV, key);
-
-  if (sent >= CODES_PER_HOUR) {
-    return false;
-  }
-
-  await env.KV.put(key, String(sent + 1), { expirationTtl: 3600 });
-
-  const [random = 0] = crypto.getRandomValues(new Uint32Array(1));
-  const code = String(random % 1_000_000).padStart(6, "0");
-
-  await db
-    .update(signingRequests)
-    .set({
-      codeHash: await codeHashOf(r, code),
-      codeExpiresAt: new Date(at + CODE_TTL_MS).toISOString(),
-      codeAttempts: 0,
-    })
-    .where(eq(signingRequests.id, r.id));
-  await mailOut(
-    env,
-    r.customerEmail,
-    env.APP_NAME,
-    `Your code: ${code}`,
-    [
-      `Your code to open "${r.name}" for signing: ${code}`,
-      "It works once, for 10 minutes. If you did not ask for it, you can ignore this mail.",
-    ].join("\n\n")
-  );
-  await record(db, r.id, "code-sent", customerOf(r), origin, at);
-
-  return true;
-};
-
-/** Whether `typed` is the live code; a wrong one counts against it, the right one is spent (of two, one wins). */
-const confirmCode = async (
-  db: Database,
-  r: SigningRequest,
-  typed: string,
-  origin: Origin,
-  at: number
-) => {
-  const code = typed.replaceAll(/\D/gu, "");
-
-  if (!r.codeHash || !r.codeExpiresAt || Date.parse(r.codeExpiresAt) <= at) {
-    return false;
-  }
-
-  const [tried] = await db
-    .update(signingRequests)
-    .set({ codeAttempts: sql`${signingRequests.codeAttempts} + 1` })
-    .where(
-      and(
-        eq(signingRequests.id, r.id),
-        eq(signingRequests.codeHash, r.codeHash),
-        sql`${signingRequests.codeAttempts} < ${CODE_ATTEMPTS}`
-      )
-    )
-    .returning({ id: signingRequests.id });
-
-  if (!tried) {
-    return false;
-  }
-
-  if (code.length !== 6 || (await codeHashOf(r, code)) !== r.codeHash) {
-    return false;
-  }
-
-  const [spent] = await db
-    .update(signingRequests)
-    .set({
-      codeHash: null,
-      codeExpiresAt: null,
-      codeAttempts: 0,
-      confirmedAt: r.confirmedAt ?? new Date(at).toISOString(),
-    })
-    .where(
-      and(
-        eq(signingRequests.id, r.id),
-        eq(signingRequests.codeHash, r.codeHash)
-      )
-    )
-    .returning({ id: signingRequests.id });
-
-  if (spent) {
-    await record(db, r.id, "confirmed", customerOf(r), origin, at);
-  }
-
-  return !!spent;
 };
 
 const tellSigner = async (
@@ -1836,10 +1679,10 @@ const customerJsonPost = async (
 };
 
 /**
- * The posts of `/s/sign/$token`. The code's forms (`send-code`, `code`) are classic form posts, answered with a
- * redirect back to the page (with the pass once the code was right, else an `error` or the `step` to show). Signing
- * and declining are JSON from the page's script (`{ intent: "sign", values, signature, agree }`, `{ intent:
- * "decline", reason }`), answered with JSON, and need the pass. A post from another site is refused.
+ * The posts of `/s/sign/$token`. The code's forms (`send-code`, `code`) are classic form posts (`visitorPost`),
+ * answered with a redirect back to the page (with the pass once the code was right, else an `error` or the `step` to
+ * show). Signing and declining are JSON from the page's script (`{ intent: "sign", values, signature, agree }`, `{
+ * intent: "decline", reason }`), answered with JSON, and need the pass. A post from another site is refused.
  */
 export const customerPost = async (
   env: Env,
@@ -1860,60 +1703,36 @@ export const customerPost = async (
       : new Response(null, { status: 403 });
   }
 
-  const admitted = await admitCustomer(env, db, request, token, at);
+  if (!json) {
+    return visitorPost(
+      env,
+      db,
+      request,
+      requestVisits,
+      {
+        path: customerSigningPath(token),
+        form: () => request.formData(),
+        row: async () => {
+          const admitted = await admitCustomer(env, db, request, token, at);
 
-  if (json) {
-    return customerJsonPost(env, db, request, admitted, at);
+          if (admitted === "throttled") {
+            return admitted;
+          }
+
+          return admitted && customerMayOpen(admitted.r, at)
+            ? admitted.r
+            : null;
+        },
+      },
+      at
+    );
   }
 
-  const back = (params: Record<string, string> = {}, cookie?: string) => {
-    const query = new URLSearchParams(params).toString();
-
-    const headers = new Headers({
-      Location: `${customerSigningPath(token)}${query ? `?${query}` : ""}`,
-    });
-
-    if (cookie) {
-      headers.append("Set-Cookie", cookie);
-    }
-
-    return new Response(null, { status: 303, headers });
-  };
-
-  if (admitted === "throttled") {
-    return back({ error: "throttled" });
-  }
-
-  if (!admitted || !customerMayOpen(admitted.r, at)) {
-    return back();
-  }
-
-  const form = await request.formData();
-  const intent = String(form.get("intent") ?? "");
-
-  const origin = originOf(request);
-
-  if (intent === "send-code") {
-    return (await sendCode(env, db, admitted.r, origin, at))
-      ? back({ step: "code" })
-      : back({ step: "code", error: "codes" });
-  }
-
-  if (intent === "code") {
-    if (
-      await confirmCode(
-        db,
-        admitted.r,
-        String(form.get("code") ?? ""),
-        origin,
-        at
-      )
-    ) {
-      return back({}, await passCookie(request, env, admitted.r, at));
-    }
-
-    return back({ step: "code", error: "code" });
-  }
-
-  return back();
+  return customerJsonPost(
+    env,
+    db,
+    request,
+    await admitCustomer(env, db, request, token, at),
+    at
+  );
 };

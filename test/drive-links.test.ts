@@ -17,8 +17,8 @@ import {
   trashNodes,
 } from "~/lib/drive/drive.server";
 import {
-  confirmInviteCode,
   createExternalShare,
+  linkVisits,
   listExternalShares,
   passCookie,
   readPasses,
@@ -26,9 +26,9 @@ import {
   sharedFileResponse,
   sharedPage,
   sharedPagePost,
-  sendInviteCode,
 } from "~/lib/drive/links.server";
 import type { NewExternalShare } from "~/lib/drive/links.server";
+import { confirmCode, sendCode } from "~/lib/drive/visitor.server";
 import { setExternalSharing } from "~/lib/workspace-settings.server";
 
 import {
@@ -1062,7 +1062,7 @@ describe("invitations", () => {
       allowDownload: true,
     });
 
-    await sendInviteCode(mail.env, db, link);
+    await sendCode(mail.env, db, linkVisits, link, null);
 
     const code = defined(
       defined(
@@ -1080,9 +1080,13 @@ describe("invitations", () => {
     );
 
     await Promise.all(
-      Array.from({ length: 8 }, () => confirmInviteCode(db, stale, wrong))
+      Array.from({ length: 8 }, () =>
+        confirmCode(db, linkVisits, stale, wrong, null)
+      )
     );
-    await expect(confirmInviteCode(db, stale, code)).resolves.toBeFalsy();
+    await expect(
+      confirmCode(db, linkVisits, stale, code, null)
+    ).resolves.toBeFalsy();
 
     const row = await db.query.driveLinks.findFirst({
       where: eq(driveLinks.id, link.id),
