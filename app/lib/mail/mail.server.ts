@@ -196,7 +196,7 @@ export const sendAsPerson = async (
   mail: PersonMail
 ): Promise<{ threadId: string }> => {
   const { threadId } = await sendMail(env, db, user, {
-    from: { email: user.email, name: user.name },
+    from: user.email,
     to: mail.to,
     cc: mail.cc ?? [],
     bcc: [],

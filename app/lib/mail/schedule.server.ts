@@ -1,6 +1,6 @@
 /**
  * Scheduled send: a scheduled message is a draft with a `scheduled_at`, which the cron (`workers/scheduled.ts`)
- * sends once its moment has come, through the same `sendMail` as the composer, with the draft's files and the
+ * sends once its moment has come, through the same `sendComposed` as the composer, with the draft's files and the
  * signature it chose. Until then it waits under Scheduled, not Drafts; "Cancel send" makes it a draft again. A send
  * that fails puts it back among the drafts with the reason (`send_error`), so nothing is lost and nothing loops.
  */
@@ -12,13 +12,8 @@ import type { Draft } from "~/db/schema";
 import { defined } from "~/lib/guards";
 
 import { parseJsonAddresses } from "./addresses";
-import {
-  SendError,
-  deleteDraft,
-  draftFilesForSending,
-  sendMail,
-  sendableAddresses,
-} from "./send.server";
+import type { AddressList } from "./addresses";
+import { SendError, sendComposed } from "./send.server";
 
 export class ScheduleError extends Error {
   override name = "ScheduleError";
@@ -99,6 +94,12 @@ export const listScheduled = async (
     limit: 100,
   });
 
+/** A draft's recipients, kept as addresses: nothing typed that is not one was saved. */
+const kept = (json: string): AddressList => ({
+  addresses: parseJsonAddresses(json),
+  invalid: [],
+});
+
 const sendScheduled = async (
   env: Env,
   db: Database,
@@ -114,26 +115,18 @@ const sendScheduled = async (
     );
   }
 
-  const addresses = await sendableAddresses(db, user);
-  const from = addresses.find((a) => a.email === d.fromEmail);
-
-  if (!from) {
-    throw new SendError(`You can no longer send as ${d.fromEmail}.`);
-  }
-
-  await sendMail(env, db, user, {
-    from,
-    to: parseJsonAddresses(d.toJson),
-    cc: parseJsonAddresses(d.ccJson),
-    bcc: parseJsonAddresses(d.bccJson),
+  await sendComposed(env, db, user, {
+    from: d.fromEmail,
+    to: kept(d.toJson),
+    cc: kept(d.ccJson),
+    bcc: kept(d.bccJson),
     subject: d.subject,
     text: d.text,
     html: d.html,
     inReplyToId: d.inReplyToId,
     signatureId: d.signatureId,
-    files: await draftFilesForSending(db, env, user.id, d.id),
+    draftId: d.id,
   });
-  await deleteDraft(db, env, user.id, d.id);
 };
 
 /**

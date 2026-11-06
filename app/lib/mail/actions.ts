@@ -13,6 +13,7 @@ import { field, formData, formPost } from "~/lib/forms";
 import { appContext } from "~/lib/request.server";
 
 import { parseAddressList } from "./addresses";
+import type { AddressList } from "./addresses";
 import { composeData, ComposeNotFound } from "./compose.server";
 import type { ComposeData, DraftFileView } from "./compose.server";
 import { searchContacts } from "./contacts.server";
@@ -54,10 +55,10 @@ import {
   SendError,
   addDraftFiles,
   deleteDraft,
-  draftFilesForSending,
   listDraftFiles,
   removeDraftFile,
   saveDraft,
+  sendComposed,
   sendMail,
   sendableAddresses,
 } from "./send.server";
@@ -233,9 +234,9 @@ interface ComposeFields {
   inReplyToId: string | null;
   mode: "new" | "reply" | "forward";
   from: string;
-  to: ReturnType<typeof parseAddressList>;
-  cc: ReturnType<typeof parseAddressList>;
-  bcc: ReturnType<typeof parseAddressList>;
+  to: AddressList;
+  cc: AddressList;
+  bcc: AddressList;
   subject: string;
   text: string;
   html: string | null;
@@ -395,46 +396,13 @@ export const sendAction = createServerFn({ method: "POST" })
   .validator(formData)
   .handler(async ({ data }): Promise<SendResult> => {
     const { db, env, user } = await appContext();
-    const draftId = field(data, "draftId") || null;
-    const f = composeFields(data, user.email);
-    const invalid = [...f.to.invalid, ...f.cc.invalid, ...f.bcc.invalid];
-
-    if (invalid.length) {
-      return {
-        ok: false,
-        error: `Check these addresses: ${invalid.join(", ")}`,
-      };
-    }
-
-    const sendable = await sendableAddresses(db, user);
-    const fromAddress = sendable.find((a) => a.email === f.from);
-
-    if (!fromAddress) {
-      return { ok: false, error: `You cannot send as ${f.from}.` };
-    }
-
-    const files = [
-      ...(draftId ? await draftFilesForSending(db, env, user.id, draftId) : []),
-      ...(await uploadedFiles(data)),
-    ];
 
     try {
-      const sent = await sendMail(env, db, user, {
-        from: fromAddress,
-        to: f.to.addresses,
-        cc: f.cc.addresses,
-        bcc: f.bcc.addresses,
-        subject: f.subject,
-        text: f.text,
-        html: f.html,
-        inReplyToId: f.inReplyToId,
-        signatureId: f.signatureId,
-        files,
+      const sent = await sendComposed(env, db, user, {
+        ...composeFields(data, user.email),
+        draftId: field(data, "draftId") || null,
+        files: await uploadedFiles(data),
       });
-
-      if (draftId) {
-        await deleteDraft(db, env, user.id, draftId);
-      }
 
       return { ok: true, threadId: sent.threadId };
     } catch (error) {
@@ -577,7 +545,7 @@ export const unsubscribeAction = createServerFn({ method: "POST" })
       if (parts) {
         try {
           await sendMail(env, db, user, {
-            from: { email: user.email, name: user.name },
+            from: user.email,
             to: [{ email: parts.to, name: null }],
             cc: [],
             bcc: [],

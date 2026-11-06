@@ -1,10 +1,20 @@
 import { env } from "cloudflare:workers";
+import { eq } from "drizzle-orm";
 import { beforeAll, describe, expect, it, vi } from "vitest";
 
+import { draftFiles, drafts } from "~/db/schema";
+import { parseAddressList } from "~/lib/mail/addresses";
 import { saveFilter } from "~/lib/mail/filters.server";
 import { ingestInboundEmail } from "~/lib/mail/ingest.server";
 import { listThreads, loadThread } from "~/lib/mail/mailbox.server";
-import { SendError, saveDraft, sendMail } from "~/lib/mail/send.server";
+import {
+  SendError,
+  addDraftFiles,
+  saveDraft,
+  sendComposed,
+  sendMail,
+} from "~/lib/mail/send.server";
+import type { ComposedMail, DraftInput } from "~/lib/mail/send.server";
 import { saveSignature } from "~/lib/mail/signatures.server";
 
 import {
@@ -13,6 +23,7 @@ import {
   mail,
   mailbox,
   recordingEmail,
+  rejection,
   rejectionIncludes,
 } from "./fixtures";
 
@@ -47,7 +58,7 @@ describe("sending mail", () => {
     const { sent, env: testEnv } = recordingEmail();
 
     const result = await sendMail(testEnv, db, user, {
-      from: { email: user.email, name: user.name },
+      from: user.email,
       to: [{ email: "jane@acme.com", name: "Jane" }],
       cc: [],
       bcc: [{ email: "boss@acme.com", name: null }],
@@ -158,7 +169,7 @@ describe("sending mail", () => {
     const { sent, env: testEnv } = recordingEmail();
 
     const result = await sendMail(testEnv, db, user, {
-      from: { email: user.email, name: user.name },
+      from: user.email,
       to: [{ email: "jane@acme.com", name: null }],
       cc: [],
       bcc: [],
@@ -234,7 +245,7 @@ describe("sending mail", () => {
 
     try {
       const result = await sendMail(sesEnv, db, user, {
-        from: { email: user.email, name: user.name },
+        from: user.email,
         to: [{ email: "jane@acme.com", name: "Jane" }],
         cc: [],
         bcc: [],
@@ -287,7 +298,7 @@ describe("sending mail", () => {
     await expect(
       sendMail(recordingEmail().env, db, user, {
         ...base,
-        from: { email: "other@acme.com", name: null },
+        from: "other@acme.com",
         to: [{ email: "a@b.co", name: null }],
       })
     ).rejects.toBeInstanceOf(SendError);
@@ -295,7 +306,7 @@ describe("sending mail", () => {
       await rejectionIncludes(
         sendMail(recordingEmail().env, db, user, {
           ...base,
-          from: { email: user.email, name: null },
+          from: user.email,
           to: [],
         }),
         "Add at least one recipient."
@@ -307,7 +318,7 @@ describe("sending mail", () => {
       await rejectionIncludes(
         sendMail(recordingEmail("rate limited").env, db, user, {
           ...base,
-          from: { email: `team@${domain}`, name: null },
+          from: `team@${domain}`,
           to: [{ email: "a@b.co", name: null }],
         }),
         "The message was not sent: EMAIL_FAILED rate limited"
@@ -325,7 +336,7 @@ describe("sending mail", () => {
       await rejectionIncludes(
         sendMail(binding.env, db, user, {
           ...base,
-          from: { email: user.email, name: null },
+          from: user.email,
           to: [{ email: "a@b.co", name: null }],
           signatureId: theirs,
         }),
@@ -384,6 +395,116 @@ describe("sending mail", () => {
   });
 });
 
+/** What the composer holds, its recipients as typed. */
+const composed = (
+  from: string,
+  to: string,
+  over: Partial<ComposedMail> = {}
+): ComposedMail => ({
+  from,
+  to: parseAddressList(to),
+  cc: parseAddressList(""),
+  bcc: parseAddressList(""),
+  subject: "Plan",
+  text: "Here it is.",
+  ...over,
+});
+
+const draftFrom = (from: string): DraftInput => ({
+  mode: "new",
+  from,
+  to: [{ email: "jane@acme.com", name: "Jane" }],
+  cc: [],
+  bcc: [],
+  subject: "Plan",
+  text: "Here it is.",
+});
+
+const textFile = (filename: string, content: string) => ({
+  filename,
+  contentType: "text/plain",
+  content: new TextEncoder().encode(content).buffer,
+});
+
+describe("sending what the composer holds", () => {
+  it("sends from an alias under the person's name, the draft's files before the extra ones, and deletes the draft", async () => {
+    const user = await mailbox("sam");
+    const team = `team@${domain}`;
+    const draftId = await saveDraft(db, user.id, draftFrom(team));
+
+    const [kept] = await addDraftFiles(db, env, user.id, draftId, [
+      textFile("kept.txt", "kept"),
+    ]);
+
+    const { sent, env: testEnv } = recordingEmail();
+
+    const result = await sendComposed(testEnv, db, user, {
+      ...composed(team, "Jane <jane@acme.com>"),
+      draftId,
+      files: [textFile("extra.txt", "extra")],
+    });
+
+    const { message } = await filed(user.id, result.threadId, result.messageId);
+
+    expect({
+      from: sent[0]?.from,
+      to: sent[0]?.to,
+      attachments: sent[0]?.attachments?.map((a) => a.filename),
+      filedFrom: message.from,
+      draft: await db.query.drafts.findFirst({ where: eq(drafts.id, draftId) }),
+      draftFiles: await db.query.draftFiles.findMany({
+        where: eq(draftFiles.draftId, draftId),
+      }),
+      kept: await env.MAIL.head(defined(kept).r2Key),
+    }).toStrictEqual({
+      from: { email: team, name: "Sam Sender" },
+      to: ["jane@acme.com"],
+      attachments: ["kept.txt", "extra.txt"],
+      filedFrom: { email: team, name: "Sam Sender" },
+      draft: undefined,
+      draftFiles: [],
+      kept: null,
+    });
+  });
+
+  it("refuses an address the person cannot send as, and names what is not an address, sending nothing and keeping the draft", async () => {
+    const user = await mailbox("sam");
+    const draftId = await saveDraft(db, user.id, draftFrom(user.email));
+    const { sent, env: testEnv } = recordingEmail();
+
+    const notMine = await rejection(
+      sendComposed(testEnv, db, user, {
+        ...composed("other@acme.com", "jane@acme.com"),
+        draftId,
+      })
+    );
+
+    const notAddresses = await rejection(
+      sendComposed(testEnv, db, user, {
+        ...composed(user.email, "jane@acme.com, nobody"),
+        cc: parseAddressList("jane@acme"),
+        draftId,
+      })
+    );
+
+    const kept = await db.query.drafts.findFirst({
+      where: eq(drafts.id, draftId),
+    });
+
+    expect({
+      notMine: notMine instanceof SendError && notMine.message,
+      notAddresses: notAddresses instanceof SendError && notAddresses.message,
+      sent: sent.length,
+      draft: kept?.id,
+    }).toStrictEqual({
+      notMine: "You cannot send as other@acme.com.",
+      notAddresses: "Check these addresses: nobody, jane@acme",
+      sent: 0,
+      draft: draftId,
+    });
+  });
+});
+
 const rawKeysOf = async (userId: string) => {
   const { objects } = await env.MAIL.list({ prefix: `raw/${userId}/` });
 
@@ -424,7 +545,7 @@ describe("a message to one of the owner's own addresses", () => {
 
       const send = () =>
         sendMail(recordingEmail(undefined, id).env, db, user, {
-          from: { email: user.email, name: user.name },
+          from: user.email,
           to: [{ email: notes, name: null }],
           cc: [],
           bcc: [],

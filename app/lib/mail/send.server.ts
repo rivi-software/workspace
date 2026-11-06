@@ -17,9 +17,11 @@ import {
   withSignatureHtml,
 } from "../text";
 import { formatAddress } from "./addresses";
+import type { AddressList } from "./addresses";
 import { fileMessage } from "./filing.server";
 import { sanitizeHtml } from "./sanitize";
 import { base64Bytes, inlineDataImages } from "./signatures";
+import type { InlineImage } from "./signatures";
 import { findSignature } from "./signatures.server";
 import { normalizeMessageId, replySubject } from "./threading";
 import { ownAddresses } from "./threads.server";
@@ -30,14 +32,19 @@ import { ownAddresses } from "./threads.server";
  */
 export const MAX_ATTACHMENT_BYTES = 20 * 1024 * 1024;
 
+const TOO_LARGE =
+  "The attachments are too large: 20 MB is the most a message can carry.";
+
 export interface OutgoingFile {
   filename: string;
   contentType: string;
   content: ArrayBuffer;
 }
 
+/** A message whose recipients are already addresses, as another module writes one in the owner's name. */
 export interface OutgoingMail {
-  from: Address;
+  /** One of the owner's addresses or aliases; the message goes out under the owner's name. */
+  from: string;
   to: Address[];
   cc: Address[];
   bcc: Address[];
@@ -51,6 +58,25 @@ export interface OutgoingMail {
   /** One of the owner's signatures, put under the text after a "-- " line; none when null. */
   signatureId?: string | null;
   files: OutgoingFile[];
+}
+
+/** What the composer holds, as the console, the API and a scheduled message hand it over. */
+export interface ComposedMail {
+  /** One of the owner's addresses or aliases; the message goes out under the owner's name. */
+  from: string;
+  /** The recipients as typed: what is not an address is refused by name, before anything is sent. */
+  to: AddressList;
+  cc: AddressList;
+  bcc: AddressList;
+  subject: string;
+  text: string;
+  html?: string | null;
+  inReplyToId?: string | null;
+  signatureId?: string | null;
+  /** The draft it was written in: its files go with it, and it is gone once the message is sent. */
+  draftId?: string | null;
+  /** Files sent along besides the draft's, after them. */
+  files?: OutgoingFile[];
 }
 
 export class SendError extends Error {
@@ -88,13 +114,52 @@ const base64 = (buf: ArrayBuffer): string => {
   return btoa(s);
 };
 
-/** The checks a message passes first, and what it names: the owner's addresses, the signature and the original it answers. */
-const prepareMail = async (db: Database, user: User, mail: OutgoingMail) => {
+/** A message's recipients, every one an address. */
+interface Recipients {
+  to: Address[];
+  cc: Address[];
+  bcc: Address[];
+}
+
+/** The recipients of what the composer holds; anything typed that is not an address is refused by name. */
+export const checkedRecipients = (lists: {
+  to: AddressList;
+  cc: AddressList;
+  bcc: AddressList;
+}): Recipients => {
+  const invalid = [
+    ...lists.to.invalid,
+    ...lists.cc.invalid,
+    ...lists.bcc.invalid,
+  ];
+
+  if (invalid.length) {
+    throw new SendError(`Check these addresses: ${invalid.join(", ")}`);
+  }
+
+  return {
+    to: lists.to.addresses,
+    cc: lists.cc.addresses,
+    bcc: lists.bcc.addresses,
+  };
+};
+
+/**
+ * The checks a message passes first, and what it names: the From with the owner's name, the owner's addresses, the
+ * signature and the original it answers.
+ */
+const prepareMail = async (
+  db: Database,
+  user: User,
+  mail: Omit<OutgoingMail, "subject" | "text" | "html" | "files">
+) => {
   const addresses = await sendableAddresses(db, user);
   const allowed = addresses.map((a) => a.email);
+  const email = mail.from.toLowerCase();
+  const from = addresses.find((a) => a.email === email);
 
-  if (!allowed.includes(mail.from.email.toLowerCase())) {
-    throw new SendError(`You cannot send as ${mail.from.email}.`);
+  if (!from) {
+    throw new SendError(`You cannot send as ${email}.`);
   }
 
   if (!mail.to.length && !mail.cc.length && !mail.bcc.length) {
@@ -120,7 +185,7 @@ const prepareMail = async (db: Database, user: User, mail: OutgoingMail) => {
       })
     : null;
 
-  return { allowed, signature, original };
+  return { from, allowed, signature, original };
 };
 
 type Prepared = Awaited<ReturnType<typeof prepareMail>>;
@@ -145,7 +210,10 @@ const threadingHeaders = (original: Prepared["original"]) => {
 };
 
 /** The two parts of the message: the text, and the HTML the rich composer wrote or that is made from the text. */
-const composeBody = (mail: OutgoingMail, signature: Prepared["signature"]) => {
+const composeBody = (
+  mail: Pick<OutgoingMail, "text" | "html">,
+  signature: Prepared["signature"]
+) => {
   if (mail.html && !htmlIsBlank(mail.html)) {
     const body = sanitizeOutgoingHtml(mail.html);
     const signed = signature ? withSignatureHtml(body, signature) : body;
@@ -163,6 +231,38 @@ const composeBody = (mail: OutgoingMail, signature: Prepared["signature"]) => {
   return { text, html };
 };
 
+/** The message as it goes out: its subject, its two parts, and the images of its signature it carries inline. */
+const composeMessage = (
+  env: Env,
+  mail: Pick<OutgoingMail, "subject" | "text" | "html">,
+  { signature, original }: Prepared
+) => {
+  const subject =
+    mail.subject.trim() ||
+    (original ? replySubject(original.subject) : "(no subject)");
+
+  const { text, html: written } = composeBody(mail, signature);
+
+  // The signature's images travel with the message, shown in place by their Content-ID.
+  const { html, images } = inlineDataImages(written, env.MAIL_DOMAIN);
+
+  return { subject, text, html, images };
+};
+
+const fileBytes = (files: OutgoingFile[]): number =>
+  files.reduce((n, f) => n + f.content.byteLength, 0);
+
+/** What a message's files and inline images come to, refused past the most a provider takes. */
+const carriedBytes = (files: number, images: InlineImage[]): number => {
+  const total = files + images.reduce((n, i) => n + base64Bytes(i.base64), 0);
+
+  if (total > MAX_ATTACHMENT_BYTES) {
+    throw new SendError(TOO_LARGE);
+  }
+
+  return total;
+};
+
 /**
  * The provider's words for a failed send. The failure is an `Error` (the client throws `MailError`), which may carry
  * the provider's `code`.
@@ -175,46 +275,28 @@ const failureWords = (error: unknown): string => {
   return [e.code, e.message].filter(Boolean).join(" ");
 };
 
-/**
- * Send a message through `@rivi-software/workers-mail` (Amazon SES, or the Email Service binding until SES is set up and when it
- * refuses the message) and file it in the owner's thread. The provider's Message-ID becomes ours, so a reply threads
- * back by In-Reply-To. A failure throws a SendError with the provider's words and stores nothing: the composer keeps
- * the draft.
- */
-export const sendMail = async (
+interface Sent {
+  threadId: string;
+  messageId: string;
+}
+
+/** The send itself, once `prepareMail` has passed the message. */
+const sendPrepared = async (
   env: Env,
   db: Database,
   user: User,
-  mail: OutgoingMail
-): Promise<{ threadId: string; messageId: string }> => {
-  const { allowed, signature, original } = await prepareMail(db, user, mail);
+  mail: OutgoingMail,
+  prepared: Prepared
+): Promise<Sent> => {
+  const { from, allowed, original } = prepared;
   const { headers, references } = threadingHeaders(original);
-
-  const subject =
-    mail.subject.trim() ||
-    (original ? replySubject(original.subject) : "(no subject)");
-
-  const { text, html: written } = composeBody(mail, signature);
-
-  // The signature's images travel with the message, shown in place by their Content-ID.
-  const inlined = inlineDataImages(written, env.MAIL_DOMAIN);
-  const { html } = inlined;
-
-  const total =
-    mail.files.reduce((n, f) => n + f.content.byteLength, 0) +
-    inlined.images.reduce((n, i) => n + base64Bytes(i.base64), 0);
-
-  if (total > MAX_ATTACHMENT_BYTES) {
-    throw new SendError(
-      "The attachments are too large: 20 MB is the most a message can carry."
-    );
-  }
-
+  const { subject, text, html, images } = composeMessage(env, mail, prepared);
+  const total = carriedBytes(fileBytes(mail.files), images);
   let result: SentMail;
 
   try {
     result = await deliver(env, {
-      from: { email: mail.from.email, name: mail.from.name ?? user.name },
+      from,
       to: mail.to.map(formatAddress),
       cc: mail.cc.map(formatAddress),
       bcc: mail.bcc.map(formatAddress),
@@ -230,7 +312,7 @@ export const sendMail = async (
           // Local dev cannot serialize ArrayBuffer; base64 strings work everywhere.
           content: base64(f.content),
         })),
-        ...inlined.images.map((i) => ({
+        ...images.map((i) => ({
           disposition: "inline" as const,
           contentId: i.contentId,
           filename: i.filename,
@@ -249,8 +331,6 @@ export const sendMail = async (
   const sentMessageId =
     normalizeMessageId(result.messageId) ??
     `<${newId("msg")}@${env.MAIL_DOMAIN}>`;
-
-  const from = { email: mail.from.email, name: mail.from.name ?? user.name };
 
   const filed = await fileMessage(env, db, user, {
     policy: "sent",
@@ -276,7 +356,7 @@ export const sendMail = async (
           contentId: null,
           inline: false,
         })),
-        ...inlined.images.map((i) => ({
+        ...images.map((i) => ({
           filename: i.filename,
           mimeType: i.contentType,
           content: Uint8Array.from(
@@ -301,6 +381,20 @@ export const sendMail = async (
   // (`filed.status` is `duplicate`): its conversation and message either way.
   return { threadId: filed.threadId, messageId: filed.messageId };
 };
+
+/**
+ * Send a message through `@rivi-software/workers-mail` (Amazon SES, or the Email Service binding until SES is set up and when it
+ * refuses the message) and file it in the owner's thread. The provider's Message-ID becomes ours, so a reply threads
+ * back by In-Reply-To. A failure throws a SendError with the provider's words and stores nothing: the composer keeps
+ * the draft. What the composer holds goes through `sendComposed`, which ends here.
+ */
+export const sendMail = async (
+  env: Env,
+  db: Database,
+  user: User,
+  mail: OutgoingMail
+): Promise<Sent> =>
+  await sendPrepared(env, db, user, mail, await prepareMail(db, user, mail));
 
 // ---------- drafts ----------
 
@@ -449,9 +543,7 @@ export const addDraftFiles = async (
   const adding = files.reduce((n, f) => n + f.content.byteLength, 0);
 
   if (have + adding > MAX_ATTACHMENT_BYTES) {
-    throw new SendError(
-      "The attachments are too large: 20 MB is the most a message can carry."
-    );
+    throw new SendError(TOO_LARGE);
   }
 
   const added: DraftFile[] = [];
@@ -528,4 +620,47 @@ export const draftFilesForSending = async (
   }
 
   return out;
+};
+
+// ---------- what the composer holds ----------
+
+/** What the composer holds as the message `prepareMail` checks, every recipient an address. */
+const outgoing = (composed: ComposedMail): Omit<OutgoingMail, "files"> => ({
+  from: composed.from,
+  ...checkedRecipients(composed),
+  subject: composed.subject,
+  text: composed.text,
+  html: composed.html,
+  inReplyToId: composed.inReplyToId,
+  signatureId: composed.signatureId,
+});
+
+/**
+ * Send what the composer holds, from the console, the API or the cron alike: checked first (every address, the From,
+ * a recipient, the signature), then sent with the draft's files and the extra ones after them, filed under Sent, and
+ * the draft deleted. A refusal or a failure throws a SendError and leaves the draft as it was.
+ */
+export const sendComposed = async (
+  env: Env,
+  db: Database,
+  user: User,
+  composed: ComposedMail
+): Promise<Sent> => {
+  const { draftId } = composed;
+  const mail = outgoing(composed);
+  const prepared = await prepareMail(db, user, mail);
+
+  // Read only once the message passed, so a refused send costs no reads from R2.
+  const files = [
+    ...(draftId ? await draftFilesForSending(db, env, user.id, draftId) : []),
+    ...(composed.files ?? []),
+  ];
+
+  const sent = await sendPrepared(env, db, user, { ...mail, files }, prepared);
+
+  if (draftId) {
+    await deleteDraft(db, env, user.id, draftId);
+  }
+
+  return sent;
 };

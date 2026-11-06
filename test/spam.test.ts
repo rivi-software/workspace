@@ -559,7 +559,7 @@ describe("the spam filter on delivery", () => {
   it("never holds back someone the owner wrote to, unless their domain's DMARC failed", async () => {
     const { env: sending } = recordingEmail();
     await sendMail(sending, db, user, {
-      from: { email: user.email, name: user.name },
+      from: user.email,
       to: [{ email: "lee@partner.org", name: "Lee" }],
       cc: [],
       bcc: [],
