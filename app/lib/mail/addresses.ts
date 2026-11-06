@@ -20,11 +20,17 @@ export const parseAddress = (raw: string): Address => {
   return { email: email.toLowerCase(), name };
 };
 
+/** A To, Cc or Bcc field read: its addresses, and what was typed in it that is not one. */
+export interface AddressList {
+  addresses: Address[];
+  invalid: string[];
+}
+
 /**
  * The addresses in a To, Cc or Bcc field as a person types it: separated by commas, semicolons or newlines, a
  * comma inside quotes or angle brackets left alone. Addresses that do not parse are returned under `invalid`.
  */
-export const parseAddressList = (raw: string) => {
+export const parseAddressList = (raw: string): AddressList => {
   const parts: string[] = [];
   let current = "";
   let quoted = false;

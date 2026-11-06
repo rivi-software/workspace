@@ -1,24 +1,26 @@
 /**
  * Scheduled send: a scheduled message is a draft with a `scheduled_at`, which the cron (`workers/scheduled.ts`)
- * sends once its moment has come, through the same `sendMail` as the composer, with the draft's files and the
- * signature it chose. Until then it waits under Scheduled, not Drafts; "Cancel send" makes it a draft again. A send
- * that fails puts it back among the drafts with the reason (`send_error`), so nothing is lost and nothing loops.
+ * sends once its moment has come, through the same `sendComposed` as the composer, with the draft's files and the
+ * signature it chose. Scheduling checks it as that send will (`checkComposed`). Until then it waits under Scheduled,
+ * not Drafts; "Cancel send" makes it a draft again. A send that fails puts it back among the drafts with the reason
+ * (`send_error`), so nothing is lost and nothing loops.
  */
 import { and, asc, eq, isNotNull, lte } from "drizzle-orm";
 
 import type { Database } from "~/db";
 import { drafts, users } from "~/db/schema";
-import type { Draft } from "~/db/schema";
+import type { Draft, User } from "~/db/schema";
 import { defined } from "~/lib/guards";
 
 import { parseJsonAddresses } from "./addresses";
+import type { AddressList } from "./addresses";
 import {
   SendError,
-  deleteDraft,
-  draftFilesForSending,
-  sendMail,
-  sendableAddresses,
+  checkComposed,
+  saveDraft,
+  sendComposed,
 } from "./send.server";
+import type { ComposedMail, DraftInput } from "./send.server";
 
 export class ScheduleError extends Error {
   override name = "ScheduleError";
@@ -99,6 +101,54 @@ export const listScheduled = async (
     limit: 100,
   });
 
+/** What the composer holds, with what its draft keeps besides and the moment it is to go. */
+export interface ScheduledMail extends ComposedMail {
+  threadId: string | null;
+  mode: DraftInput["mode"];
+  /** The moment as the composer posts it, checked by `scheduleMoment`. */
+  sendAt: string;
+}
+
+/**
+ * "Send later": what the composer holds is checked as the send will check it (`checkComposed`), saved as its draft,
+ * and scheduled for `sendAt`; the cron sends it then (`sendDueDrafts`). Refused, nothing is saved or scheduled.
+ */
+export const scheduleComposed = async (
+  env: Env,
+  db: Database,
+  user: User,
+  mail: ScheduledMail,
+  now = new Date()
+): Promise<{ draftId: string; scheduledAt: string }> => {
+  await checkComposed(env, db, user, mail);
+  const at = scheduleMoment(mail.sendAt, now);
+
+  const draftId = await saveDraft(db, user.id, {
+    id: mail.draftId,
+    threadId: mail.threadId,
+    inReplyToId: mail.inReplyToId,
+    mode: mail.mode,
+    from: mail.from,
+    to: mail.to.addresses,
+    cc: mail.cc.addresses,
+    bcc: mail.bcc.addresses,
+    subject: mail.subject,
+    text: mail.text,
+    html: mail.html,
+    signatureId: mail.signatureId,
+  });
+
+  await scheduleDraft(db, user.id, draftId, at);
+
+  return { draftId, scheduledAt: at };
+};
+
+/** A draft's recipients, kept as addresses: nothing typed that is not one was saved. */
+const kept = (json: string): AddressList => ({
+  addresses: parseJsonAddresses(json),
+  invalid: [],
+});
+
 const sendScheduled = async (
   env: Env,
   db: Database,
@@ -114,26 +164,18 @@ const sendScheduled = async (
     );
   }
 
-  const addresses = await sendableAddresses(db, user);
-  const from = addresses.find((a) => a.email === d.fromEmail);
-
-  if (!from) {
-    throw new SendError(`You can no longer send as ${d.fromEmail}.`);
-  }
-
-  await sendMail(env, db, user, {
-    from,
-    to: parseJsonAddresses(d.toJson),
-    cc: parseJsonAddresses(d.ccJson),
-    bcc: parseJsonAddresses(d.bccJson),
+  await sendComposed(env, db, user, {
+    from: d.fromEmail,
+    to: kept(d.toJson),
+    cc: kept(d.ccJson),
+    bcc: kept(d.bccJson),
     subject: d.subject,
     text: d.text,
     html: d.html,
     inReplyToId: d.inReplyToId,
     signatureId: d.signatureId,
-    files: await draftFilesForSending(db, env, user.id, d.id),
+    draftId: d.id,
   });
-  await deleteDraft(db, env, user.id, d.id);
 };
 
 /**

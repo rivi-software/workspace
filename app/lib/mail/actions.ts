@@ -13,6 +13,7 @@ import { field, formData, formPost } from "~/lib/forms";
 import { appContext } from "~/lib/request.server";
 
 import { parseAddressList } from "./addresses";
+import type { AddressList } from "./addresses";
 import { composeData, ComposeNotFound } from "./compose.server";
 import type { ComposeData, DraftFileView } from "./compose.server";
 import { searchContacts } from "./contacts.server";
@@ -46,20 +47,18 @@ import {
 } from "./preferences.server";
 import {
   ScheduleError,
-  scheduleDraft,
-  scheduleMoment,
+  scheduleComposed,
   unscheduleDraft,
 } from "./schedule.server";
 import {
   SendError,
   addDraftFiles,
   deleteDraft,
-  draftFilesForSending,
   listDraftFiles,
   removeDraftFile,
   saveDraft,
+  sendComposed,
   sendMail,
-  sendableAddresses,
 } from "./send.server";
 import type { OutgoingFile } from "./send.server";
 import { describeSender, senderRuleOf } from "./spam";
@@ -233,9 +232,9 @@ interface ComposeFields {
   inReplyToId: string | null;
   mode: "new" | "reply" | "forward";
   from: string;
-  to: ReturnType<typeof parseAddressList>;
-  cc: ReturnType<typeof parseAddressList>;
-  bcc: ReturnType<typeof parseAddressList>;
+  to: AddressList;
+  cc: AddressList;
+  bcc: AddressList;
   subject: string;
   text: string;
   html: string | null;
@@ -395,46 +394,13 @@ export const sendAction = createServerFn({ method: "POST" })
   .validator(formData)
   .handler(async ({ data }): Promise<SendResult> => {
     const { db, env, user } = await appContext();
-    const draftId = field(data, "draftId") || null;
-    const f = composeFields(data, user.email);
-    const invalid = [...f.to.invalid, ...f.cc.invalid, ...f.bcc.invalid];
-
-    if (invalid.length) {
-      return {
-        ok: false,
-        error: `Check these addresses: ${invalid.join(", ")}`,
-      };
-    }
-
-    const sendable = await sendableAddresses(db, user);
-    const fromAddress = sendable.find((a) => a.email === f.from);
-
-    if (!fromAddress) {
-      return { ok: false, error: `You cannot send as ${f.from}.` };
-    }
-
-    const files = [
-      ...(draftId ? await draftFilesForSending(db, env, user.id, draftId) : []),
-      ...(await uploadedFiles(data)),
-    ];
 
     try {
-      const sent = await sendMail(env, db, user, {
-        from: fromAddress,
-        to: f.to.addresses,
-        cc: f.cc.addresses,
-        bcc: f.bcc.addresses,
-        subject: f.subject,
-        text: f.text,
-        html: f.html,
-        inReplyToId: f.inReplyToId,
-        signatureId: f.signatureId,
-        files,
+      const sent = await sendComposed(env, db, user, {
+        ...composeFields(data, user.email),
+        draftId: field(data, "draftId") || null,
+        files: await uploadedFiles(data),
       });
-
-      if (draftId) {
-        await deleteDraft(db, env, user.id, draftId);
-      }
 
       return { ok: true, threadId: sent.threadId };
     } catch (error) {
@@ -451,61 +417,25 @@ export type ScheduleResult =
   | { ok: false; error: string };
 
 /**
- * "Send later": what the composer holds is saved as its draft, checked as a send would be (the From, the addresses,
- * a recipient), and scheduled for `sendAt`; the cron sends it then (`sendDueDrafts`).
+ * "Send later": what the composer holds, checked as its send will be, saved as its draft and scheduled for `sendAt`
+ * (`scheduleComposed`); the cron sends it then.
  */
 export const scheduleAction = createServerFn({ method: "POST" })
   .middleware([formPost])
   .validator(formData)
   .handler(async ({ data }): Promise<ScheduleResult> => {
-    const { db, user } = await appContext();
-    const f = composeFields(data, user.email);
-    const invalid = [...f.to.invalid, ...f.cc.invalid, ...f.bcc.invalid];
-
-    if (invalid.length) {
-      return {
-        ok: false,
-        error: `Check these addresses: ${invalid.join(", ")}`,
-      };
-    }
-
-    if (
-      !f.to.addresses.length &&
-      !f.cc.addresses.length &&
-      !f.bcc.addresses.length
-    ) {
-      return { ok: false, error: "Add at least one recipient." };
-    }
-
-    const sendable = await sendableAddresses(db, user);
-
-    if (!sendable.some((a) => a.email === f.from)) {
-      return { ok: false, error: `You cannot send as ${f.from}.` };
-    }
+    const { db, env, user } = await appContext();
 
     try {
-      const at = scheduleMoment(field(data, "sendAt"));
-
-      const draftId = await saveDraft(db, user.id, {
-        id: field(data, "draftId") || null,
-        threadId: f.threadId,
-        inReplyToId: f.inReplyToId,
-        mode: f.mode,
-        from: f.from,
-        to: f.to.addresses,
-        cc: f.cc.addresses,
-        bcc: f.bcc.addresses,
-        subject: f.subject,
-        text: f.text,
-        html: f.html,
-        signatureId: f.signatureId,
+      const { draftId, scheduledAt } = await scheduleComposed(env, db, user, {
+        ...composeFields(data, user.email),
+        draftId: field(data, "draftId") || null,
+        sendAt: field(data, "sendAt"),
       });
 
-      await scheduleDraft(db, user.id, draftId, at);
-
-      return { ok: true, draftId, scheduledAt: at };
+      return { ok: true, draftId, scheduledAt };
     } catch (error) {
-      if (error instanceof ScheduleError) {
+      if (error instanceof ScheduleError || error instanceof SendError) {
         return { ok: false, error: error.message };
       }
 
@@ -577,7 +507,7 @@ export const unsubscribeAction = createServerFn({ method: "POST" })
       if (parts) {
         try {
           await sendMail(env, db, user, {
-            from: { email: user.email, name: user.name },
+            from: user.email,
             to: [{ email: parts.to, name: null }],
             cc: [],
             bcc: [],
