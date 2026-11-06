@@ -32,7 +32,8 @@ import type { ReactNode, Ref } from "react";
 import { withCleanup } from "~/lib/cleanup";
 import { folderAction, quickLabel, unscheduleAction } from "~/lib/mail/actions";
 import { FOLDER_LABEL } from "~/lib/mail/folders";
-import type { Folder, LabelRef, Place } from "~/lib/mail/folders";
+import type { Folder, LabelRef } from "~/lib/mail/folders";
+import type { DraftRow, ListRow, MailListData } from "~/lib/mail/reads";
 import { snoozeLabel } from "~/lib/mail/snooze";
 import type { ThreadAction } from "~/lib/mail/views";
 
@@ -57,48 +58,6 @@ import {
   searchClearClass,
 } from "./ui";
 import { useThreadActions } from "./use-thread-actions";
-
-export interface ListRow {
-  id: string;
-  subject: string;
-  snippet: string;
-  people: string;
-  count: number;
-  unread: boolean;
-  starred: boolean;
-  hasAttachments: boolean;
-  lastMessageAt: string;
-  folder: Place;
-  snoozedUntil: string | null;
-  muted: boolean;
-  /** The owner wrote in it: what the Sent view looks for (`views.ts`). */
-  sent: boolean;
-  labels: LabelRef[];
-}
-
-export interface DraftRow {
-  id: string;
-  to: string;
-  subject: string;
-  snippet: string;
-  updatedAt: string;
-  /** When a scheduled message goes (the Scheduled view). */
-  scheduledAt: string | null;
-  /** Why its scheduled send failed: it is a draft again. */
-  sendError: string | null;
-}
-
-export interface MailListData {
-  folder: Folder;
-  q: string;
-  page: number;
-  pageSize: number;
-  total: number;
-  label: LabelRef | null;
-  labels: LabelRef[];
-  threads: ListRow[];
-  drafts: DraftRow[];
-}
 
 interface ListSearch {
   folder?: string;

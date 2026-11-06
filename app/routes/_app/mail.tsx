@@ -6,34 +6,20 @@ import {
 } from "@tanstack/react-router";
 import type { ErrorComponentProps } from "@tanstack/react-router";
 import { createServerFn } from "@tanstack/react-start";
-import { waitUntil } from "cloudflare:workers";
 import { z } from "zod";
 
 import { useShortcuts } from "~/components/keyboard";
 import { MailLeavingProvider } from "~/components/mail-leaving";
 import { MailList } from "~/components/mail-list";
-import type { MailListData } from "~/components/mail-list";
 import { MailSelectionProvider } from "~/components/mail-selection";
 import { SectionError } from "~/components/section-error";
 import { cx } from "~/components/ui";
 import { isJsonObject, numberOr } from "~/lib/guards";
 import { keepShown } from "~/lib/keep-shown";
-import { parseJsonAddresses } from "~/lib/mail/addresses";
-import { FOLDER_LABEL, isFolder } from "~/lib/mail/folders";
-import type { Folder } from "~/lib/mail/folders";
-import { listLabels } from "~/lib/mail/labels.server";
-import {
-  countThreads,
-  labelsForThreads,
-  listThreads,
-  pruneExpired,
-} from "~/lib/mail/mailbox.server";
+import { FOLDER_LABEL } from "~/lib/mail/folders";
 import { parsePreferences } from "~/lib/mail/preferences";
-import { listScheduled } from "~/lib/mail/schedule.server";
-import { listDrafts } from "~/lib/mail/send.server";
-import { pruneSpamTokens } from "~/lib/mail/spam.server";
-import { participantLabel } from "~/lib/mail/threading";
-import { wakeSnoozed } from "~/lib/mail/threads.server";
+import type { MailListData } from "~/lib/mail/reads";
+import { listPage } from "~/lib/mail/reads.server";
 import { appContext } from "~/lib/request.server";
 import { serverFnFetch } from "~/lib/server-fn-fetch";
 
@@ -47,127 +33,21 @@ const searchSchema = z.object({
 
 type ListDeps = z.infer<typeof searchSchema>;
 
-/** The folder a list shows: a label lists the archive, a folder the person typed that does not exist the inbox. */
-const listFolder = (
-  labelled: boolean,
-  requested: string | undefined
-): Folder => {
-  if (labelled) {
-    return "archive";
-  }
-
-  return isFolder(requested) ? requested : "inbox";
-};
-
 const getMail = createServerFn()
   .validator((d: ListDeps) => d)
   .handler(
     async ({ data }): Promise<MailListData & { layout: "split" | "full" }> => {
       const { db, env, user } = await appContext();
-      const prefs = parsePreferences(user.preferencesJson);
-      const labels = await listLabels(db, user.id);
 
-      const label = data.label
-        ? (labels.find((l) => l.id === data.label) ?? null)
-        : null;
+      // The page size is the person's preference: the console never asks for another.
+      const list = await listPage(db, env, user, {
+        folder: data.folder,
+        label: data.label,
+        q: data.q,
+        page: data.page,
+      });
 
-      const folder = listFolder(Boolean(label), data.folder);
-
-      const q = data.q ?? "";
-
-      const page = Math.max(
-        1,
-        Math.min(10_000, Math.floor(Number(data.page) || 1))
-      );
-
-      const { pageSize } = prefs;
-      // Snoozed threads whose time has come return now (the cron wakes every mailbox's each minute; this makes the
-      // page exact); the trash and spam folders shed what is older than 30 days, a batch every few hours, after the
-      // response, and the spam filter the words that say nothing.
-      await wakeSnoozed(db, new Date(), user.id);
-      const pruneKey = `prune:${user.id}`;
-
-      if (!(await env.KV.get(pruneKey))) {
-        await env.KV.put(pruneKey, "1", { expirationTtl: 6 * 3600 });
-        waitUntil(
-          Promise.all([
-            pruneExpired(db, env, user.id),
-            pruneSpamTokens(db, user.id),
-          ])
-        );
-      }
-
-      const base = {
-        folder,
-        q,
-        page,
-        pageSize,
-        label,
-        labels,
-        layout: prefs.layout,
-      };
-
-      if ((folder === "drafts" || folder === "scheduled") && !label) {
-        const rows =
-          folder === "drafts"
-            ? await listDrafts(db, user.id)
-            : await listScheduled(db, user.id);
-
-        return {
-          ...base,
-          total: rows.length,
-          threads: [],
-          drafts: rows.map((d) => ({
-            id: d.id,
-            to: participantLabel(parseJsonAddresses(d.toJson)),
-            subject: d.subject,
-            snippet: d.text.replaceAll(/\s+/gu, " ").trim().slice(0, 120),
-            updatedAt: d.updatedAt,
-            scheduledAt: d.scheduledAt,
-            sendError: d.sendError,
-          })),
-        };
-      }
-
-      const options = { folder, q, label: label?.id ?? null };
-
-      const [rows, total] = await Promise.all([
-        listThreads(db, user.id, {
-          ...options,
-          limit: pageSize,
-          offset: (page - 1) * pageSize,
-        }),
-        countThreads(db, user.id, options),
-      ]);
-
-      const threadLabels = await labelsForThreads(
-        db,
-        user.id,
-        rows.map((t) => t.id)
-      );
-
-      return {
-        ...base,
-        total,
-        drafts: [],
-        threads: rows.map((t) => ({
-          id: t.id,
-          subject: t.subject,
-          snippet: t.snippet,
-          people:
-            participantLabel(parseJsonAddresses(t.participantsJson)) || "me",
-          count: t.messageCount,
-          unread: t.unreadCount > 0,
-          starred: t.starred,
-          hasAttachments: t.hasAttachments,
-          lastMessageAt: t.lastMessageAt,
-          folder: t.folder,
-          snoozedUntil: t.snoozedUntil,
-          muted: t.muted,
-          sent: t.sentCount > 0,
-          labels: threadLabels.get(t.id) ?? [],
-        })),
-      };
+      return { ...list, layout: parsePreferences(user.preferencesJson).layout };
     }
   );
 

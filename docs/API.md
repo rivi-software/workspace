@@ -43,7 +43,7 @@ client ── POST /api/auth/sign-out, Authorization: Bearer <token> ──▶ 2
 | --- | --- | --- |
 | `GET /mail/threads` | `?folder=inbox\|starred\|snoozed\|sent\|scheduled\|drafts\|archive\|spam\|trash` (default `inbox`), `?label=<id>` (a label's conversations; `folder` is then ignored), `?q=` (the search box's language: `from:`, `to:`, `subject:`, `has:attachment`, `is:unread`, `in:anywhere`, `label:`, `before:`, `after:`), `?page=1`, `?pageSize=25\|50\|100` (default: the person's preference) | `{ folder, q, page, pageSize, total, label: LabelRef \| null, threads: ListRow[], drafts: DraftRow[] }`. `drafts` is filled for `drafts` and `scheduled` and `threads` for every other folder. |
 | `GET /mail/threads/:id` | `?keepUnread=1` leaves the conversation unread; without it, opening reads it | `{ thread: ThreadView, labels: LabelRef[], messages: MessageView[] }` oldest message first |
-| `GET /mail/messages/:id/document` | `?appearance=light\|dark` (default `light`), `?images=1` loads the images from the web (otherwise only inline files show) | `text/html`: the message's HTML part, sanitised, as a complete document with its own CSP, for a web view. `404` for a message without an HTML part. |
+| `GET /mail/messages/:id/document` | `?appearance=light\|dark` (default `light`), `?images=1` loads the images from the web (otherwise only inline files show) | `text/html`: the message's HTML part, sanitised as the console shows it (a reply's quote folded under "Show quoted text", a forward's left open), as a complete document with its own CSP, for a web view. `404` for a message without an HTML part. |
 | `POST /mail/threads/actions` | `{ ids: string[], intent, until?, labelId? }` with `intent` one of `star`, `unstar`, `archive`, `trash`, `spam`, `inbox`, `read`, `unread`, `delete` (for good, from the trash or Spam), `mute`, `unmute`, `snooze` (with `until`, a moment), `unsnooze`, `label`, `unlabel` (with `labelId`) | `{ ok: true, intent, count, undo: string \| null }` |
 | `POST /mail/undo` | `{ undo }` from an action | `{ ok: true }` |
 | `POST /mail/read-all` | `{ folder?, label?, q? }` as a list request | `{ ok: true }` |
@@ -79,6 +79,7 @@ interface MessageView {
   text: string;              // the plain text, always
   hasHtml: boolean;          // the document endpoint answers for it
   remoteImages: boolean;     // the HTML loads images from the web, held back until ?images=1
+  loadImages: boolean;       // load them at once (?images=1): the person always loads this sender's, and it is not in Spam
   date: string; read: boolean;
   deliveryStatus: "received" | "sent" | "failed"; deliveryError: string | null;
   spam: boolean;             // the spam filter put it in Spam when it arrived

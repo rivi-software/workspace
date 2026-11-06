@@ -17,10 +17,9 @@ import {
 import { useMemo, useState } from "react";
 
 import { displayName, formatAddress } from "~/lib/mail/addresses";
-import type { MessageView } from "~/lib/mail/mailbox.server";
+import type { MessageData, SenderRuleView } from "~/lib/mail/reads";
 import { mailReading } from "~/lib/mail/sanitize";
 import { describeSender } from "~/lib/mail/spam";
-import type { Unsubscribe } from "~/lib/mail/unsubscribe";
 import { formatBytes } from "~/lib/text";
 
 import { HtmlMessage, TextMessage } from "./message-body";
@@ -39,23 +38,7 @@ import {
   cx,
 } from "./ui";
 
-/** What the thread page hands each card: the message, its markup made safe, and the files to list. */
-export type MessageData = Omit<MessageView, "html" | "attachments"> & {
-  html: string | null;
-  remoteImages: boolean;
-  /** Its images from the web load on opening: the owner always loads its sender's, and it is not in Spam. */
-  loadImages: boolean;
-  files: MessageView["attachments"];
-  unsubscribe: Unsubscribe | null;
-};
-
 const IMAGE = /^image\/(?:png|jpeg|gif|webp|avif|bmp)$/u;
-
-/** The owner's rule for a message's sender: blocked (their mail goes to Spam) or allowed (it never does). */
-export interface SenderRuleView {
-  sender: string;
-  verdict: "block" | "allow";
-}
 
 type ComposeMode = "reply" | "all" | "forward";
 

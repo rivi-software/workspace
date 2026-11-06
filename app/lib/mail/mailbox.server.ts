@@ -25,7 +25,7 @@ import {
   threadLabels,
   threads,
 } from "~/db/schema";
-import type { Address, Thread } from "~/db/schema";
+import type { Address, Message, Thread } from "~/db/schema";
 import { defined } from "~/lib/guards";
 
 import { parseJsonAddresses } from "./addresses";
@@ -34,10 +34,9 @@ import { EXPIRY_DAYS, isLabelColor } from "./folders";
 import type { Folder, LabelRef } from "./folders";
 import { parseQuery, queryDate, searchScope } from "./query";
 import type { QueryTerm } from "./query";
+import type { AttachmentView, MessageView } from "./reads";
 import { parseSpamCheck } from "./spam";
-import type { SpamCheck } from "./spam";
 import { parseJsonUnsubscribe } from "./unsubscribe";
-import type { Unsubscribe } from "./unsubscribe";
 import { COUNTED, viewCondition } from "./views";
 import type { Cond } from "./views";
 
@@ -440,38 +439,54 @@ export const labelsForThreads = async (
   return map;
 };
 
-export interface AttachmentView {
-  id: string;
-  filename: string;
-  contentType: string;
-  size: number;
-  contentId: string | null;
-  inline: boolean;
-  url: string;
-}
+/** A stored message as the reads show it: its addresses parsed, its files with signed links. */
+const messageView = async (
+  db: Database,
+  env: Env,
+  m: Message
+): Promise<MessageView> => {
+  const files = await db.query.attachments.findMany({
+    where: eq(attachments.messageId, m.id),
+  });
 
-export interface MessageView {
-  id: string;
-  direction: "inbound" | "outbound";
-  messageId: string;
-  from: Address;
-  to: Address[];
-  cc: Address[];
-  bcc: Address[];
-  replyTo: Address | null;
-  subject: string;
-  text: string;
-  html: string | null;
-  date: string;
-  read: boolean;
-  hasRaw: boolean;
-  deliveryStatus: "received" | "sent" | "failed";
-  deliveryError: string | null;
-  unsubscribe: Unsubscribe | null;
-  /** Why the spam filter put it in Spam when it arrived; null when it did not. */
-  spam: SpamCheck | null;
-  attachments: AttachmentView[];
-}
+  const atts: AttachmentView[] = [];
+
+  for (const a of files) {
+    atts.push({
+      id: a.id,
+      filename: a.filename,
+      contentType: a.contentType,
+      size: a.size,
+      contentId: a.contentId,
+      inline: a.inline,
+      // oxlint-disable-next-line eslint/no-await-in-loop -- one message, file or thread at a time: the stored objects go before their rows, so a failure leaves rows that still point at what remains
+      url: await signFileUrl(env, a.id),
+    });
+  }
+
+  return {
+    id: m.id,
+    direction: m.direction,
+    messageId: m.messageId,
+    from: { email: m.fromEmail, name: m.fromName },
+    to: parseJsonAddresses(m.toJson),
+    cc: parseJsonAddresses(m.ccJson),
+    bcc: parseJsonAddresses(m.bccJson),
+    // SAFETY: `replyTo` is written by `JSON.stringify` of one `Address`.
+    replyTo: m.replyTo ? (JSON.parse(m.replyTo) as Address) : null,
+    subject: m.subject,
+    text: m.text,
+    html: m.html,
+    date: m.date,
+    read: m.read,
+    hasRaw: !!m.rawKey,
+    deliveryStatus: m.deliveryStatus,
+    deliveryError: m.deliveryError,
+    unsubscribe: parseJsonUnsubscribe(m.listUnsubscribe),
+    spam: parseSpamCheck(m.spamJson),
+    attachments: atts,
+  };
+};
 
 /** A thread with its messages oldest first and signed links to their files; null when it is not the owner's. */
 export const loadThread = async (
@@ -497,53 +512,27 @@ export const loadThread = async (
 
   for (const m of rows) {
     // oxlint-disable-next-line eslint/no-await-in-loop -- one message, file or thread at a time: the stored objects go before their rows, so a failure leaves rows that still point at what remains
-    const files = await db.query.attachments.findMany({
-      where: eq(attachments.messageId, m.id),
-    });
-
-    const atts: AttachmentView[] = [];
-
-    for (const a of files) {
-      atts.push({
-        id: a.id,
-        filename: a.filename,
-        contentType: a.contentType,
-        size: a.size,
-        contentId: a.contentId,
-        inline: a.inline,
-        // oxlint-disable-next-line eslint/no-await-in-loop -- one message, file or thread at a time: the stored objects go before their rows, so a failure leaves rows that still point at what remains
-        url: await signFileUrl(env, a.id),
-      });
-    }
-
-    views.push({
-      id: m.id,
-      direction: m.direction,
-      messageId: m.messageId,
-      from: { email: m.fromEmail, name: m.fromName },
-      to: parseJsonAddresses(m.toJson),
-      cc: parseJsonAddresses(m.ccJson),
-      bcc: parseJsonAddresses(m.bccJson),
-      // SAFETY: `replyTo` is written by `JSON.stringify` of one `Address`.
-      replyTo: m.replyTo ? (JSON.parse(m.replyTo) as Address) : null,
-      subject: m.subject,
-      text: m.text,
-      html: m.html,
-      date: m.date,
-      read: m.read,
-      hasRaw: !!m.rawKey,
-      deliveryStatus: m.deliveryStatus,
-      deliveryError: m.deliveryError,
-      unsubscribe: parseJsonUnsubscribe(m.listUnsubscribe),
-      spam: parseSpamCheck(m.spamJson),
-      attachments: atts,
-    });
+    views.push(await messageView(db, env, m));
   }
 
   const foundLabels = await labelsForThreads(db, userId, [thread.id]);
   const threadLabelList = foundLabels.get(thread.id) ?? [];
 
   return { thread, messages: views, labels: threadLabelList };
+};
+
+/** One message with signed links to its files, as `loadThread` reads it; null when it is not the owner's. */
+export const loadMessage = async (
+  db: Database,
+  env: Env,
+  userId: string,
+  messageId: string
+): Promise<MessageView | null> => {
+  const m = await db.query.messages.findFirst({
+    where: and(eq(messages.id, messageId), eq(messages.userId, userId)),
+  });
+
+  return m ? await messageView(db, env, m) : null;
 };
 
 /** Delete a trashed or spam thread with its messages, files and raw copies. Only from there: the UI asks first. */

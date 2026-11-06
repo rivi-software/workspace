@@ -9,6 +9,7 @@ import { beforeAll, describe, expect, it } from "vitest";
 import type { User } from "~/db/schema";
 import { revoke } from "~/lib/auth.server";
 import { isJsonObject, stringOrNull } from "~/lib/guards";
+import { addImageSender } from "~/lib/mail/images.server";
 import { ingestInboundEmail } from "~/lib/mail/ingest.server";
 import { addDraftFiles } from "~/lib/mail/send.server";
 
@@ -213,6 +214,7 @@ describe("the Workspace API", () => {
             text: "Please find the invoice attached.",
             hasHtml: true,
             remoteImages: true,
+            loadImages: false,
             attachments: [],
           },
         ],
@@ -350,6 +352,56 @@ describe("the Workspace API", () => {
       emptied: { ok: true, count: 1 },
       notAFolder: 400,
       gone: 404,
+    });
+  });
+
+  it("answers whether a message's images load, and shows a forward's quote as the console does", async () => {
+    const reader = await mailbox("phone.reader", "Rob Reader");
+    const readerToken = await signInAsApp(reader);
+
+    const arrived = await ingestInboundEmail(
+      env,
+      null,
+      mail({
+        subject: "FW: Spring sale",
+        from: { email: "deals@shop.example", name: "Shop" },
+        text: "FYI",
+        // Outlook writes this header above a reply's quote too: only the subject says it is a forward.
+        html: '<p>FYI</p><div id="divRplyFwdMsg">From: Shop</div><div><img src="https://shop.example/sale.png">The sale</div>',
+        to: [{ email: reader.email, name: null }],
+      }),
+      reader.email
+    );
+
+    if (arrived.status !== "stored") {
+      throw new Error("not stored");
+    }
+
+    const path = `/mail/threads/${arrived.threadId}`;
+    const before = await call(readerToken, "GET", path);
+    await addImageSender(db, reader.id, "shop.example");
+    const after = await call(readerToken, "GET", path);
+    const message = obj(list(after.data.messages)[0]);
+
+    const document = await SELF.fetch(
+      `${api}/mail/messages/${str(message.id)}/document`,
+      { headers: bearer(readerToken) }
+    );
+
+    const html = await document.text();
+
+    expect({
+      before: obj(list(before.data.messages)[0]).loadImages,
+      after: [message.remoteImages, message.loadImages],
+      document: [
+        document.status,
+        html.includes("The sale"),
+        html.includes('<details class="rivi-quote">'),
+      ],
+    }).toStrictEqual({
+      before: false,
+      after: [true, true],
+      document: [200, true, false],
     });
   });
 
