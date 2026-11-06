@@ -1,4 +1,3 @@
-import { sendMail } from "@rivi-software/workers-mail";
 import { and, count, desc, eq, gt, inArray, isNull, sql } from "drizzle-orm";
 
 import type { Database } from "~/db";
@@ -11,19 +10,19 @@ import type { DriveLink, DriveNode } from "~/db/schema";
  * none, revoked by its creator or the node's owner. An admin can turn all of it off (Settings → Drive): nothing new
  * is made and every link answers as if it did not exist, until it is on again.
  *
- * Whether a token opens and what it reaches is the gate's (`openLink`, `reachAllByLink` in `access.server.ts`). This
- * module makes, lists and revokes links, mails invites and their codes, keeps the pass a visitor carries once their
- * password or code was right, throttles the public paths, counts views and downloads, and answers the public page
- * (`/s/$token`, its form posts) and its file route (`/s/$token/file/$nodeId`).
+ * Whether a token opens and what it reaches is the gate's (`openLink`, `reachAllByLink` in `access.server.ts`), and
+ * what a visitor proves is `visitor.server.ts`'s: the lookup throttle, an invite's code and the pass, through
+ * `linkVisits`. This module makes, lists and revokes links, mails invites, asks a link's password (throttled per
+ * client and link), counts views and downloads, and answers the public page (`/s/$token`, its form posts) and its
+ * file route (`/s/$token/file/$nodeId`).
  */
 import { randomToken, sha256Hex } from "~/lib/crypto";
-import { defined, numberOr, parseJsonObject, stringOrNull } from "~/lib/guards";
+import { defined } from "~/lib/guards";
 
-import { hashPassword, isSecure } from "../auth.server";
+import { hashPassword } from "../auth.server";
 import { newId } from "../ids";
 import { domainOf, isValidEmail } from "../mail/addresses";
 import { openSecret, sealSecret } from "../secret-box.server";
-import { textToHtml } from "../text";
 import { externalSharingOn } from "../workspace-settings.server";
 import {
   chunks,
@@ -46,29 +45,25 @@ import {
 } from "./drive";
 import type { DriveCrumb, SharedRow } from "./drive";
 import { DriveError } from "./drive.server";
+import { mailOut } from "./mail-out.server";
 import { fileResponse } from "./serve.server";
+import {
+  admit,
+  failuresOf,
+  passCookie as visitorPass,
+  readPasses as visitorPasses,
+  tooManyRequests,
+  visitorPost,
+} from "./visitor.server";
+import type { Visits } from "./visitor.server";
 
-/** A pass (a password typed, a code confirmed) lasts this long, and never past its link's end. */
-const PASS_TTL_SECONDS = 24 * 60 * 60;
-
-/** An invite's code works this long, for this many tries. */
-const CODE_TTL_MS = 10 * 60 * 1000;
-const CODE_ATTEMPTS = 5;
-
-/** Codes one invite can be sent in an hour, and invites one person can send in an hour. */
-const CODES_PER_HOUR = 5;
+/** Invites one person can send in an hour. */
 const INVITES_PER_HOUR = 20;
 
-/** Tokens that open nothing, from one client in `THROTTLE_SECONDS`, before it is refused outright. */
-const LOOKUP_MISSES = 30;
-
-/** Wrong passwords for one link from one client in `THROTTLE_SECONDS`. */
+/** Wrong passwords for one link from one client, in the 15 minutes `failuresOf` counts them. */
 const PASSWORD_FAILURES = 10;
-const THROTTLE_SECONDS = 15 * 60;
 
 const SEAL_TOKEN = "drive-link";
-const SEAL_PASS = "drive-link-pass";
-const PASS_COOKIE = "drive_pass_";
 
 const longDate = new Intl.DateTimeFormat("en-GB", {
   dateStyle: "long",
@@ -84,6 +79,21 @@ const log = (event: string, fields: Record<string, unknown>) => {
   console.log(JSON.stringify({ event, ...fields }));
 };
 
+/**
+ * What a link brings to `visitor.server.ts`: an invite's code goes to its address, and a pass never outlives the
+ * link's end.
+ */
+export const linkVisits: Visits<DriveLink> = {
+  name: "drive-link",
+  pass: { seal: "drive-link-pass", cookie: "drive_pass_", field: "l" },
+  endsAt: (link) => (link.expiresAt ? Date.parse(link.expiresAt) : null),
+  codeTo: (link) => (link.kind === "invite" ? link.email : null),
+  codeOpens: (_link, env) => `what was shared with you on ${env.APP_NAME}`,
+  confirmed: (link) => {
+    log("drive.link.confirmed", { linkId: link.id });
+  },
+};
+
 /* ---------- making, listing and revoking ---------- */
 
 export interface NewExternalShare {
@@ -96,26 +106,6 @@ export interface NewExternalShare {
   /** When it ends: an ISO time, null for never, undefined for `LINK_DEFAULT_DAYS` from now. */
   expiresAt?: string | null;
 }
-
-/**
- * From `no-reply@` on the mail domain, as the recovery mail: the domain is onboarded in SES and Email Service. Drive's
- * signing mails its codes and notices with it too.
- */
-export const mailOut = async (
-  env: Env,
-  to: string,
-  name: string,
-  subject: string,
-  text: string
-) => {
-  await sendMail(env, {
-    from: { email: `no-reply@${env.MAIL_DOMAIN}`, name },
-    to,
-    subject,
-    text,
-    html: textToHtml(text),
-  });
-};
 
 const mailInvite = async (
   env: Env,
@@ -526,233 +516,33 @@ export const externalShareRecords = async (
   }));
 };
 
-/* ---------- mail ---------- */
+/* ---------- what a visitor proves ---------- */
 
-/* ---------- an invite's code ---------- */
-
-const codeHashOf = async (link: DriveLink, code: string) =>
-  await sha256Hex(`${link.id}:${code}`);
-
-/**
- * A new one-time code for an invite, mailed to its address: six digits, `CODE_TTL_MS`, `CODE_ATTEMPTS` tries. False
- * when the invite had `CODES_PER_HOUR` codes in the last hour already.
- */
-export const sendInviteCode = async (
-  env: Env,
-  db: Database,
-  link: DriveLink,
-  at = Date.now()
-): Promise<boolean> => {
-  if (link.kind !== "invite" || !link.email) {
-    return false;
-  }
-
-  const key = `drive-link:codes:${link.id}`;
-  const sent = Number((await env.KV.get(key)) ?? 0);
-
-  if (sent >= CODES_PER_HOUR) {
-    return false;
-  }
-
-  await env.KV.put(key, String(sent + 1), { expirationTtl: 3600 });
-
-  const code = String(
-    defined(crypto.getRandomValues(new Uint32Array(1))[0], "the first item") %
-      1_000_000
-  ).padStart(6, "0");
-
-  await db
-    .update(driveLinks)
-    .set({
-      codeHash: await codeHashOf(link, code),
-      codeExpiresAt: new Date(at + CODE_TTL_MS).toISOString(),
-      codeAttempts: 0,
-    })
-    .where(eq(driveLinks.id, link.id));
-  await mailOut(
-    env,
-    link.email,
-    env.APP_NAME,
-    `Your code: ${code}`,
-    [
-      `Your code to open what was shared with you on ${env.APP_NAME}: ${code}`,
-      "It works once, for 10 minutes. If you did not ask for it, you can ignore this mail.",
-    ].join("\n\n")
-  );
-
-  return true;
-};
-
-/**
- * Whether `typed` is the invite's live code. A wrong one counts against it, and the right one is spent: of two
- * requests with it, one wins.
- */
-export const confirmInviteCode = async (
-  db: Database,
-  link: DriveLink,
-  typed: string,
-  at = Date.now()
-): Promise<boolean> => {
-  const code = typed.replaceAll(/\D/gu, "");
-
-  if (
-    !link.codeHash ||
-    !link.codeExpiresAt ||
-    Date.parse(link.codeExpiresAt) <= at
-  ) {
-    return false;
-  }
-
-  // The try is taken before comparing, in one statement on the row: parallel guesses that all read the same
-  // `code_attempts` from `link` still get `CODE_ATTEMPTS` tries between them, not each.
-  const [tried] = await db
-    .update(driveLinks)
-    .set({ codeAttempts: sql`${driveLinks.codeAttempts} + 1` })
-    .where(
-      and(
-        eq(driveLinks.id, link.id),
-        eq(driveLinks.codeHash, link.codeHash),
-        sql`${driveLinks.codeAttempts} < ${CODE_ATTEMPTS}`
-      )
-    )
-    .returning({ id: driveLinks.id });
-
-  if (!tried) {
-    return false;
-  }
-
-  if (code.length !== 6 || (await codeHashOf(link, code)) !== link.codeHash) {
-    return false;
-  }
-
-  const [spent] = await db
-    .update(driveLinks)
-    .set({
-      codeHash: null,
-      codeExpiresAt: null,
-      codeAttempts: 0,
-      confirmedAt: link.confirmedAt ?? new Date(at).toISOString(),
-    })
-    .where(
-      and(eq(driveLinks.id, link.id), eq(driveLinks.codeHash, link.codeHash))
-    )
-    .returning({ id: driveLinks.id });
-
-  if (spent) {
-    log("drive.link.confirmed", { linkId: link.id });
-  }
-
-  return !!spent;
-};
-
-/* ---------- the pass a visitor carries ---------- */
-
-/**
- * The cookie that lets a visitor back in without the password or a code: sealed, naming its link, until
- * `PASS_TTL_SECONDS` or the link's end, sent only under `/s/`. The gate still decides on every request.
- */
-export const passCookie = async (
+/** The pass cookie for a link whose password was typed or whose code was confirmed: never past the link's end. */
+export const passCookie = (
   request: Request,
   env: Env,
   link: DriveLink,
   at = Date.now()
-): Promise<string> => {
-  const end = Math.min(
-    at + PASS_TTL_SECONDS * 1000,
-    link.expiresAt ? Date.parse(link.expiresAt) : Infinity
-  );
+): Promise<string> => visitorPass(request, env, linkVisits, link, at);
 
-  const value = await sealSecret(
-    env,
-    SEAL_PASS,
-    JSON.stringify({ l: link.id, exp: end })
-  );
-
-  const maxAge = Math.max(0, Math.floor((end - at) / 1000));
-
-  return `${PASS_COOKIE}${link.id}=${value}; Path=/s/; Max-Age=${maxAge}; HttpOnly; SameSite=Lax${isSecure(request) ? "; Secure" : ""}`;
-};
-
-/** The links the request's pass cookies are good for: sealed by us, for that link, not past their end. */
-export const readPasses = async (
+/** The links the request's pass cookies are good for. */
+export const readPasses = (
   request: Request,
   env: Env,
   at = Date.now()
-): Promise<Set<string>> => {
-  const out = new Set<string>();
-  const header = request.headers.get("cookie") ?? "";
+): Promise<Set<string>> => visitorPasses(request, env, linkVisits, at);
 
-  for (const part of header.split(";").slice(0, 50)) {
-    const [name, ...rest] = part.trim().split("=");
-
-    if (!name?.startsWith(PASS_COOKIE)) {
-      continue;
-    }
-
-    // oxlint-disable-next-line eslint/no-await-in-loop -- run in turn: the lists are short and their order is kept
-    const opened = await openSecret(env, SEAL_PASS, rest.join("="));
-
-    if (!opened) {
-      continue;
-    }
-
-    // A cookie that does not open to a pass of ours reads as an empty one, and is skipped.
-    const pass = parseJsonObject(opened);
-    const passLink = stringOrNull(pass.l);
-
-    if (
-      passLink !== null &&
-      name === `${PASS_COOKIE}${passLink}` &&
-      numberOr(pass.exp, Number.NEGATIVE_INFINITY) > at
-    ) {
-      out.add(passLink);
-    }
-  }
-
-  return out;
-};
-
-/* ---------- throttles ---------- */
-
-const clientOf = (request: Request): string =>
-  request.headers.get("cf-connecting-ip") ?? "unknown";
-
-const counted = async (kv: KVNamespace, key: string): Promise<number> =>
-  Number((await kv.get(key)) ?? 0);
-
-const bump = async (kv: KVNamespace, key: string): Promise<void> => {
-  await kv.put(key, String((await counted(kv, key)) + 1), {
-    expirationTtl: THROTTLE_SECONDS,
-  });
-};
-
-/**
- * The gate for a request from outside the workspace, throttled: a client whose tokens opened nothing
- * `LOOKUP_MISSES` times in `THROTTLE_SECONDS` is refused before any lookup. KV is eventually consistent, which is
- * fine for a brake: a token is 32 random bytes, not something to guess.
- */
-export const admitLink = async (
+/** The gate for a request from outside the workspace (`openLink`), under the visitor's lookup throttle (`admit`). */
+export const admitLink = (
   env: Env,
   db: Database,
   request: Request,
   token: string,
   proof: LinkProof,
   at = Date.now()
-): Promise<LinkAccess | null | "throttled"> => {
-  const missKey = `drive-link:miss:${clientOf(request)}`;
-
-  if ((await counted(env.KV, missKey)) >= LOOKUP_MISSES) {
-    return "throttled";
-  }
-
-  const access = await openLink(db, token, proof, at);
-
-  if (!access) {
-    await bump(env.KV, missKey);
-  }
-
-  return access;
-};
+): Promise<LinkAccess | null | "throttled"> =>
+  admit(env, request, linkVisits, () => openLink(db, token, proof, at));
 
 /* ---------- the public page ---------- */
 
@@ -873,115 +663,84 @@ export const sharedPage = async (
 };
 
 /**
- * The forms of `/s/$token`, posted without JavaScript: `password` (a link's password), `send-code` (mail an invite's
- * code) and `code` (confirm it). Answers a redirect back to the page, with the pass cookie once the password or the
- * code was right, else an `error` (`password`, `code`, `codes`, `throttled`) or the `step` to show.
+ * The forms of `/s/$token`, posted without JavaScript (`visitorPost`, which refuses a post from another site):
+ * `password` (a link's password), `send-code` (mail an invite's code) and `code` (confirm it). Answers a redirect back
+ * to the page, with the pass cookie once the password or the code was right, else an `error` (`password`, `code`,
+ * `codes`, `throttled`) or the `step` to show.
  */
-export const sharedPagePost = async (
+export const sharedPagePost = (
   env: Env,
   db: Database,
   request: Request,
   token: string,
   form: FormData,
   at = Date.now()
-): Promise<Response> => {
-  const url = new URL(request.url);
+): Promise<Response> =>
+  visitorPost(
+    env,
+    db,
+    request,
+    linkVisits,
+    {
+      path: `/s/${token}`,
+      keep: ["n"],
+      form: () => Promise.resolve(form),
+      own: async (posted, back) => {
+        if (String(posted.get("intent") ?? "") !== "password") {
+          return null;
+        }
 
-  const back = (params: Record<string, string> = {}, cookie?: string) => {
-    const next = new URLSearchParams();
-    const n = url.searchParams.get("n");
+        const hex = await sha256Hex(token);
 
-    if (n) {
-      next.set("n", n);
-    }
+        const failures = failuresOf(
+          env,
+          request,
+          "drive-link:password",
+          hex.slice(0, 32)
+        );
 
-    for (const [k, v] of Object.entries(params)) {
-      next.set(k, v);
-    }
+        if (await failures.reached(PASSWORD_FAILURES)) {
+          return back({ error: "throttled" });
+        }
 
-    const query = next.toString();
+        const access = await admitLink(
+          env,
+          db,
+          request,
+          token,
+          { password: String(posted.get("password") ?? "") },
+          at
+        );
 
-    const headers = new Headers({
-      Location: `/s/${token}${query ? `?${query}` : ""}`,
-    });
+        if (access === "throttled") {
+          return back({ error: "throttled" });
+        }
 
-    if (cookie) {
-      headers.append("Set-Cookie", cookie);
-    }
+        if (access?.state === "open") {
+          return back({}, await passCookie(request, env, access.open.link, at));
+        }
 
-    return new Response(null, { status: 303, headers });
-  };
+        if (access?.state === "password") {
+          await failures.add();
 
-  const intent = String(form.get("intent") ?? "");
-  const client = clientOf(request);
+          return back({ error: "password" });
+        }
 
-  if (intent === "password") {
-    const hex = await sha256Hex(token);
-    const failKey = `drive-link:password:${client}:${hex.slice(0, 32)}`;
+        return back();
+      },
+      // The invite the code's forms are for, whatever pass the visitor carries: one confirmed may ask for a new code.
+      row: async () => {
+        const access = await admitLink(env, db, request, token, {}, at);
 
-    if ((await counted(env.KV, failKey)) >= PASSWORD_FAILURES) {
-      return back({ error: "throttled" });
-    }
+        if (access === "throttled") {
+          return access;
+        }
 
-    const access = await admitLink(
-      env,
-      db,
-      request,
-      token,
-      { password: String(form.get("password") ?? "") },
-      at
-    );
-
-    if (access === "throttled") {
-      return back({ error: "throttled" });
-    }
-
-    if (access?.state === "open") {
-      return back({}, await passCookie(request, env, access.open.link, at));
-    }
-
-    if (access?.state === "password") {
-      await bump(env.KV, failKey);
-
-      return back({ error: "password" });
-    }
-
-    return back();
-  }
-
-  const access = await admitLink(env, db, request, token, {}, at);
-
-  if (access === "throttled") {
-    return back({ error: "throttled" });
-  }
-
-  if (access?.state !== "invite") {
-    return back();
-  }
-
-  if (intent === "send-code") {
-    return (await sendInviteCode(env, db, access.link, at))
-      ? back({ step: "code" })
-      : back({ step: "code", error: "codes" });
-  }
-
-  if (intent === "code") {
-    if (
-      await confirmInviteCode(
-        db,
-        access.link,
-        String(form.get("code") ?? ""),
-        at
-      )
-    ) {
-      return back({}, await passCookie(request, env, access.link, at));
-    }
-
-    return back({ step: "code", error: "code" });
-  }
-
-  return back();
-};
+        return access?.state === "invite" ? access.link : null;
+      },
+    },
+    at
+  );
 
 /* ---------- the public file route ---------- */
 
@@ -1014,13 +773,7 @@ export const sharedFileResponse = async (
   );
 
   if (access === "throttled") {
-    return new Response("too many requests", {
-      status: 429,
-      headers: {
-        "Retry-After": String(THROTTLE_SECONDS),
-        "Cache-Control": "no-store",
-      },
-    });
+    return tooManyRequests();
   }
 
   if (access?.state !== "open") {

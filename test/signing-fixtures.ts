@@ -152,8 +152,12 @@ export const visitor = (
   cookie?: string
 ) => {
   const headers = new Headers(init.headers);
-  ips += 1;
-  headers.set("cf-connecting-ip", `203.0.113.${ips % 250}`);
+
+  // A client of its own unless the test names one: the throttles count per client.
+  if (!headers.has("cf-connecting-ip")) {
+    ips += 1;
+    headers.set("cf-connecting-ip", `203.0.113.${ips % 250}`);
+  }
 
   if (cookie) {
     headers.set("cookie", cookie);

@@ -98,6 +98,14 @@ Which part of the trash a look at Drive includes: none of it, the person's own t
 A node shared outside the workspace: a link anyone holding it opens (after its password, when it has one), or an invite for one address, confirmed with a mailed code. Viewer only, for as long as its maker still reaches the node.
 _Avoid_: public share, external share
 
+**Visitor**:
+Someone outside the workspace on a page under `/s/`, let in by the token in its address: a link's, or a signing request's. Before the page opens they prove what it asks (a link's password, or a code mailed to the address it was sent to), and carry a pass after.
+_Avoid_: guest, external user, anonymous user
+
+**Pass**:
+What a visitor carries once they proved it: a sealed cookie for one link or signing request, good for 24 hours and never past that one's end. What it opens is still decided on every request.
+_Avoid_: session (a person's), token (the address's)
+
 **Signing request**:
 A PDF sent to a customer to sign, with the fields placed on it for the customer and for the workspace's side; the customer signs first, then the inside signer.
 _Avoid_: envelope, contract (the document is any PDF)

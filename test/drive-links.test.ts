@@ -17,8 +17,8 @@ import {
   trashNodes,
 } from "~/lib/drive/drive.server";
 import {
-  confirmInviteCode,
   createExternalShare,
+  linkVisits,
   listExternalShares,
   passCookie,
   readPasses,
@@ -26,9 +26,9 @@ import {
   sharedFileResponse,
   sharedPage,
   sharedPagePost,
-  sendInviteCode,
 } from "~/lib/drive/links.server";
 import type { NewExternalShare } from "~/lib/drive/links.server";
+import { confirmCode, sendCode } from "~/lib/drive/visitor.server";
 import { setExternalSharing } from "~/lib/workspace-settings.server";
 
 import {
@@ -1062,7 +1062,7 @@ describe("invitations", () => {
       allowDownload: true,
     });
 
-    await sendInviteCode(mail.env, db, link);
+    await sendCode(mail.env, db, linkVisits, link, null);
 
     const code = defined(
       defined(
@@ -1080,15 +1080,109 @@ describe("invitations", () => {
     );
 
     await Promise.all(
-      Array.from({ length: 8 }, () => confirmInviteCode(db, stale, wrong))
+      Array.from({ length: 8 }, () =>
+        confirmCode(db, linkVisits, stale, wrong, null)
+      )
     );
-    await expect(confirmInviteCode(db, stale, code)).resolves.toBeFalsy();
+    await expect(
+      confirmCode(db, linkVisits, stale, code, null)
+    ).resolves.toBeFalsy();
 
     const row = await db.query.driveLinks.findFirst({
       where: eq(driveLinks.id, link.id),
     });
 
     expect(defined(row).codeAttempts).toBe(5);
+  });
+
+  it("takes the page's forms from its own origin or from no browser, never from another site", async () => {
+    const owner = await mailbox("lk-own14");
+    const file = await putFile(owner.id, null, "origin.txt", "origin");
+    const mail = recordingEmail();
+
+    const { url } = await createExternalShare(mail.env, db, owner, file.id, {
+      kind: "invite",
+      email: "origin@example.org",
+      allowDownload: true,
+    });
+
+    const invite = defined(url.split("/s/")[1]);
+
+    const { token: locked } = await linkTo(owner, file.id, {
+      password: "letmein1",
+    });
+
+    const post = (
+      token: string,
+      fields: Record<string, string>,
+      headers: Record<string, string>
+    ) => {
+      const form = new FormData();
+
+      for (const [k, v] of Object.entries(fields)) {
+        form.set(k, v);
+      }
+
+      return sharedPagePost(
+        mail.env,
+        db,
+        visitor(`/s/${token}`, { method: "POST", headers }),
+        token,
+        form
+      );
+    };
+
+    const answered = (res: Response) => ({
+      status: res.status,
+      location: res.headers.get("location"),
+      pass: res.headers.has("set-cookie"),
+      mailed: mail.sent.length,
+    });
+
+    const { origin } = new URL(env.APP_URL);
+    const sendCodeForm = { intent: "send-code" };
+    const password = { intent: "password", password: "letmein1" };
+
+    expect([
+      // Another site's page posts with the visitor's browser: nothing is mailed, and no pass is given.
+      answered(
+        await post(invite, sendCodeForm, { "sec-fetch-site": "cross-site" })
+      ),
+      answered(await post(locked, password, { "sec-fetch-site": "same-site" })),
+      // A browser that sends no `Sec-Fetch-Site` still names the page it posts from.
+      answered(
+        await post(invite, sendCodeForm, {
+          origin: "https://elsewhere.example",
+        })
+      ),
+      // `null` is a sandboxed frame or a page with no referrer; this page sends its referrer to its own origin, so
+      // its forms always name it.
+      answered(await post(invite, sendCodeForm, { origin: "null" })),
+      // The page's own form, a browser before `Sec-Fetch-Site`, and a script that is no browser at all.
+      answered(
+        await post(invite, sendCodeForm, { "sec-fetch-site": "same-origin" })
+      ),
+      answered(await post(invite, sendCodeForm, { origin })),
+      answered(await post(locked, password, {})),
+    ]).toStrictEqual([
+      { status: 403, location: null, pass: false, mailed: 1 },
+      { status: 403, location: null, pass: false, mailed: 1 },
+      { status: 403, location: null, pass: false, mailed: 1 },
+      { status: 403, location: null, pass: false, mailed: 1 },
+      {
+        status: 303,
+        location: `/s/${invite}?step=code`,
+        pass: false,
+        mailed: 2,
+      },
+      {
+        status: 303,
+        location: `/s/${invite}?step=code`,
+        pass: false,
+        mailed: 3,
+      },
+      { status: 303, location: `/s/${locked}`, pass: true, mailed: 3 },
+    ]);
   });
 
   it("refuses a second live invite to an address, past an expired one", async () => {

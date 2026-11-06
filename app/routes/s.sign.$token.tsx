@@ -551,9 +551,11 @@ export const Route = createFileRoute("/s/sign/$token")({
             ? `Sign ${loaderData.page.name} · ${loaderData.appName}`
             : (loaderData?.appName ?? "Workspace"),
       },
-      // The token is the address: no search engine keeps it, and no page this one links to learns it.
+      // The token is the address: no search engine keeps it, and no page on another site learns it. `same-origin`,
+      // not `no-referrer`: under that a browser sends `Origin: null` with the page's own posts, and one without
+      // `Sec-Fetch-Site` (Safari before 16.4) would be refused by the post check (`sameOriginPost`).
       { name: "robots", content: "noindex, nofollow" },
-      { name: "referrer", content: "no-referrer" },
+      { name: "referrer", content: "same-origin" },
     ],
   }),
   server: {

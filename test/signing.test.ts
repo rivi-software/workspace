@@ -30,12 +30,14 @@ import {
   customerPost,
   listSigningRequests,
   remindCustomer,
+  requestVisits,
   saveHandSignature,
   signForRivi,
   signingDocument,
   signingRequestView,
 } from "~/lib/drive/signing.server";
 import type { NewSigningRequest } from "~/lib/drive/signing.server";
+import { confirmCode, sendCode } from "~/lib/drive/visitor.server";
 import { setExternalSharing } from "~/lib/workspace-settings.server";
 
 import {
@@ -58,6 +60,8 @@ import {
   sent,
   visitor,
 } from "./signing-fixtures";
+
+const HOUR = 3_600_000;
 
 /** The signed copies filed whole in a person's drive. */
 const signedCopiesOf = async (userId: string) => {
@@ -895,6 +899,326 @@ describe("the customer's side", () => {
       true,
       // { signingRequestView: await signingRequestView( env, db, stranger.id, request.id ), sig...
       { signingRequestView: null, signingDocument: null },
+    ]);
+  });
+
+  it("refuses every lookup from a client whose tokens kept opening nothing", async () => {
+    const { mail, token } = await sent("sg-misses");
+    const guesser = { "cf-connecting-ip": "192.0.2.88" };
+
+    for (let i = 0; i < 30; i += 1) {
+      // oxlint-disable-next-line eslint/no-await-in-loop -- the lookup throttle counts each client's misses in KV, and parallel requests would race on that count
+      const { status } = await customerDocument(
+        mail.env,
+        db,
+        visitor("/x", { headers: guesser }),
+        `guess${i}`,
+        false
+      );
+
+      expect(status).toBe(404);
+    }
+
+    const document = await customerDocument(
+      mail.env,
+      db,
+      visitor("/x", { headers: guesser }),
+      token,
+      false
+    );
+
+    const formPost = await customerPost(
+      mail.env,
+      db,
+      visitor(`/s/sign/${token}`, {
+        method: "POST",
+        body: form({ intent: "send-code" }),
+        headers: guesser,
+      }),
+      token
+    );
+
+    const jsonPost = await customerPost(
+      mail.env,
+      db,
+      visitor(`/s/sign/${token}`, {
+        method: "POST",
+        body: JSON.stringify({ intent: "decline" }),
+        headers: { ...guesser, "content-type": "application/json" },
+      }),
+      token
+    );
+
+    expect({
+      document: {
+        status: document.status,
+        retryAfter: document.headers.get("retry-after"),
+      },
+      page: await customerPage(
+        mail.env,
+        db,
+        visitor(`/s/sign/${token}`, { headers: guesser }),
+        token
+      ),
+      formPost: formPost.headers.get("location"),
+      jsonPost: { status: jsonPost.status, body: await jsonPost.json() },
+      // Anyone else still opens it.
+      elsewhere: await customerPage(
+        mail.env,
+        db,
+        visitor(`/s/sign/${token}`),
+        token
+      ),
+    }).toMatchObject({
+      document: { status: 429, retryAfter: "900" },
+      page: { state: "throttled" },
+      formPost: `/s/sign/${token}?error=throttled`,
+      jsonPost: {
+        status: 429,
+        body: {
+          ok: false,
+          error: "Too many attempts from here. Wait 15 minutes.",
+        },
+      },
+      elsewhere: { state: "confirm" },
+    });
+  });
+
+  it("gives a code five tries, and a request five codes an hour", async () => {
+    const { asker, mail, request, token } = await sent("sg-tries");
+
+    const post = (fields: Record<string, string>) =>
+      customerPost(
+        mail.env,
+        db,
+        visitor(`/s/sign/${token}`, { method: "POST", body: form(fields) }),
+        token
+      );
+
+    await post({ intent: "send-code" });
+
+    const [code] = defined(
+      String(defined(mail.sent.at(-1)).subject).match(/\d{6}/u)
+    );
+
+    const wrong = code === "123456" ? "654321" : "123456";
+
+    for (let i = 0; i < 5; i += 1) {
+      // oxlint-disable-next-line eslint/no-await-in-loop -- each wrong code takes one of the five tries on the request, which the next reads
+      await post({ intent: "code", code: wrong });
+    }
+
+    const late = await post({ intent: "code", code });
+
+    for (let i = 0; i < 4; i += 1) {
+      // oxlint-disable-next-line eslint/no-await-in-loop -- each send counts against the code limit before the next one, in order
+      await post({ intent: "send-code" });
+    }
+
+    const capped = await post({ intent: "send-code" });
+
+    const view = defined(
+      await signingRequestView(mail.env, db, asker.id, request.id)
+    );
+
+    expect({
+      late: late.headers.get("location"),
+      capped: capped.headers.get("location"),
+      // The history has each code mailed, and no confirmation.
+      history: view.events
+        .map((e) => e.kind)
+        .filter((kind) => kind === "code-sent" || kind === "confirmed"),
+    }).toStrictEqual({
+      late: `/s/sign/${token}?step=code&error=code`,
+      capped: `/s/sign/${token}?step=code&error=codes`,
+      history: Array.from({ length: 5 }, () => "code-sent"),
+    });
+  });
+
+  it("counts a code's tries on the request, not on the copy each guess read", async () => {
+    const { mail, request } = await sent("sg-race");
+
+    await sendCode(mail.env, db, requestVisits, request, null);
+
+    const [code] = defined(
+      String(defined(mail.sent.at(-1)).subject).match(/\d{6}/u)
+    );
+
+    const wrong = code === "123456" ? "654321" : "123456";
+
+    // Every guess holds the request as it was read before any of them counted, as parallel requests do.
+    const stale = defined(
+      await db.query.signingRequests.findFirst({
+        where: eq(signingRequests.id, request.id),
+      })
+    );
+
+    await Promise.all(
+      Array.from({ length: 8 }, () =>
+        confirmCode(db, requestVisits, stale, wrong, null)
+      )
+    );
+    await expect(
+      confirmCode(db, requestVisits, stale, code, null)
+    ).resolves.toBeFalsy();
+
+    const row = await db.query.signingRequests.findFirst({
+      where: eq(signingRequests.id, request.id),
+    });
+
+    expect(defined(row).codeAttempts).toBe(5);
+  });
+
+  it("ends a pass made while the request waits for the customer at its expiry, and lets them in again after they signed", async () => {
+    const { mail, request, token } = await sent("sg-late");
+    const expiry = Date.parse(request.expiresAt);
+    const page = `/s/sign/${token}`;
+
+    /** The customer through the code at `at`: their pass, and how long their browser keeps it. */
+    const confirmAt = async (at: number) => {
+      await customerPost(
+        mail.env,
+        db,
+        visitor(page, { method: "POST", body: form({ intent: "send-code" }) }),
+        token,
+        at
+      );
+
+      const [code] = defined(
+        String(defined(mail.sent.at(-1)).subject).match(/\d{6}/u)
+      );
+
+      const done = await customerPost(
+        mail.env,
+        db,
+        visitor(page, { method: "POST", body: form({ intent: "code", code }) }),
+        token,
+        at
+      );
+
+      const cookie = defined(done.headers.get("set-cookie"));
+
+      return {
+        cookie: defined(cookie.split(";")[0]),
+        maxAge: cookie.match(/Max-Age=(?<seconds>\d+)/u)?.groups?.seconds,
+      };
+    };
+
+    const stateAt = async (cookie: string, at: number) => {
+      const shown = await customerPage(
+        mail.env,
+        db,
+        visitor(page, {}, cookie),
+        token,
+        at
+      );
+
+      return shown?.state;
+    };
+
+    // Confirmed an hour before the request expires: the pass lasts that hour, not 24.
+    const early = await confirmAt(expiry - HOUR);
+    const opened = await stateAt(early.cookie, expiry - HOUR + 60_000);
+
+    const signed = await customerPost(
+      mail.env,
+      db,
+      visitor(
+        page,
+        {
+          method: "POST",
+          body: JSON.stringify({
+            intent: "sign",
+            values: { "c-name": "Cas Customer", "c-ok": "yes" },
+            signature: SIGNATURE,
+            agree: true,
+          }),
+          headers: { "content-type": "application/json" },
+        },
+        early.cookie
+      ),
+      token,
+      expiry - HOUR + 120_000
+    );
+
+    // Past the expiry the signed request waits for the workspace and the customer may still open it, but not with
+    // that pass.
+    const after = await stateAt(early.cookie, expiry + 60_000);
+
+    const { status: documentStatus } = await customerDocument(
+      mail.env,
+      db,
+      visitor("/x", {}, early.cookie),
+      token,
+      false,
+      expiry + 60_000
+    );
+
+    // A new code lets them in again, for 24 hours: a request they signed has no end of its own.
+    const again = await confirmAt(expiry + 120_000);
+
+    expect({
+      maxAge: early.maxAge,
+      opened,
+      signed: await signed.json(),
+      after,
+      documentStatus,
+      maxAgeAgain: again.maxAge,
+      again: await stateAt(again.cookie, expiry + 180_000),
+    }).toStrictEqual({
+      maxAge: "3600",
+      opened: "sign",
+      signed: { ok: true },
+      after: "confirm",
+      documentStatus: 404,
+      maxAgeAgain: "86400",
+      again: "signed",
+    });
+  });
+
+  it("takes the code's forms from its own page or from no browser, never from another site", async () => {
+    const { mail, token } = await sent("sg-origin");
+    const { origin: appOrigin } = new URL(env.APP_URL);
+    const before = mail.sent.length;
+
+    const post = async (headers: Record<string, string>) => {
+      const res = await customerPost(
+        mail.env,
+        db,
+        visitor(`/s/sign/${token}`, {
+          method: "POST",
+          body: form({ intent: "send-code" }),
+          headers,
+        }),
+        token
+      );
+
+      return {
+        status: res.status,
+        location: res.headers.get("location"),
+        mailed: mail.sent.length - before,
+      };
+    };
+
+    expect([
+      await post({ "sec-fetch-site": "cross-site" }),
+      // Only a person typing an address sends `none`; no form or script on a page does.
+      await post({ "sec-fetch-site": "none" }),
+      await post({ origin: "https://elsewhere.example" }),
+      // `null` is a sandboxed frame or a page with no referrer; this page sends its referrer to its own origin, so
+      // its forms always name it.
+      await post({ origin: "null" }),
+      await post({ "sec-fetch-site": "same-origin" }),
+      await post({ origin: appOrigin }),
+      await post({}),
+    ]).toStrictEqual([
+      { status: 403, location: null, mailed: 0 },
+      { status: 403, location: null, mailed: 0 },
+      { status: 403, location: null, mailed: 0 },
+      { status: 403, location: null, mailed: 0 },
+      { status: 303, location: `/s/sign/${token}?step=code`, mailed: 1 },
+      { status: 303, location: `/s/sign/${token}?step=code`, mailed: 2 },
+      { status: 303, location: `/s/sign/${token}?step=code`, mailed: 3 },
     ]);
   });
 
