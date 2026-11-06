@@ -3,18 +3,19 @@
  * actions and their undo, the composer's start, sending, drafts, contacts and labels, over the same server modules
  * the console's mail routes and `app/lib/mail/actions.ts` call.
  */
-import { and, eq } from "drizzle-orm";
-
-import { attachments, messages } from "~/db/schema";
 import type { Address, Thread } from "~/db/schema";
 import { parseAddressList, parseJsonAddresses } from "~/lib/mail/addresses";
 import { composeData } from "~/lib/mail/compose.server";
 import { searchContacts } from "~/lib/mail/contacts.server";
-import { signFileUrl } from "~/lib/mail/files.server";
 import { createLabel } from "~/lib/mail/labels.server";
-import { emptyFolder, loadThread } from "~/lib/mail/mailbox.server";
-import { askedView, listPage } from "~/lib/mail/reads.server";
-import { mailDocument, mailReading, sanitizeHtml } from "~/lib/mail/sanitize";
+import { emptyFolder } from "~/lib/mail/mailbox.server";
+import {
+  askedView,
+  listPage,
+  messageHtml,
+  openThread,
+} from "~/lib/mail/reads.server";
+import { mailDocument, mailReading } from "~/lib/mail/sanitize";
 import {
   deleteDraft,
   draftFilesForSending,
@@ -26,7 +27,6 @@ import type { OutgoingFile } from "~/lib/mail/send.server";
 import {
   applyThreadAction,
   markAllRead,
-  markThreadRead,
   undoThreadAction,
 } from "~/lib/mail/threads.server";
 import { isThreadIntent } from "~/lib/mail/views";
@@ -49,21 +49,6 @@ const threadView = (t: Thread) => ({
   participants: parseJsonAddresses(t.participantsJson),
 });
 
-/** The links of a message's inline images by their Content-ID. */
-const cidLinks = (
-  files: { contentId: string | null; url: string }[]
-): Map<string, string> => {
-  const links = new Map<string, string>();
-
-  for (const a of files) {
-    if (a.contentId) {
-      links.set(a.contentId, a.url);
-    }
-  }
-
-  return links;
-};
-
 const list = async (context: ApiContext): Promise<Response> => {
   const { db, env, user, query } = context;
 
@@ -80,86 +65,49 @@ const list = async (context: ApiContext): Promise<Response> => {
 
 const thread = async (context: ApiContext): Promise<Response> => {
   const { db, env, user, params, query } = context;
-  const loaded = await loadThread(db, env, user.id, params.id ?? "");
 
-  if (!loaded) {
+  const opened = await openThread(db, env, user.id, params.id ?? "", {
+    markRead: query.get("keepUnread") !== "1",
+  });
+
+  if (!opened) {
     throw new ApiRequestError("That conversation is not yours.", 404);
   }
 
-  if (query.get("keepUnread") !== "1" && loaded.thread.unreadCount > 0) {
-    await markThreadRead(db, user.id, loaded.thread.id);
-  }
-
   return json({
-    thread: threadView({
-      ...loaded.thread,
-      unreadCount:
-        query.get("keepUnread") === "1" ? loaded.thread.unreadCount : 0,
-    }),
-    labels: loaded.labels,
-    messages: loaded.messages.map((m) => {
-      const links = cidLinks(m.attachments);
-
-      const html = m.html
-        ? sanitizeHtml(m.html, { cidUrl: (cid) => links.get(cid) ?? null })
-        : null;
-
-      return {
-        id: m.id,
-        direction: m.direction,
-        from: m.from,
-        to: m.to,
-        cc: m.cc,
-        bcc: m.bcc,
-        replyTo: m.replyTo,
-        subject: m.subject,
-        text: m.text,
-        hasHtml: html !== null,
-        remoteImages: html?.remoteImages ?? false,
-        date: m.date,
-        read: m.read,
-        deliveryStatus: m.deliveryStatus,
-        deliveryError: m.deliveryError,
-        spam: m.spam !== null,
-        attachments: m.attachments,
-      };
-    }),
+    thread: threadView(opened.thread),
+    labels: opened.labels,
+    messages: opened.messages.map((m) => ({
+      id: m.id,
+      direction: m.direction,
+      from: m.from,
+      to: m.to,
+      cc: m.cc,
+      bcc: m.bcc,
+      replyTo: m.replyTo,
+      subject: m.subject,
+      text: m.text,
+      hasHtml: m.html !== null,
+      remoteImages: m.remoteImages,
+      loadImages: m.loadImages,
+      date: m.date,
+      read: m.read,
+      deliveryStatus: m.deliveryStatus,
+      deliveryError: m.deliveryError,
+      spam: m.spam !== null,
+      attachments: m.attachments,
+    })),
   });
 };
 
 /** A message's HTML part as a complete document for the app's web view, light or dark, its images held back unless asked for. */
 const document = async (context: ApiContext): Promise<Response> => {
   const { db, env, user, params, query } = context;
+  const sanitized = await messageHtml(db, env, user.id, params.id ?? "");
 
-  const m = await db.query.messages.findFirst({
-    where: and(eq(messages.id, params.id ?? ""), eq(messages.userId, user.id)),
-  });
-
-  if (!m?.html) {
+  if (!sanitized) {
     throw new ApiRequestError("That message has no HTML part.", 404);
   }
-
-  const files = await db.query.attachments.findMany({
-    where: eq(attachments.messageId, m.id),
-  });
-
-  const inline: { contentId: string | null; url: string }[] = [];
-
-  for (const a of files) {
-    if (a.contentId) {
-      inline.push({
-        contentId: a.contentId,
-        // oxlint-disable-next-line eslint/no-await-in-loop -- one signature at a time, a handful per message
-        url: await signFileUrl(env, a.id),
-      });
-    }
-  }
-
-  const links = cidLinks(inline);
-
-  const sanitized = sanitizeHtml(m.html, {
-    cidUrl: (cid) => links.get(cid) ?? null,
-  });
 
   const dark = query.get("appearance") === "dark";
 
