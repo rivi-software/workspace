@@ -1,17 +1,34 @@
-# Weekly dependency updates, for the npm packages and for the actions the workflows pin.
+# Weekly dependency updates, for the npm packages and for the actions the workflows pin (by commit, with the tag in a
+# comment, which Dependabot updates together). A release is offered once it is a week old, so one pulled for a
+# compromise never lands here.
 version: 2
 updates:
   - package-ecosystem: npm
     directory: /
     schedule:
       interval: weekly
+    cooldown:
+      default-days: 7
     open-pull-requests-limit: 10
     commit-message:
       prefix: "chore(deps)"
+    # Minor and patch releases together; a major comes on its own, so one that breaks the build holds back nothing else.
+    groups:
+      development:
+        dependency-type: development
+        update-types: [minor, patch]
+      production:
+        dependency-type: production
+        update-types: [minor, patch]
 
   - package-ecosystem: github-actions
     directory: /
     schedule:
       interval: weekly
+    cooldown:
+      default-days: 7
     commit-message:
       prefix: "chore(ci)"
+    groups:
+      github-actions:
+        patterns: ["*"]

@@ -15,7 +15,7 @@ pnpm run dev                     # http://localhost:5174, admin@example.com / pa
 
 ## Checks
 
-`pnpm run verify` is the gate a pull request has to pass: the typecheck, Oxlint, the check that `migrations/` matches `app/db/schema.ts`, Oxfmt, the Vitest suite (inside workerd), the production build and a dry-run deploy. `pnpm run format` fixes formatting and `pnpm run fix` applies the lint autofixes. CI runs the same checks, then the smoke test against the build.
+`pnpm run verify` is the gate a pull request has to pass: the typecheck, Oxlint, the check that `migrations/` matches `app/db/schema.ts`, Oxfmt, the Vitest suite (inside workerd), the production build, a dry-run deploy and the bundle check (`workers-bundle-check.config.ts`). `pnpm run format` fixes formatting and `pnpm run fix` applies the lint autofixes. CI runs the same checks, then the smoke test against the build. Semgrep comments new findings on the pull request, and RIVI Bot reviews it once a maintainer adds the `rivi-bot:review` label.
 
 ## Pull requests
 
@@ -26,7 +26,7 @@ pnpm run dev                     # http://localhost:5174, admin@example.com / pa
 
 ## The migration rule
 
-A schema change goes through Drizzle, never by hand: edit `app/db/schema.ts`, run `pnpm run db:generate`, and commit the new file under `migrations/` with its `meta/` snapshot. `pnpm run contracts:check` fails a pull request whose schema and migrations differ. Read the generated SQL before you commit it: drizzle-kit writes an added column's `REFERENCES` without its `ON DELETE` action, so add it by hand. Never edit a migration that has been deployed; write the next one. Dropping a column takes two releases (the schema without the column first, the drop after), because the running Worker still names it in every select until the deploy lands.
+A schema change goes through Drizzle, never by hand: edit `app/db/schema.ts`, run `pnpm run db:generate`, and commit the new file under `migrations/` with its `meta/` snapshot. `pnpm run contracts:check` fails a pull request whose schema and migrations differ. Read the generated SQL before you commit it: drizzle-kit writes an added column's `REFERENCES` without its `ON DELETE` action, so add it by hand. Never edit a migration that has been deployed; write the next one. `db:generate` records each new migration's hash in `migrations/JOURNAL.json`, and `contracts:check` fails once a recorded one changes. A migration that has run on no database yet (your own branch's) can still change: delete its entry from the journal and run `pnpm exec d1-migrations journal` again. Dropping a column takes two releases (the schema without the column first, the drop after), because the running Worker still names it in every select until the deploy lands.
 
 ## Security
 

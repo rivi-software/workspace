@@ -1,0 +1,46 @@
+name: Bug report
+description: Mail, Drive, the Assistant, Calendar, Tasks or the deploy does not do what the README says
+type: Bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        A vulnerability goes in a private report, never here: [SECURITY.md](https://github.com/rivi-software/workspace/blob/main/SECURITY.md) says how. Leave out anything from a real mailbox: addresses, messages, files.
+  - type: dropdown
+    id: module
+    attributes:
+      label: Where
+      options:
+        - Mail
+        - Drive
+        - Signing
+        - Assistant
+        - Calendar
+        - Tasks
+        - Sign-in and accounts
+        - Workspace API
+        - Setup and deploy
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Commit and where it runs
+      description: "The commit you run, and where: `pnpm run dev`, or your own deploy. For a page, the browser too."
+      placeholder: 45bc79d, deployed to workers.dev, Safari 26
+    validations:
+      required: true
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What you did, what you expected, and what happened instead. Paste errors and logs as text.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: How to reproduce it
+      description: The steps from a fresh `pnpm run setup` (admin@example.com / password), or the message, file or request that shows it. If it happens only sometimes, say when you have seen it.
+    validations:
+      required: true

@@ -1,0 +1,39 @@
+name: rivi-bot
+
+# RIVI Bot (https://github.com/rivi-software/tools/tree/main/rivi-bot#readme): Claude on this repository's pull requests
+# and issues, through the reusable workflow in rivi-software/tools. .github/rivi-bot.yml on main says what it does: it
+# reviews a pull request by someone with write access when it opens and after every push, and any other once a
+# maintainer adds the `rivi-bot:review` label; someone with write access asks it for the rest with a comment that
+# speaks to @rivi-bot (`@rivi-bot fix the null check`, `@rivi-bot why does this retry?`).
+#
+# The events and permissions here are the most it can do. pull_request_target runs this file as it is on main, with
+# the secrets, and nothing from the pull request runs: the reusable workflow gates outside pull requests on the label
+# and requests on write access, and reads its configuration from main.
+#
+# Needs the secret ANTHROPIC_REVIEW_API_KEY (from a workspace with a spend limit), and for RIVI Bot's own name the
+# variable AUTOMATION_APP_CLIENT_ID with the secret AUTOMATION_APP_PRIVATE_KEY: without them it posts as
+# github-actions, and CI does not run on the commits a fix pushes.
+on:
+  pull_request_target:
+    types: [opened, reopened, ready_for_review, synchronize, labeled]
+  issue_comment: # requests to @rivi-bot
+    types: [created]
+  pull_request_review_comment: # requests in review threads
+    types: [created]
+
+permissions: {}
+
+jobs:
+  rivi-bot:
+    # A fork has neither the key nor the App; one that wants RIVI Bot names itself here and adds them.
+    if: github.repository == 'rivi-software/workspace'
+    uses: rivi-software/tools/.github/workflows/rivi-bot.yml@main
+    permissions:
+      contents: write # fix pushes to the pull request's branch
+      issues: write # ask and triage answer on issues
+      pull-requests: write
+    with:
+      app-client-id: ${{ vars.AUTOMATION_APP_CLIENT_ID }}
+    secrets:
+      anthropic-api-key: ${{ secrets.ANTHROPIC_REVIEW_API_KEY }}
+      app-private-key: ${{ secrets.AUTOMATION_APP_PRIVATE_KEY }}
