@@ -3,27 +3,32 @@ import { and, eq } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
 
 import { draftFiles, drafts, messages, users } from "~/db/schema";
+import { parseAddressList } from "~/lib/mail/addresses";
 import { folderCounts } from "~/lib/mail/mailbox.server";
 import {
   ScheduleError,
   listScheduled,
+  scheduleComposed,
   scheduleDraft,
   scheduleMoment,
   sendDueDrafts,
   unscheduleDraft,
 } from "~/lib/mail/schedule.server";
+import type { ScheduledMail } from "~/lib/mail/schedule.server";
 import {
+  MAX_ATTACHMENT_BYTES,
   addDraftFiles,
   draftForThread,
   listDrafts,
   saveDraft,
+  sendComposed,
   sendMail,
 } from "~/lib/mail/send.server";
 import type { DraftInput } from "~/lib/mail/send.server";
-import { saveSignature } from "~/lib/mail/signatures.server";
+import { deleteSignature, saveSignature } from "~/lib/mail/signatures.server";
 import { sendLaterPresets } from "~/lib/mail/snooze";
 
-import { db, mailbox, recordingEmail } from "./fixtures";
+import { db, mailbox, recordingEmail, rejection } from "./fixtures";
 
 const draft = (from: string, over: Partial<DraftInput> = {}): DraftInput => ({
   mode: "new",
@@ -36,6 +41,10 @@ const draft = (from: string, over: Partial<DraftInput> = {}): DraftInput => ({
   html: "<div>Sent while you sleep.</div>",
   ...over,
 });
+
+// A 1×1 PNG, as the editor puts an uploaded logo in a signature's markup.
+const PNG =
+  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=";
 
 const minutes = (n: number) => new Date(Date.now() + n * 60_000).toISOString();
 
@@ -272,5 +281,94 @@ describe("scheduled send", () => {
     });
 
     expect(draftRow?.sendError).toMatch(/deactivated/u);
+  });
+
+  it("refuses, when it is scheduled, what the send would refuse: a deleted signature, or files over 20 MB", async () => {
+    const user = await mailbox("vera", "Vera");
+    const now = new Date();
+
+    const later = (over: Partial<ScheduledMail> = {}): ScheduledMail => ({
+      from: user.email,
+      to: parseAddressList("jane@acme.com"),
+      cc: parseAddressList(""),
+      bcc: parseAddressList(""),
+      subject: "Later",
+      text: "",
+      html: "<div>Sent while you sleep.</div>",
+      threadId: null,
+      mode: "new",
+      draftId: null,
+      sendAt: new Date(now.getTime() + 60 * 60_000).toISOString(),
+      ...over,
+    });
+
+    const gone = await saveSignature(db, user.id, { name: "Old", text: "V" });
+    await deleteSignature(db, user.id, gone);
+
+    const goneSignature = await rejection(
+      scheduleComposed(env, db, user, later({ signatureId: gone }), now)
+    );
+
+    // The draft's files fit by themselves; the signature's image takes the message over.
+    const logo = await saveSignature(db, user.id, {
+      name: "Logo",
+      text: "",
+      html: `<p>Vera</p><img src="data:image/png;base64,${PNG}">`,
+    });
+
+    const draftId = await saveDraft(db, user.id, draft(user.email));
+
+    await addDraftFiles(db, env, user.id, draftId, [
+      {
+        filename: "big.bin",
+        contentType: "application/octet-stream",
+        content: new ArrayBuffer(MAX_ATTACHMENT_BYTES - 16),
+      },
+    ]);
+
+    const heavy = later({ draftId, signatureId: logo });
+
+    const tooLarge = await rejection(
+      scheduleComposed(env, db, user, heavy, now)
+    );
+
+    const { sent, env: testEnv } = recordingEmail();
+    const sendRefuses = await rejection(sendComposed(testEnv, db, user, heavy));
+    const scheduledAfterRefusals = await listScheduled(db, user.id);
+    const draftsAfterRefusals = await listDrafts(db, user.id);
+
+    // Without the image it fits, and is scheduled.
+    const scheduled = await scheduleComposed(
+      env,
+      db,
+      user,
+      later({ draftId }),
+      now
+    );
+
+    const nowScheduled = await listScheduled(db, user.id);
+
+    expect({
+      goneSignature: goneSignature?.message,
+      tooLarge: tooLarge?.message,
+      sendRefuses: sendRefuses?.message,
+      sent: sent.length,
+      scheduledAfterRefusals,
+      draftsAfterRefusals: draftsAfterRefusals.map((d) => d.id),
+      scheduled: scheduled.draftId,
+      nowScheduled: nowScheduled.map((d) => d.id),
+    }).toStrictEqual({
+      goneSignature:
+        "The signature you chose no longer exists. Choose another and send again.",
+      tooLarge:
+        "The attachments are too large: 20 MB is the most a message can carry.",
+      sendRefuses:
+        "The attachments are too large: 20 MB is the most a message can carry.",
+      sent: 0,
+      scheduledAfterRefusals: [],
+      draftsAfterRefusals: [draftId],
+      scheduled: draftId,
+      nowScheduled: [draftId],
+    });
   });
 });

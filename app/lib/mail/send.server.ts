@@ -146,7 +146,8 @@ export const checkedRecipients = (lists: {
 
 /**
  * The checks a message passes first, and what it names: the From with the owner's name, the owner's addresses, the
- * signature and the original it answers.
+ * signature and the original it answers. Send later runs these too (`checkComposed`), so a rule added here holds for
+ * a scheduled message from the moment it is scheduled.
  */
 const prepareMail = async (
   db: Database,
@@ -663,4 +664,29 @@ export const sendComposed = async (
   }
 
   return sent;
+};
+
+/**
+ * What `sendComposed` would refuse before it reaches the provider, refused now: Send later runs it as it schedules a
+ * message, so a From, an address, a signature or files a send would refuse never wait for the cron to fail. The
+ * draft's files count by the size they were kept at.
+ */
+export const checkComposed = async (
+  env: Env,
+  db: Database,
+  user: User,
+  composed: ComposedMail
+): Promise<void> => {
+  const mail = outgoing(composed);
+  const prepared = await prepareMail(db, user, mail);
+
+  const kept = composed.draftId
+    ? await listDraftFiles(db, user.id, composed.draftId)
+    : [];
+
+  const { images } = composeMessage(env, mail, prepared);
+  carriedBytes(
+    kept.reduce((n, f) => n + f.size, 0) + fileBytes(composed.files ?? []),
+    images
+  );
 };
