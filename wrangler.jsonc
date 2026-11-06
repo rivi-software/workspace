@@ -1,0 +1,102 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "rivi-workspace",
+  "main": "./workers/app.ts",
+  "compatibility_date": "2026-10-19",
+  "compatibility_flags": ["nodejs_compat"],
+  "upload_source_maps": true,
+  // Workers Logs and traces in the Cloudflare dashboard. Workers Logs keep every request's full URL, query included.
+  "observability": { "enabled": true },
+
+  // Public, non-secret configuration. Secrets live in .dev.vars / `wrangler secret put` (README, Deploy).
+  // Local development overrides any of these in .dev.vars (see .dev.vars.example).
+  "vars": {
+    "APP_NAME": "Workspace",
+    // Where the workspace runs: the origin of every link in a mail, the relying party of every passkey and the
+    // origin the sign-in forms must post from. Set it to the Worker's address: the custom domain in `routes` below,
+    // or its workers.dev address.
+    "APP_URL": "https://workspace.example.com",
+    // Every mailbox is an address on this domain: onboarded in Email Service → Email Sending (DKIM, SPF, DMARC), so
+    // the Worker sends as <mailbox>@<domain>, and in Email Routing (the MX), so inbound mail reaches `email()`.
+    "MAIL_DOMAIN": "example.com",
+    // Amazon SES's region (`@rivi-software/workers-mail`): mail goes out through SES once the secrets
+    // SES_ACCESS_KEY_ID and SES_SECRET_ACCESS_KEY are set too (README, Amazon SES), and through the EMAIL binding
+    // until then.
+    "SES_REGION": "eu-central-1",
+    // The Assistant's model (app/lib/assistant/provider.server.ts): "workers-ai" runs AI_CHAT_MODEL on Workers AI
+    // through the AI binding and AI Gateway, "anthropic" a Claude model through the gateway's provider-native
+    // endpoint (the gateway holds the key), "mock" a deterministic stand-in (the tests, local dev). Every call turns
+    // the gateway's log off: it would hold the person's mail.
+    "AI_PROVIDER": "workers-ai",
+    "AI_GATEWAY_ID": "default",
+    // Llama 3.3 70B (fast fp8) calls tools and answers in a few seconds; the reasoning models think for 15-25 s first.
+    "AI_CHAT_MODEL": "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
+    // PostHog AI observability gets what each of the Assistant's calls was asked and answered, credentials masked,
+    // beside its counts (app/lib/assistant/telemetry.server.ts): a turn reads as the conversation. PostHog deletes
+    // the text after 30 days; anything else but `on` sends counts only.
+    "AI_TEXT_ANALYTICS": "off",
+    // PostHog, optional: error tracking (app/lib/posthog-config.ts) and, from the Worker alone, the Assistant's AI
+    // observability. The project token is public (the browser SDK ships it). Leave the token empty to keep PostHog
+    // off, as .dev.vars.example does for local development.
+    "POSTHOG_PROJECT_TOKEN": "",
+    "POSTHOG_HOST": "https://eu.i.posthog.com"
+  },
+
+  // Where the workspace lives. With a custom domain Wrangler creates the DNS record and the certificate on deploy
+  // (`routes`); without one the Worker answers on its workers.dev address (`workers_dev`). Either way there is one
+  // origin for sessions and cookies, which APP_URL above must name; preview URLs are off for the same reason.
+  // "routes": [{ "pattern": "workspace.example.com", "custom_domain": true }],
+  "workers_dev": true,
+  "preview_urls": false,
+
+  // Inbound mail. Email Routing delivers an address to this Worker's email() handler through a rule, and Wrangler
+  // creates one per entry here on every deploy: literal mailbox addresses (one per person or alias), or the zone's
+  // catch-all "*@<MAIL_DOMAIN>", which brings every address without a rule of its own. Taking over a rule or the
+  // catch-all made in the dashboard is a destructive change Wrangler applies only after an interactive yes. Mail for
+  // an address that is no mailbox or alias is refused by the Worker, so the sender gets a bounce (README, Email
+  // Routing). Empty until the mail domain is onboarded in Email Routing.
+  "addresses": [],
+
+  // The cron: every minute the Worker wakes the snoozed conversations that are due, sends the scheduled messages
+  // that are due and takes a batch of each running mailbox import (workers/scheduled.ts). Wrangler sets the schedule
+  // on deploy; nothing to create beforehand.
+  "triggers": { "crons": ["* * * * *"] },
+
+  // Email Service sending binding: what `@rivi-software/workers-mail` sends with while SES has no key (local dev, the
+  // tests) and when SES refuses a message. Set "remote": true to send real mail during local dev; locally Miniflare
+  // writes every sent message under .wrangler/tmp/email instead.
+  "send_email": [{ "name": "EMAIL" }],
+
+  // Workers AI, for the Assistant: the model runs through AI Gateway (`AI_GATEWAY_ID`), which the first call
+  // creates. Nothing to make beforehand; the binding is free until a model is called.
+  "ai": { "binding": "AI" },
+
+  // The database: `wrangler d1 create workspace-db` once, then paste its id here (README, Deploy).
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "workspace-db",
+      "database_id": "00000000-0000-0000-0000-000000000000",
+      "migrations_dir": "migrations"
+    }
+  ],
+
+  // KV: the session cache, the sign-in and link throttles, who the vacation responder answered, when the trash and
+  // Drive were last pruned (`wrangler kv namespace create workspace-kv`). PREVIOUS_ASSETS: every deploy first copies
+  // its build's /assets/* files here (`pnpm run deploy:assets`), and the Worker serves a file the live build no
+  // longer has from it, so a tab on an earlier build can still load its chunks for 7 days after the deploy that
+  // replaced it (`wrangler kv namespace create workspace-previous-assets`).
+  "kv_namespaces": [
+    { "binding": "KV", "id": "00000000000000000000000000000000" },
+    { "binding": "PREVIOUS_ASSETS", "id": "00000000000000000000000000000001" }
+  ],
+
+  // MAIL: raw inbound messages (.eml) and every attachment, inbound and sent, private to the mailbox's owner.
+  // DRIVE: the files in Drive (`drive/<owner>/<node>`), each private to its owner and the people it is shared with,
+  // and a signing request's original and signed copy (`signing/<request>/…`). Both buckets are made once by hand
+  // (README, Deploy): `wrangler deploy` fails on a binding whose bucket does not exist.
+  "r2_buckets": [
+    { "binding": "MAIL", "bucket_name": "workspace-mail" },
+    { "binding": "DRIVE", "bucket_name": "workspace-drive" }
+  ]
+}

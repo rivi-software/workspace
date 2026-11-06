@@ -1,0 +1,28 @@
+{
+  "name": "Workspace",
+  "short_name": "Workspace",
+  "description": "Mail, Drive, Calendar, Tasks and an Assistant, on Cloudflare.",
+  "id": "/",
+  "start_url": "/mail",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#fcfcfc",
+  "theme_color": "#fcfcfc",
+  "icons": [
+    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    {
+      "src": "/icons/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    { "name": "Mail", "url": "/mail" },
+    { "name": "Drive", "url": "/drive" },
+    { "name": "Calendar", "url": "/calendar" },
+    { "name": "Tasks", "url": "/tasks" },
+    { "name": "Assistant", "url": "/assistant" }
+  ]
+}

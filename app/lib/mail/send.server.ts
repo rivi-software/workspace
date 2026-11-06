@@ -1,0 +1,531 @@
+import { sendMail as deliver } from "@rivi-software/workers-mail";
+import type { SentMail } from "@rivi-software/workers-mail";
+import { and, desc, eq, isNull } from "drizzle-orm";
+
+import type { Database } from "~/db";
+import { draftFiles, drafts, messages } from "~/db/schema";
+import type { Address, DraftFile, User } from "~/db/schema";
+
+import { newId } from "../ids";
+import {
+  htmlIsBlank,
+  htmlToText,
+  outgoingHtml,
+  textToHtml,
+  textToHtmlBody,
+  withSignature,
+  withSignatureHtml,
+} from "../text";
+import { formatAddress } from "./addresses";
+import { fileMessage } from "./filing.server";
+import { sanitizeHtml } from "./sanitize";
+import { base64Bytes, inlineDataImages } from "./signatures";
+import { findSignature } from "./signatures.server";
+import { normalizeMessageId, replySubject } from "./threading";
+import { ownAddresses } from "./threads.server";
+
+/**
+ * Email Service takes a message of up to 25 MB and SES one of 40 MB, the base64 encoding counted; a little room is
+ * left for the headers and the encoding's growth, so a message SES refuses still fits the binding it falls back on.
+ */
+export const MAX_ATTACHMENT_BYTES = 20 * 1024 * 1024;
+
+export interface OutgoingFile {
+  filename: string;
+  contentType: string;
+  content: ArrayBuffer;
+}
+
+export interface OutgoingMail {
+  from: Address;
+  to: Address[];
+  cc: Address[];
+  bcc: Address[];
+  subject: string;
+  /** The message as plain text, when it was written as such (the HTML part is made from it). */
+  text: string;
+  /** The message as the rich composer wrote it; when given, the text part is made from it and `text` is unused. */
+  html?: string | null;
+  /** The owner's message this answers or forwards, for the thread and the threading headers. */
+  inReplyToId?: string | null;
+  /** One of the owner's signatures, put under the text after a "-- " line; none when null. */
+  signatureId?: string | null;
+  files: OutgoingFile[];
+}
+
+export class SendError extends Error {
+  override name = "SendError";
+}
+
+/** The addresses a person may send from: their own and their aliases. */
+export const sendableAddresses = async (
+  db: Database,
+  user: User
+): Promise<Address[]> =>
+  [...(await ownAddresses(db, user))].map((email) => ({
+    email,
+    name: user.name,
+  }));
+
+/**
+ * What the rich composer wrote, made safe to send: the same sanitiser as for mail that arrives (no script, no form,
+ * no handler, no unsafe URL), the quote never folded, and the style blocks a quoted original brought along dropped.
+ */
+export const sanitizeOutgoingHtml = (html: string): string =>
+  sanitizeHtml(html, {
+    cidUrl: () => null,
+    forward: true,
+  }).html.replaceAll(/<style\b[^>]*>[\s\S]*?<\/style>/giu, "");
+
+const base64 = (buf: ArrayBuffer): string => {
+  let s = "";
+  const bytes = new Uint8Array(buf);
+
+  for (let i = 0; i < bytes.length; i += 0x80_00) {
+    s += String.fromCodePoint(...bytes.subarray(i, i + 0x80_00));
+  }
+
+  return btoa(s);
+};
+
+/** The checks a message passes first, and what it names: the owner's addresses, the signature and the original it answers. */
+const prepareMail = async (db: Database, user: User, mail: OutgoingMail) => {
+  const addresses = await sendableAddresses(db, user);
+  const allowed = addresses.map((a) => a.email);
+
+  if (!allowed.includes(mail.from.email.toLowerCase())) {
+    throw new SendError(`You cannot send as ${mail.from.email}.`);
+  }
+
+  if (!mail.to.length && !mail.cc.length && !mail.bcc.length) {
+    throw new SendError("Add at least one recipient.");
+  }
+
+  const signature = mail.signatureId
+    ? await findSignature(db, user.id, mail.signatureId)
+    : null;
+
+  if (mail.signatureId && !signature) {
+    throw new SendError(
+      "The signature you chose no longer exists. Choose another and send again."
+    );
+  }
+
+  const original = mail.inReplyToId
+    ? await db.query.messages.findFirst({
+        where: and(
+          eq(messages.id, mail.inReplyToId),
+          eq(messages.userId, user.id)
+        ),
+      })
+    : null;
+
+  return { allowed, signature, original };
+};
+
+type Prepared = Awaited<ReturnType<typeof prepareMail>>;
+
+/** The threading headers of a reply, and the References chain it files under. */
+const threadingHeaders = (original: Prepared["original"]) => {
+  const headers: Record<string, string> = {};
+
+  const references = original
+    ? [
+        ...(original.referencesHeader?.split(/\s+/u).filter(Boolean) ?? []),
+        original.messageId,
+      ]
+    : [];
+
+  if (original) {
+    headers["In-Reply-To"] = original.messageId;
+    headers["References"] = references.join(" ");
+  }
+
+  return { headers, references };
+};
+
+/** The two parts of the message: the text, and the HTML the rich composer wrote or that is made from the text. */
+const composeBody = (mail: OutgoingMail, signature: Prepared["signature"]) => {
+  if (mail.html && !htmlIsBlank(mail.html)) {
+    const body = sanitizeOutgoingHtml(mail.html);
+    const signed = signature ? withSignatureHtml(body, signature) : body;
+
+    return { text: htmlToText(signed), html: outgoingHtml(signed) };
+  }
+
+  const text = signature ? withSignature(mail.text, signature.text) : mail.text;
+
+  // An HTML signature still goes out as such under a message written as plain text.
+  const html = signature?.html
+    ? outgoingHtml(withSignatureHtml(textToHtmlBody(mail.text), signature))
+    : textToHtml(text);
+
+  return { text, html };
+};
+
+/**
+ * The provider's words for a failed send. The failure is an `Error` (the client throws `MailError`), which may carry
+ * the provider's `code`.
+ */
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- a catch clause holds whatever was thrown; only `code` and `message` are read
+const failureWords = (error: unknown): string => {
+  // SAFETY: @rivi-software/workers-mail throws Error subclasses (MailError), whose optional `code` is a string; only `code` and `message` are read.
+  const e = error as Error & { code?: string | number };
+
+  return [e.code, e.message].filter(Boolean).join(" ");
+};
+
+/**
+ * Send a message through `@rivi-software/workers-mail` (Amazon SES, or the Email Service binding until SES is set up and when it
+ * refuses the message) and file it in the owner's thread. The provider's Message-ID becomes ours, so a reply threads
+ * back by In-Reply-To. A failure throws a SendError with the provider's words and stores nothing: the composer keeps
+ * the draft.
+ */
+export const sendMail = async (
+  env: Env,
+  db: Database,
+  user: User,
+  mail: OutgoingMail
+): Promise<{ threadId: string; messageId: string }> => {
+  const { allowed, signature, original } = await prepareMail(db, user, mail);
+  const { headers, references } = threadingHeaders(original);
+
+  const subject =
+    mail.subject.trim() ||
+    (original ? replySubject(original.subject) : "(no subject)");
+
+  const { text, html: written } = composeBody(mail, signature);
+
+  // The signature's images travel with the message, shown in place by their Content-ID.
+  const inlined = inlineDataImages(written, env.MAIL_DOMAIN);
+  const { html } = inlined;
+
+  const total =
+    mail.files.reduce((n, f) => n + f.content.byteLength, 0) +
+    inlined.images.reduce((n, i) => n + base64Bytes(i.base64), 0);
+
+  if (total > MAX_ATTACHMENT_BYTES) {
+    throw new SendError(
+      "The attachments are too large: 20 MB is the most a message can carry."
+    );
+  }
+
+  let result: SentMail;
+
+  try {
+    result = await deliver(env, {
+      from: { email: mail.from.email, name: mail.from.name ?? user.name },
+      to: mail.to.map(formatAddress),
+      cc: mail.cc.map(formatAddress),
+      bcc: mail.bcc.map(formatAddress),
+      subject,
+      text,
+      html,
+      headers,
+      attachments: [
+        ...mail.files.map((f) => ({
+          disposition: "attachment" as const,
+          filename: f.filename,
+          type: f.contentType,
+          // Local dev cannot serialize ArrayBuffer; base64 strings work everywhere.
+          content: base64(f.content),
+        })),
+        ...inlined.images.map((i) => ({
+          disposition: "inline" as const,
+          contentId: i.contentId,
+          filename: i.filename,
+          type: i.contentType,
+          content: i.base64,
+        })),
+      ],
+    });
+  } catch (error) {
+    throw new SendError(`The message was not sent: ${failureWords(error)}`);
+  }
+
+  // Filed with the Message-ID SES or Email Service gave it, so a reply threads back by In-Reply-To.
+  const now = new Date().toISOString();
+
+  const sentMessageId =
+    normalizeMessageId(result.messageId) ??
+    `<${newId("msg")}@${env.MAIL_DOMAIN}>`;
+
+  const from = { email: mail.from.email, name: mail.from.name ?? user.name };
+
+  const filed = await fileMessage(env, db, user, {
+    policy: "sent",
+    mail: {
+      messageId: sentMessageId,
+      inReplyTo: original?.messageId ?? null,
+      references,
+      from,
+      to: mail.to,
+      cc: mail.cc,
+      bcc: mail.bcc,
+      replyTo: null,
+      subject,
+      text,
+      html,
+      date: now,
+      // Kept as an inbound message's files are, the inline images too, so the sent copy shows its signature.
+      attachments: [
+        ...mail.files.map((f) => ({
+          filename: f.filename,
+          mimeType: f.contentType,
+          content: new Uint8Array(f.content),
+          contentId: null,
+          inline: false,
+        })),
+        ...inlined.images.map((i) => ({
+          filename: i.filename,
+          mimeType: i.contentType,
+          content: Uint8Array.from(
+            atob(i.base64),
+            (c) => c.codePointAt(0) ?? 0
+          ),
+          contentId: i.contentId,
+          inline: true,
+        })),
+      ],
+      size: text.length + total,
+      unsubscribe: null,
+    },
+    raw: null,
+    // A conversation the owner starts shows under Sent until someone answers, as in Gmail.
+    place: () => ({ folder: "archive" }),
+    threadId: original?.threadId ?? null,
+    own: new Set(allowed),
+  });
+
+  // A message to one of the owner's own addresses that came back before this ran is that message, now sent too
+  // (`filed.status` is `duplicate`): its conversation and message either way.
+  return { threadId: filed.threadId, messageId: filed.messageId };
+};
+
+// ---------- drafts ----------
+
+export interface DraftInput {
+  id?: string | null;
+  threadId?: string | null;
+  inReplyToId?: string | null;
+  mode: "new" | "reply" | "forward";
+  from: string;
+  to: Address[];
+  cc: Address[];
+  bcc: Address[];
+  subject: string;
+  text: string;
+  html?: string | null;
+  signatureId?: string | null;
+}
+
+export const saveDraft = async (
+  db: Database,
+  userId: string,
+  input: DraftInput
+): Promise<string> => {
+  // A signature that is not the owner's, or was deleted since the composer opened, is not kept.
+  const signature = input.signatureId
+    ? await findSignature(db, userId, input.signatureId)
+    : undefined;
+
+  const html = input.html && !htmlIsBlank(input.html) ? input.html : null;
+
+  const values = {
+    threadId: input.threadId ?? null,
+    inReplyToId: input.inReplyToId ?? null,
+    mode: input.mode,
+    fromEmail: input.from,
+    toJson: JSON.stringify(input.to),
+    ccJson: JSON.stringify(input.cc),
+    bccJson: JSON.stringify(input.bcc),
+    subject: input.subject,
+    text: html ? htmlToText(html) : input.text,
+    html,
+    signatureId: signature?.id ?? null,
+    updatedAt: new Date().toISOString(),
+  };
+
+  if (input.id) {
+    const existing = await db.query.drafts.findFirst({
+      where: and(eq(drafts.id, input.id), eq(drafts.userId, userId)),
+    });
+
+    if (existing) {
+      await db.update(drafts).set(values).where(eq(drafts.id, existing.id));
+
+      return existing.id;
+    }
+  }
+
+  const id = newId("dr");
+  await db.insert(drafts).values({ id, userId, ...values });
+
+  return id;
+};
+
+/** Delete a draft with the files it kept. */
+export const deleteDraft = async (
+  db: Database,
+  env: Env,
+  userId: string,
+  id: string
+) => {
+  const draft = await db.query.drafts.findFirst({
+    where: and(eq(drafts.id, id), eq(drafts.userId, userId)),
+  });
+
+  if (!draft) {
+    return;
+  }
+
+  const files = await db.query.draftFiles.findMany({
+    where: eq(draftFiles.draftId, draft.id),
+  });
+
+  for (const f of files) {
+    // oxlint-disable-next-line eslint/no-await-in-loop -- files go to and from storage one at a time, in order
+    await env.MAIL.delete(f.r2Key);
+  }
+
+  await db.delete(draftFiles).where(eq(draftFiles.draftId, draft.id));
+  await db.delete(drafts).where(eq(drafts.id, draft.id));
+};
+
+/** The owner's drafts, newest first; the scheduled ones are under Scheduled (`listScheduled`). */
+export const listDrafts = async (db: Database, userId: string) =>
+  await db.query.drafts.findMany({
+    where: and(eq(drafts.userId, userId), isNull(drafts.scheduledAt)),
+    orderBy: (d, { desc: d2 }) => [d2(d.updatedAt)],
+    limit: 100,
+  });
+
+/**
+ * The newest draft written in a thread (a reply or forward not yet sent), for the thread page's reply box. A scheduled
+ * reply is not one: it waits under Scheduled.
+ */
+export const draftForThread = async (
+  db: Database,
+  userId: string,
+  threadId: string
+) =>
+  await db.query.drafts.findFirst({
+    where: and(
+      eq(drafts.userId, userId),
+      eq(drafts.threadId, threadId),
+      isNull(drafts.scheduledAt)
+    ),
+    orderBy: [desc(drafts.updatedAt)],
+  });
+
+export const listDraftFiles = async (
+  db: Database,
+  userId: string,
+  draftId: string
+): Promise<DraftFile[]> =>
+  await db.query.draftFiles.findMany({
+    where: and(eq(draftFiles.draftId, draftId), eq(draftFiles.userId, userId)),
+    orderBy: (f, { asc }) => [asc(f.createdAt)],
+  });
+
+/** Keep files on a draft, in R2, so they survive a reload and go out with the message. */
+export const addDraftFiles = async (
+  db: Database,
+  env: Env,
+  userId: string,
+  draftId: string,
+  files: OutgoingFile[]
+): Promise<DraftFile[]> => {
+  const draft = await db.query.drafts.findFirst({
+    where: and(eq(drafts.id, draftId), eq(drafts.userId, userId)),
+  });
+
+  if (!draft) {
+    throw new SendError("That draft no longer exists.");
+  }
+
+  const kept = await listDraftFiles(db, userId, draftId);
+  const have = kept.reduce((n, f) => n + f.size, 0);
+  const adding = files.reduce((n, f) => n + f.content.byteLength, 0);
+
+  if (have + adding > MAX_ATTACHMENT_BYTES) {
+    throw new SendError(
+      "The attachments are too large: 20 MB is the most a message can carry."
+    );
+  }
+
+  const added: DraftFile[] = [];
+
+  for (const f of files) {
+    const id = newId("df");
+    const r2Key = `draft/${userId}/${id}`;
+    // oxlint-disable-next-line eslint/no-await-in-loop -- files go to and from storage one at a time, in order
+    await env.MAIL.put(r2Key, f.content, {
+      httpMetadata: { contentType: f.contentType },
+      customMetadata: { filename: f.filename },
+    });
+
+    const row = {
+      id,
+      draftId,
+      userId,
+      filename: f.filename,
+      contentType: f.contentType,
+      size: f.content.byteLength,
+      r2Key,
+      createdAt: new Date().toISOString(),
+    };
+
+    // oxlint-disable-next-line eslint/no-await-in-loop -- files go to and from storage one at a time, in order
+    await db.insert(draftFiles).values(row);
+    added.push(row);
+  }
+
+  return added;
+};
+
+export const removeDraftFile = async (
+  db: Database,
+  env: Env,
+  userId: string,
+  fileId: string
+) => {
+  const file = await db.query.draftFiles.findFirst({
+    where: and(eq(draftFiles.id, fileId), eq(draftFiles.userId, userId)),
+  });
+
+  if (!file) {
+    return;
+  }
+
+  await env.MAIL.delete(file.r2Key);
+  await db.delete(draftFiles).where(eq(draftFiles.id, file.id));
+};
+
+/** The files kept on a draft, read back for sending. A file gone from R2 is left out. */
+export const draftFilesForSending = async (
+  db: Database,
+  env: Env,
+  userId: string,
+  draftId: string
+): Promise<OutgoingFile[]> => {
+  const out: OutgoingFile[] = [];
+
+  for (const f of await listDraftFiles(db, userId, draftId)) {
+    // oxlint-disable-next-line eslint/no-await-in-loop -- files go to and from storage one at a time, in order
+    const object = await env.MAIL.get(f.r2Key);
+
+    if (!object) {
+      continue;
+    }
+
+    out.push({
+      filename: f.filename,
+      contentType: f.contentType,
+      // oxlint-disable-next-line eslint/no-await-in-loop -- files go to and from storage one at a time, in order
+      content: await object.arrayBuffer(),
+    });
+  }
+
+  return out;
+};

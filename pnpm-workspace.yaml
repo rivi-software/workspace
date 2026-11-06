@@ -1,0 +1,29 @@
+# Dependency build scripts are blocked unless listed here (pnpm 12).
+allowBuilds:
+  esbuild: true
+  workerd: true
+  sharp: true
+  "@tailwindcss/oxide": true
+  "@typescript/native-preview": true
+  # core-js only prints a funding message.
+  core-js: false
+  core-js-pure: false
+  # posthog-cli (a dependency of @posthog/rollup-plugin, the source-map upload) downloads its binary on first run,
+  # not at install.
+  "@posthog/cli": false
+
+# No transitive dependencies from git or tarball URLs.
+blockExoticSubdeps: true
+
+overrides:
+  sharp: 0.35.5
+  # drizzle-kit carries esbuild copies with dev-server advisories (GHSA-67mh-4wv8-2f99 via @esbuild-kit/core-utils,
+  # GHSA-g7r4-m6w7-qqqr via tsx 4.21). Remove both once drizzle-kit ships with patched versions.
+  "@esbuild-kit/core-utils>esbuild": ^0.28.1
+  drizzle-kit>tsx: ^4.23.15
+
+# tsx registers its loader with module.register(), which Node 26 reports as deprecated on every run.
+nodeOptions: --disable-warning=DEP0205
+
+minimumReleaseAgeExclude:
+  - "@rivi-software/deploy-watch@0.7.0"

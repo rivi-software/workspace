@@ -1,0 +1,49 @@
+# Deploys the Worker to production from main, or by hand from the Actions tab. It runs only while the repository
+# variable DEPLOYMENTS_ENABLED is "true" (Settings → Secrets and variables → Actions → Variables), with the
+# `production` environment's secrets CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID (README, CI).
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# One deploy at a time, in order; a deploy that is running is never cancelled.
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy to production
+    if: vars.DEPLOYMENTS_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 20
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      WRANGLER_SEND_METRICS: "false"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      # The production build: dist/server/wrangler.json, which the steps below deploy.
+      - run: pnpm run build
+
+      # The D1 migrations first, so the Worker that follows finds its schema.
+      - run: pnpm run db:migrate:remote
+
+      # The build's /assets/* files into the PREVIOUS_ASSETS namespace, so a tab on an earlier build can still load
+      # its chunks for seven days after this deploy replaces it.
+      - run: pnpm run deploy:assets
+
+      - run: pnpm exec wrangler deploy

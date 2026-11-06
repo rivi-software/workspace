@@ -1,0 +1,423 @@
+@import "tailwindcss";
+@import "@fontsource-variable/inter";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+/*
+ * Design tokens, the console scale: light and dark are two readings of the
+ * same scale, every component reads the semantic variable, never a raw hue. The accent is RIVI
+ * green: the deep green on light surfaces, the signal green on dark ones.
+ */
+:root {
+  --bg: #fcfcfc;
+  --bg-sidebar: #f7f7f8;
+  --bg-elevated: #ffffff;
+  --bg-hover: color-mix(in srgb, var(--fg) 5.5%, transparent);
+  --bg-active: color-mix(in srgb, var(--fg) 9%, transparent);
+  --bg-selected: #ebf3ef;
+  --bg-unread: #ffffff;
+  --bg-input: #ffffff;
+  --border: #e6e6e9;
+  --border-strong: #d4d4d9;
+  --fg: #1f2023;
+  --fg-muted: #5f636c;
+  --fg-subtle: #6f737c;
+  --fg-faint: #b4b7be;
+  --accent: #0a7f43;
+  --accent-hover: #0a763e;
+  --accent-fg: #ffffff;
+  --accent-soft: #e7fbf1;
+  --amber: #d9800c;
+  --amber-soft: #fbefdc;
+  --red: #d8453d;
+  --red-soft: #fbe6e4;
+  --star: #e2a416;
+  --shadow-pop: 0 1px 2px rgb(0 0 0 / 0.06), 0 8px 24px -6px rgb(0 0 0 / 0.18);
+  --shadow-dialog:
+    0 2px 6px rgb(0 0 0 / 0.08), 0 24px 60px -12px rgb(0 0 0 / 0.3);
+  --ring: color-mix(in srgb, var(--accent) 45%, transparent);
+  /* Avatars (`Avatar`): a hue per name, these lightnesses per theme, so a disc never glares on a dark page. */
+  --avatar-bg-l: 92%;
+  --avatar-fg-l: 32%;
+  /* The mark (app/components/brand.tsx): dark tile in the light theme, light tile in the dark one. */
+  --rivi-mark-tile: #15171a;
+  --rivi-mark-bars: #f5f6f7;
+  --rivi-mark-peak: #3be08a;
+  /* The label palette (`LABEL_COLORS`): a text colour and the soft fill behind it. */
+  --label-gray: #5f636c;
+  --label-gray-soft: #eef0f3;
+  --label-red: #d8453d;
+  --label-red-soft: #fbe6e4;
+  --label-orange: #d9661a;
+  --label-orange-soft: #fdeadc;
+  --label-amber: #c27a0a;
+  --label-amber-soft: #fbefdc;
+  --label-green: #0a7f43;
+  --label-green-soft: #e7fbf1;
+  --label-teal: #0f8f85;
+  --label-teal-soft: #dcf3f1;
+  --label-blue: #2f6fd1;
+  --label-blue-soft: #e4eefb;
+  --label-violet: #7c4fe0;
+  --label-violet-soft: #efe8fe;
+  --label-pink: #c9378f;
+  --label-pink-soft: #fbe4f2;
+  color-scheme: light;
+}
+
+.dark {
+  --bg: #191a1b;
+  --bg-sidebar: #141516;
+  --bg-elevated: #222326;
+  --bg-hover: color-mix(in srgb, var(--fg) 5%, transparent);
+  --bg-active: color-mix(in srgb, var(--fg) 8%, transparent);
+  --bg-selected: #1c2a24;
+  --bg-unread: #1e1f21;
+  --bg-input: #1e1f22;
+  --border: #292a2f;
+  --border-strong: #37393f;
+  --fg: #e6e7ea;
+  --fg-muted: #9a9ea7;
+  --fg-subtle: #868a94;
+  --fg-faint: #4d5058;
+  --accent: #3be08a;
+  --accent-hover: #5ee89f;
+  --accent-fg: #08090a;
+  --accent-soft: #1e362b;
+  --amber: #f2a33a;
+  --amber-soft: #3a2a12;
+  --red: #eb5757;
+  --red-soft: #3c1f1f;
+  --star: #f2c14e;
+  --shadow-pop: 0 1px 2px rgb(0 0 0 / 0.4), 0 10px 30px -8px rgb(0 0 0 / 0.7);
+  --shadow-dialog:
+    0 2px 8px rgb(0 0 0 / 0.5), 0 30px 80px -16px rgb(0 0 0 / 0.8);
+  --avatar-bg-l: 26%;
+  --avatar-fg-l: 82%;
+  --rivi-mark-tile: #f7f8f8;
+  --rivi-mark-bars: #08090a;
+  --rivi-mark-peak: #0e9f55;
+  --label-gray: #a3a7b0;
+  --label-gray-soft: #2a2c31;
+  --label-red: #eb5757;
+  --label-red-soft: #3c1f1f;
+  --label-orange: #f08a4b;
+  --label-orange-soft: #3a2515;
+  --label-amber: #f2a33a;
+  --label-amber-soft: #3a2a12;
+  --label-green: #3be08a;
+  --label-green-soft: #1e362b;
+  --label-teal: #2fc4b6;
+  --label-teal-soft: #163230;
+  --label-blue: #6aa6f5;
+  --label-blue-soft: #1a2a40;
+  --label-violet: #a98cf8;
+  --label-violet-soft: #2a2140;
+  --label-pink: #ef7fc5;
+  --label-pink-soft: #3a1e30;
+  color-scheme: dark;
+}
+
+@theme inline {
+  --font-sans:
+    "Inter Variable", ui-sans-serif, system-ui, -apple-system, "Segoe UI",
+    sans-serif;
+  --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+
+  --text-2xs: 0.625rem;
+  --text-2xs--line-height: 0.875rem;
+  --text-xs: 0.6875rem;
+  --text-xs--line-height: 1rem;
+  --text-sm: 0.75rem;
+  --text-sm--line-height: 1.125rem;
+  --text-base: 0.8125rem;
+  --text-base--line-height: 1.25rem;
+  --text-md: 0.875rem;
+  --text-md--line-height: 1.375rem;
+  --text-lg: 0.9375rem;
+  --text-lg--line-height: 1.5rem;
+  --text-xl: 1.125rem;
+  --text-xl--line-height: 1.625rem;
+  --text-2xl: 1.375rem;
+  --text-2xl--line-height: 1.875rem;
+
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-xl: 12px;
+
+  --color-bg: var(--bg);
+  --color-sidebar: var(--bg-sidebar);
+  --color-elevated: var(--bg-elevated);
+  --color-hover: var(--bg-hover);
+  --color-active: var(--bg-active);
+  --color-selected: var(--bg-selected);
+  --color-unread: var(--bg-unread);
+  --color-input: var(--bg-input);
+  --color-line: var(--border);
+  --color-line-strong: var(--border-strong);
+  --color-fg: var(--fg);
+  --color-muted: var(--fg-muted);
+  --color-subtle: var(--fg-subtle);
+  --color-faint: var(--fg-faint);
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-accent-fg: var(--accent-fg);
+  --color-accent-soft: var(--accent-soft);
+  --color-amber: var(--amber);
+  --color-amber-soft: var(--amber-soft);
+  --color-red: var(--red);
+  --color-red-soft: var(--red-soft);
+  --color-star: var(--star);
+
+  --shadow-pop: var(--shadow-pop);
+  --shadow-dialog: var(--shadow-dialog);
+
+  --ease-out-quart: cubic-bezier(0.25, 1, 0.5, 1);
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+
+  --animate-fade-in: fade-in 140ms var(--ease-out-quart) both;
+  --animate-pop-in: pop-in 150ms var(--ease-out-quart) both;
+  --animate-rise-in: rise-in 160ms var(--ease-out-expo) both;
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes pop-in {
+  from {
+    opacity: 0;
+    transform: scale(0.97) translateY(-2px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+@keyframes rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@layer base {
+  html {
+    font-family: var(--font-sans);
+    font-size: 16px;
+    background: var(--bg);
+    color: var(--fg);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+    font-feature-settings: "cv01", "cv10", "ss03", "calt";
+    caret-color: var(--accent);
+    accent-color: var(--accent);
+  }
+  body {
+    font-size: var(--text-base);
+    line-height: var(--text-base--line-height);
+  }
+  ::selection {
+    background: color-mix(in srgb, var(--accent) 24%, transparent);
+  }
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--border-strong) transparent;
+  }
+  :focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 1px;
+    border-radius: var(--radius-sm);
+  }
+  button,
+  [role="button"],
+  a {
+    -webkit-tap-highlight-color: transparent;
+  }
+  button:not(:disabled) {
+    cursor: default;
+  }
+  input::placeholder,
+  textarea::placeholder {
+    color: var(--fg-subtle);
+  }
+  .tnum {
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+/*
+ * A phone (#3529): the page runs under the status bar and the home indicator (`viewport-fit=cover`
+ * in routes/__root.tsx), so the shell keeps its chrome clear of them by these insets, which are 0
+ * in a browser window. `--dock` is the height of the tab bar at the bottom of a phone screen
+ * (routes/_app/route.tsx), which what floats at the bottom (toasts, the uploads panel, the new
+ * version notice) stays above.
+ */
+:root {
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+  --dock: 0px;
+}
+
+@media (max-width: 639px) {
+  :root {
+    --dock: 3rem;
+  }
+  /* The tab bar steps aside while the person types, so it never rides up on the keyboard. */
+  body:has(
+    input:not(
+        [type="checkbox"],
+        [type="radio"],
+        [type="button"],
+        [type="submit"],
+        [type="file"]
+      ):focus,
+    textarea:focus,
+    [contenteditable="true"]:focus
+  ) {
+    --dock: 0px;
+  }
+  body:has(
+      input:not(
+          [type="checkbox"],
+          [type="radio"],
+          [type="button"],
+          [type="submit"],
+          [type="file"]
+        ):focus,
+      textarea:focus,
+      [contenteditable="true"]:focus
+    )
+    [data-tab-bar] {
+    display: none;
+  }
+}
+
+/* The page itself never rubber-bands: as a web app or in the app it is the whole screen, and only its lists scroll. */
+html,
+body {
+  overscroll-behavior: none;
+}
+
+@utility pt-safe {
+  padding-top: var(--safe-top);
+}
+@utility pb-safe {
+  padding-bottom: var(--safe-bottom);
+}
+@utility px-safe {
+  padding-left: var(--safe-left);
+  padding-right: var(--safe-right);
+}
+/* The room the tab bar and the home indicator take at the bottom of the screen. */
+@utility pb-dock {
+  padding-bottom: calc(var(--dock) + var(--safe-bottom));
+}
+/* Floating at the bottom: 1rem above the tab bar and the home indicator. */
+@utility bottom-dock {
+  bottom: calc(1rem + var(--dock) + var(--safe-bottom));
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* The hover tint laid over a control's own fill; `bg-hover` would replace the fill, since the tint is translucent. */
+@utility tint-hover {
+  background-image: linear-gradient(var(--bg-hover), var(--bg-hover));
+}
+
+/* The rich composer: what the person writes, in the message's own grammar (lists, quotes, links). */
+.rich-editor {
+  min-height: 10rem;
+  outline: none;
+  overflow-wrap: break-word;
+}
+.rich-editor:empty::before,
+.rich-editor[data-empty]::before {
+  content: attr(data-placeholder);
+  color: var(--fg-subtle);
+  pointer-events: none;
+  position: absolute;
+}
+.rich-editor a {
+  color: var(--accent);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.rich-editor ul,
+.rich-editor ol {
+  padding-left: 1.5rem;
+  margin: 0.25rem 0;
+}
+.rich-editor ul {
+  list-style: disc;
+}
+.rich-editor ol {
+  list-style: decimal;
+}
+.rich-editor blockquote {
+  margin: 0.25rem 0 0.25rem 0;
+  padding-left: 0.8em;
+  border-left: 2px solid var(--border-strong);
+  color: var(--fg-muted);
+}
+.rich-editor pre {
+  white-space: pre-wrap;
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+}
+.rich-editor img {
+  max-width: 100%;
+  height: auto;
+}
+.rich-editor .gmail_quote {
+  color: var(--fg-muted);
+}
+.rich-editor[data-quote-hidden] .gmail_quote {
+  display: none;
+}
+
+/* Printing a conversation: the messages alone, every one of them open. */
+@media print {
+  .print-hidden {
+    display: none !important;
+  }
+  .print-only {
+    display: block !important;
+  }
+  html,
+  body {
+    height: auto !important;
+    overflow: visible !important;
+    background: #fff !important;
+    color: #000 !important;
+  }
+  .print-flow,
+  .print-flow * {
+    overflow: visible !important;
+    height: auto !important;
+    max-height: none !important;
+  }
+}
+.print-only {
+  display: none;
+}
