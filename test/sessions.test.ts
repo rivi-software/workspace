@@ -1,7 +1,7 @@
 import { SELF } from "cloudflare:test";
 // Who is signed in, on Better Auth (`app/lib/auth.server.ts`, `app/lib/sign-in.server.ts`): the password form, the
-// session cookie it answers, what ends a session (a revocation, a new password, a deactivation, a sign-out), and the
-// session token as the API's bearer token.
+// session cookie it answers, what ends a session (a revocation, a new password, a deactivation, a sign-out, one browser
+// signed out from Settings), and the session token as the API's bearer token.
 import { env } from "cloudflare:workers";
 import { describe, expect, it } from "vitest";
 
@@ -9,7 +9,9 @@ import type { User } from "~/db/schema";
 import {
   authFor,
   checkPassword,
-  revokeSessions,
+  endSession,
+  listSessions,
+  revoke,
   setPassword,
 } from "~/lib/auth.server";
 import { isJsonObject, stringOrNull } from "~/lib/guards";
@@ -223,7 +225,7 @@ describe("a session", () => {
     const one = await sessionFor(user);
     const two = await sessionFor(user);
     const theirs = await sessionFor(other);
-    await revokeSessions(db, user.id);
+    await revoke(db, user.id, "sign-out-everywhere");
     const after = await sessionFor(user);
 
     expect({
@@ -236,6 +238,37 @@ describe("a session", () => {
       two: null,
       theirs: other.id,
       after: user.id,
+    });
+  });
+
+  it("ends alone when the person signs that browser out, and only a session of their own", async () => {
+    const user = await mailbox("one-session", "One Session");
+    const other = await mailbox("one-session-other", "One Session Other");
+    const here = await sessionFor(user);
+    const there = await sessionFor(user);
+    const theirs = await sessionFor(other);
+    const request = new Request(env.APP_URL, { headers: { cookie: here } });
+    const listed = await listSessions(request, env, db, user.id);
+    const hereId = defined(listed.find((s) => s.current)).id;
+    const thereId = defined(listed.find((s) => !s.current)).id;
+
+    // Another person posting this one's session id ends nothing.
+    await endSession(db, other.id, hereId);
+    await endSession(db, user.id, thereId);
+    const left = await listSessions(request, env, db, user.id);
+
+    expect({
+      listed: listed.length,
+      here: await whoIs(here),
+      there: await userOf(there),
+      theirs: await whoIs(theirs),
+      left: left.map((s) => [s.id, s.current]),
+    }).toStrictEqual({
+      listed: 2,
+      here: user.id,
+      there: null,
+      theirs: other.id,
+      left: [[hereId, true]],
     });
   });
 

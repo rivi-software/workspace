@@ -9,7 +9,7 @@ import {
   authFor,
   createPasswordAccount,
   generatePassword,
-  revokeSessions,
+  revoke,
   sessionCookieName,
   setPassword,
 } from "./auth.server";
@@ -139,7 +139,7 @@ export const setPersonActive = async (
 
   // A deactivated person's open sessions end at once, not at their next request.
   if (!active) {
-    await revokeSessions(db, id);
+    await revoke(db, id, "deactivation");
   }
 };
 
