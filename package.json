@@ -73,7 +73,7 @@
     "@vitejs/plugin-react": "6.2.1",
     "drizzle-kit": "0.31.11",
     "oxfmt": "0.76.0",
-    "oxlint": "1.90.0",
+    "oxlint": "1.91.0",
     "tailwindcss": "4.3.4",
     "tsx": "4.23.15",
     "typescript": "7.0.2",
