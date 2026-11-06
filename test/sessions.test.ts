@@ -1,7 +1,7 @@
 import { SELF } from "cloudflare:test";
 // Who is signed in, on Better Auth (`app/lib/auth.server.ts`, `app/lib/sign-in.server.ts`): the password form, the
 // session cookie it answers, what ends a session (a revocation, a new password, a deactivation, a sign-out, one browser
-// signed out from Settings), and the session token as the API's bearer token.
+// signed out from Settings), what voids a reset link mailed before, and the session token as the API's bearer token.
 import { env } from "cloudflare:workers";
 import { describe, expect, it } from "vitest";
 
@@ -28,12 +28,15 @@ import {
   SESSION_COOKIE,
   db,
   defined,
+  linkResets,
   mailbox,
   rejection,
+  resetLink,
   sessionCookieOf,
   sessionFor,
   tokenOf,
   userOf,
+  withConfirmedAddress,
 } from "./fixtures";
 import type { Json } from "./fixtures";
 
@@ -220,11 +223,12 @@ describe("the password form", () => {
 
 describe("a session", () => {
   it("ends at a revocation, with the person's other sessions and nobody else's", async () => {
-    const user = await mailbox("revoked", "Revoked");
+    const user = await withConfirmedAddress("revoked");
     const other = await mailbox("revoked-other", "Revoked Other");
     const one = await sessionFor(user);
     const two = await sessionFor(user);
     const theirs = await sessionFor(other);
+    const link = await resetLink(user);
     await revoke(db, user.id, "sign-out-everywhere");
     const after = await sessionFor(user);
 
@@ -233,11 +237,14 @@ describe("a session", () => {
       two: await userOf(two),
       theirs: await whoIs(theirs),
       after: await whoIs(after),
+      // Signing out changes nothing about the password, so the link to reset it still works.
+      linkResets: await linkResets(link),
     }).toStrictEqual({
       one: null,
       two: null,
       theirs: other.id,
       after: user.id,
+      linkResets: true,
     });
   });
 
@@ -398,5 +405,52 @@ describe("a session", () => {
       status: 200,
       email: user.email,
     });
+  });
+});
+
+describe("a reset link mailed before", () => {
+  it("no longer resets the password once an admin hands out a one-time password", async () => {
+    const user = await withConfirmedAddress("void-one-time");
+    const link = await resetLink(user);
+    const oneTime = await resetPassword(db, user.id);
+
+    expect({
+      linkResets: await linkResets(link),
+      oneTime: await checkPassword(db, user.id, oneTime),
+    }).toStrictEqual({ linkResets: false, oneTime: true });
+  });
+
+  it("no longer resets the password once the person changes their own", async () => {
+    const user = await withConfirmedAddress("void-own-change");
+    const here = await sessionFor(user);
+    const link = await resetLink(user);
+
+    const setCookie = await changeOwnPassword(
+      new Request(env.APP_URL, { headers: { cookie: here } }),
+      env,
+      { current: PASSWORD, password: NEW_PASSWORD, confirm: NEW_PASSWORD }
+    );
+
+    const renewed = defined(defined(setCookie).split(";")[0]);
+
+    expect({
+      linkResets: await linkResets(link),
+      changed: await checkPassword(db, user.id, NEW_PASSWORD),
+      // The session Better Auth made for this browser is not the revocation's to end.
+      renewed: await whoIs(renewed),
+    }).toStrictEqual({ linkResets: false, changed: true, renewed: user.id });
+  });
+
+  it("no longer resets the password once the person is deactivated, even after they are reactivated", async () => {
+    const admin = await mailbox("void-deactivation-admin");
+    const user = await withConfirmedAddress("void-deactivation");
+    const link = await resetLink(user);
+    await setPersonActive(db, admin, user.id, false);
+    await setPersonActive(db, admin, user.id, true);
+
+    expect({
+      linkResets: await linkResets(link),
+      unchanged: await checkPassword(db, user.id, PASSWORD),
+    }).toStrictEqual({ linkResets: false, unchanged: true });
   });
 });

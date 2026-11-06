@@ -150,7 +150,7 @@ _Avoid_: integration
 A person signed in on one browser or client, until they sign out, it expires (14 days) or a revocation ends it. Kept in the database and read on every request.
 
 **Revocation**:
-Ending all of a person's sessions at once: "Sign out everywhere", every new password, and a deactivation.
+Ending what a person's old credentials allowed: their sessions, and the reset links already mailed to their recovery addresses. "Sign out everywhere" ends every session; a new password from an admin or a reset link, and a deactivation, end every session and every reset link; the person's own new password ends every reset link and every other session; removing a confirmed recovery address ends every reset link.
 _Avoid_: logout (one session)
 
 **Passkey**:

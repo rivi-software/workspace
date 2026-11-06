@@ -11,6 +11,13 @@ import {
   sessionCookieName,
 } from "~/lib/auth.server";
 import type { ParsedMail } from "~/lib/mail/ingest.server";
+import {
+  EXPIRED_LINK,
+  addRecoveryAddress,
+  confirmRecoveryAddress,
+  requestPasswordReset,
+  resetPassword,
+} from "~/lib/recovery.server";
 
 import { stubEnv } from "./stub-env";
 
@@ -248,6 +255,72 @@ export const recordingEmail = (fail?: string, messageId?: string) => {
   };
 
   return { sent, env: stubEnv({ ...env, EMAIL: binding }) };
+};
+
+/** The token of the link in a mail: after the path, in the fragment. */
+export const tokenIn = (
+  message: EmailMessageBuilder | undefined,
+  path: string
+): string => {
+  const token = String(message?.text ?? "")
+    .split(`${path}#`)[1]
+    ?.match(/^[\w-]+/u)?.[0];
+
+  if (!token) {
+    throw new Error(`No ${path} link in the mail`);
+  }
+
+  return token;
+};
+
+/** A person with one recovery address, confirmed through its link. */
+export const withConfirmedAddress = async (
+  local: string,
+  address = `${local}@gmail.com`
+) => {
+  const user = await mailbox(local);
+  const outbox = recordingEmail();
+  await addRecoveryAddress(outbox.env, db, user, {
+    address,
+    password: PASSWORD,
+  });
+  await confirmRecoveryAddress(
+    db,
+    tokenIn(outbox.sent[0], "/confirm-recovery")
+  );
+
+  return user;
+};
+
+/** The token of the reset link `/forgot-password` mails to the person's confirmed recovery addresses. */
+export const resetLink = async (user: User): Promise<string> => {
+  const outbox = recordingEmail();
+  await requestPasswordReset(outbox.env, db, user.email);
+
+  return tokenIn(outbox.sent[0], "/reset-password");
+};
+
+/** The password `linkResets` sets. */
+const RESET_PASSWORD = "a password from a reset link";
+
+/**
+ * Whether a reset link still sets a new password (`RESET_PASSWORD`), spending it if it does. A refusal for any other
+ * reason than a void link fails the test, so a mistake in the setup cannot pass for a revocation.
+ */
+export const linkResets = async (token: string): Promise<boolean> => {
+  const error = await rejection(
+    resetPassword(env, db, {
+      token,
+      password: RESET_PASSWORD,
+      confirm: RESET_PASSWORD,
+    })
+  );
+
+  if (error && error.message !== EXPIRED_LINK) {
+    throw error;
+  }
+
+  return error === null;
 };
 
 /** Whether `promise` rejects with a message containing `text`. */
