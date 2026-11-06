@@ -178,7 +178,8 @@ export const MoveDialog = ({
       return;
     }
 
-    let live = true;
+    // Aborted once the dialog closes or its selection changes, so a late answer is not shown.
+    const reading = new AbortController();
 
     const readTargets = async () => {
       setTargets(null);
@@ -188,7 +189,7 @@ export const MoveDialog = ({
         data: { ids: key.split(",").filter(Boolean) },
       });
 
-      if (!live) {
+      if (reading.signal.aborted) {
         return;
       }
 
@@ -214,9 +215,7 @@ export const MoveDialog = ({
 
     readTargets();
 
-    return () => {
-      live = false;
-    };
+    return () => reading.abort();
   }, [open, key, currentId, fetchTargets]);
 
   const tree = useMemo(() => {
