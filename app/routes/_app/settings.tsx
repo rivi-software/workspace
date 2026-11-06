@@ -2,7 +2,7 @@ import { Link, createFileRoute, redirect } from "@tanstack/react-router";
 import type { ErrorComponentProps } from "@tanstack/react-router";
 import { createServerFn } from "@tanstack/react-start";
 import { setResponseHeader } from "@tanstack/react-start/server";
-import { and, eq } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import {
   KeyRound,
   LogOut,
@@ -43,10 +43,11 @@ import {
 import { schema } from "~/db";
 import { useAction } from "~/lib/action";
 import {
-  authFor,
+  endSession,
+  listSessions,
   removeAllPasskeys,
   resetTwoFactor,
-  revokeSessions,
+  revoke,
 } from "~/lib/auth.server";
 import { externalShareRecords } from "~/lib/drive/links.server";
 import { field, formData, formPost } from "~/lib/forms";
@@ -114,15 +115,6 @@ const getSettings = createServerFn().handler(async () => {
     orderBy: (p, { asc }) => [asc(p.createdAt)],
   });
 
-  const sessionRows = await db.query.sessions.findMany({
-    where: eq(schema.sessions.userId, user.id),
-    orderBy: (s, { desc }) => [desc(s.createdAt)],
-  });
-
-  // Which of them this request came on, to mark it; the tokens themselves never leave the server.
-  const auth = await authFor(env);
-  const current = await auth.api.getSession({ headers: request.headers });
-
   return {
     me: {
       id: user.id,
@@ -142,13 +134,7 @@ const getSettings = createServerFn().handler(async () => {
     })),
     maxPasskeys: MAX_PASSKEYS,
     // Every browser the person is signed in on, newest first, for signing one out from here.
-    sessions: sessionRows.map((s) => ({
-      id: s.id,
-      userAgent: s.userAgent,
-      ipAddress: s.ipAddress,
-      createdAt: s.createdAt.toISOString(),
-      current: s.token === current?.session.token,
-    })),
+    sessions: await listSessions(request, env, db, user.id),
     signatures: signatureRows.map(
       ({ id, name, text, html, isDefault, isReplyDefault }) => ({
         id,
@@ -264,20 +250,12 @@ const accountAction = createServerFn({ method: "POST" })
 
       if (intent === "signout-all") {
         // Every session of the person is over, this one included: the sign-in page is next.
-        await revokeSessions(db, user.id);
+        await revoke(db, user.id, "sign-out-everywhere");
         throw redirect({ href: "/login" });
       }
 
       if (intent === "revoke-session") {
-        // One browser signed out from here: only a session of the person's own goes.
-        await db
-          .delete(schema.sessions)
-          .where(
-            and(
-              eq(schema.sessions.id, field(data, "id")),
-              eq(schema.sessions.userId, user.id)
-            )
-          );
+        await endSession(db, user.id, field(data, "id"));
 
         return { message: "Signed out there." };
       }
@@ -415,7 +393,7 @@ const peopleAction = createServerFn({ method: "POST" })
         }
 
         case "signout": {
-          await revokeSessions(db, id);
+          await revoke(db, id, "sign-out-everywhere");
 
           return {
             message:

@@ -14,7 +14,7 @@ import type { User } from "~/db/schema";
 import { randomToken, sha256Hex } from "~/lib/crypto";
 import { errorMessage } from "~/lib/guards";
 
-import { checkPassword, clearLoginFailures } from "./auth.server";
+import { checkPassword, clearLoginFailures, revoke } from "./auth.server";
 import { newId } from "./ids";
 import { domainOf, isValidEmail } from "./mail/addresses";
 import { textToHtml } from "./text";
@@ -228,17 +228,26 @@ export const resendConfirmation = async (
   return row.address;
 };
 
-/** Removing an address also voids the confirmation links sent to it (`ON DELETE CASCADE`). */
+/**
+ * Removing an address voids the confirmation links sent to it (`ON DELETE CASCADE`) and, when it was confirmed, the
+ * reset links it may have been sent (`revoke`): an address is removed when that inbox is no longer the person's. A
+ * pending address was never sent one.
+ */
 export const removeRecoveryAddress = async (
   db: Database,
   userId: string,
   id: string
 ) => {
-  await db
+  const [removed] = await db
     .delete(recoveryAddresses)
     .where(
       and(eq(recoveryAddresses.id, id), eq(recoveryAddresses.userId, userId))
-    );
+    )
+    .returning({ confirmedAt: recoveryAddresses.confirmedAt });
+
+  if (removed?.confirmedAt) {
+    await revoke(db, userId, "recovery-address-removed");
+  }
 };
 
 /** Deleting the row is what makes a link single use: of two requests with it, one gets the row. */
@@ -369,7 +378,7 @@ export const requestPasswordReset = async (
 /**
  * The form of `/reset-password`: a new password for the person the link was sent for. The link is only spent once
  * the password passes, so a rejected one can be retried; then every reset link of the person is void, every
- * session over, and the sign-in throttle of this client lifted.
+ * session over (a revocation), and the sign-in throttle of this client lifted.
  */
 export const resetPassword = async (
   env: Env,
@@ -403,16 +412,8 @@ export const resetPassword = async (
     );
   }
 
-  // A new password ends every session of the person (`setPassword`).
+  // A new password ends every session and reset link of the person (`setPassword`).
   await changePassword(db, user.id, input.password);
-  await db
-    .delete(recoveryTokens)
-    .where(
-      and(
-        eq(recoveryTokens.userId, user.id),
-        eq(recoveryTokens.purpose, "reset-password")
-      )
-    );
   await clearLoginFailures(env.KV, ip, user.email);
 };
 

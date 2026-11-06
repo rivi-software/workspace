@@ -3,8 +3,9 @@
 //   pnpm admin:create --remote --email you@example.com --name "Your Name"          # prints a generated password once
 //   pnpm admin:create --local  --email dev@example.com --name Dev --password "…"   # explicit password (12+ chars)
 //
-// An existing account with that address is updated: the password is replaced, every session of theirs ends, the
-// account becomes an active admin, and its authenticator app is reset (a lost phone no longer locks an admin out).
+// An existing account with that address is updated: the password is replaced, every session and reset link of theirs
+// ends (as `revoke` in app/lib/auth.server.ts does for a new password), the account becomes an active admin, and its
+// authenticator app is reset (a lost phone no longer locks an admin out).
 import { spawnSync } from "node:child_process";
 import { webcrypto as crypto } from "node:crypto";
 
@@ -90,6 +91,7 @@ const sql = [
   `DELETE FROM accounts WHERE provider_id = 'credential' AND user_id = ${whose}`,
   `INSERT INTO accounts (id, account_id, provider_id, user_id, password, created_at, updated_at) SELECT ${q(accountId)}, id, 'credential', id, ${q(hash)}, ${now}, ${now} FROM users WHERE email = ${q(email)}`,
   `DELETE FROM sessions WHERE user_id = ${whose}`,
+  `DELETE FROM recovery_tokens WHERE purpose = 'reset-password' AND user_id = ${whose}`,
   `DELETE FROM two_factors WHERE user_id = ${whose}`,
 ].join("; ");
 

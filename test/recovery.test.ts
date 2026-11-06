@@ -3,7 +3,6 @@ import { eq } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
 
 import { recoveryTokens, users } from "~/db/schema";
-import type { User } from "~/db/schema";
 import {
   checkPassword,
   loginThrottled,
@@ -25,10 +24,14 @@ import { listPeople } from "~/lib/users.server";
 import {
   db,
   defined,
+  linkResets,
   mailbox,
   recordingEmail,
   rejection,
   rejectionIncludes,
+  resetLink,
+  tokenIn,
+  withConfirmedAddress,
 } from "./fixtures";
 
 const NEW_PASSWORD = "a long new password";
@@ -38,45 +41,6 @@ const newPasswordFor = (token: string) => ({
   password: NEW_PASSWORD,
   confirm: NEW_PASSWORD,
 });
-
-/** The token of the link in a mail: after the path, in the fragment. */
-const tokenIn = (
-  mail: EmailMessageBuilder | undefined,
-  path: string
-): string => {
-  const token = String(mail?.text ?? "")
-    .split(`${path}#`)[1]
-    ?.match(/^[\w-]+/u)?.[0];
-
-  if (!token) {
-    throw new Error(`No ${path} link in the mail`);
-  }
-
-  return token;
-};
-
-/** A person with one recovery address, confirmed through its link. */
-const withConfirmedAddress = async (
-  local: string,
-  address = `${local}@gmail.com`
-) => {
-  const user = await mailbox(local);
-  const mail = recordingEmail();
-  await addRecoveryAddress(mail.env, db, user, {
-    address,
-    password: "password",
-  });
-  await confirmRecoveryAddress(db, tokenIn(mail.sent[0], "/confirm-recovery"));
-
-  return user;
-};
-
-const resetLink = async (user: User): Promise<string> => {
-  const mail = recordingEmail();
-  await requestPasswordReset(mail.env, db, user.email);
-
-  return tokenIn(mail.sent[0], "/reset-password");
-};
 
 describe("recovery addresses", () => {
   it("adds an address outside the mail domain behind the current password, and mails it a link", async () => {
@@ -212,6 +176,34 @@ describe("recovery addresses", () => {
     await expect(
       confirmRecoveryAddress(db, tokenIn(mail.sent[0], "/confirm-recovery"))
     ).resolves.toBeNull();
+  });
+
+  it("voids the reset links already mailed when a confirmed address is removed, and only then", async () => {
+    const user = await withConfirmedAddress("rec-remove-reset");
+    const other = await mailbox("rec-remove-reset-other");
+    const mail = recordingEmail();
+    await addRecoveryAddress(mail.env, db, user, {
+      address: "rec-remove-pending@gmail.com",
+      password: "password",
+    });
+    const rows = await listRecoveryAddresses(db, user.id);
+    const confirmed = defined(rows.find((r) => r.confirmedAt));
+    const pending = defined(rows.find((r) => !r.confirmedAt));
+
+    // Someone else's id does nothing, and a pending address was never sent a reset link.
+    const kept = await resetLink(user);
+    await removeRecoveryAddress(db, other.id, confirmed.id);
+    await removeRecoveryAddress(db, user.id, pending.id);
+    const keptResets = await linkResets(kept);
+
+    const voided = await resetLink(user);
+    await removeRecoveryAddress(db, user.id, confirmed.id);
+
+    expect({
+      keptResets,
+      voidedResets: await linkResets(voided),
+      left: await listRecoveryAddresses(db, user.id),
+    }).toStrictEqual({ keptResets: true, voidedResets: false, left: [] });
   });
 
   it("sends a pending address its link again, up to five confirmation mails an hour", async () => {

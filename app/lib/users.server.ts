@@ -1,6 +1,7 @@
 import { APIError } from "@better-auth/core/error";
 import { and, eq } from "drizzle-orm";
 
+import { createDb } from "~/db";
 import type { Database } from "~/db";
 import { aliases, passkeys, users } from "~/db/schema";
 import type { User } from "~/db/schema";
@@ -9,7 +10,7 @@ import {
   authFor,
   createPasswordAccount,
   generatePassword,
-  revokeSessions,
+  revoke,
   sessionCookieName,
   setPassword,
 } from "./auth.server";
@@ -137,9 +138,10 @@ export const setPersonActive = async (
 
   await db.update(users).set({ active }).where(eq(users.id, id));
 
-  // A deactivated person's open sessions end at once, not at their next request.
+  // A deactivated person's open sessions end at once, not at their next request, and a reset link mailed before
+  // cannot set a password once they are reactivated.
   if (!active) {
-    await revokeSessions(db, id);
+    await revoke(db, id, "deactivation");
   }
 };
 
@@ -158,7 +160,7 @@ export const setPersonRole = async (
   await db.update(users).set({ role }).where(eq(users.id, id));
 };
 
-/** A new one-time password for someone who lost theirs; their sessions end with the old one. */
+/** A new one-time password for someone who lost theirs; their sessions and reset links end with the old one. */
 export const resetPassword = async (
   db: Database,
   id: string
@@ -214,7 +216,7 @@ export const updateProfile = async (
 export const passwordProblem = (password: string): string | null =>
   password.length < 12 ? "A password has at least 12 characters." : null;
 
-/** A new password the person chose, from a reset link; every session of theirs ends (`setPassword`). */
+/** A new password the person chose, from a reset link; every session and reset link of theirs ends (`setPassword`). */
 export const changePassword = async (
   db: Database,
   userId: string,
@@ -231,8 +233,8 @@ export const changePassword = async (
 
 /**
  * Settings → Account: the person's own new password, with the current one, through Better Auth. Every other session
- * ends with the old password, and this browser goes on in a new session. Answers that session's `Set-Cookie` value,
- * or null when Better Auth kept the session as it was.
+ * and every reset link ends with the old password, and this browser goes on in a new session. Answers that session's
+ * `Set-Cookie` value, or null when Better Auth kept the session as it was.
  */
 export const changeOwnPassword = async (
   request: Request,
@@ -252,7 +254,7 @@ export const changeOwnPassword = async (
   try {
     const auth = await authFor(env);
 
-    const { headers } = await auth.api.changePassword({
+    const { headers, response } = await auth.api.changePassword({
       body: {
         currentPassword: input.current,
         newPassword: input.password,
@@ -261,6 +263,8 @@ export const changeOwnPassword = async (
       headers: request.headers,
       returnHeaders: true,
     });
+
+    await revoke(createDb(env.DB), response.user.id, "own-password-change");
 
     return (
       headers

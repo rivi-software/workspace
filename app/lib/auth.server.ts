@@ -1,7 +1,8 @@
 /**
  * Who is signed in, on Better Auth: the instance over this Worker's D1 database (`createAuth`), the session a
  * request carries (`getSessionUser`, `requireUser`), passwords (PBKDF2 through WebCrypto, which Better Auth hashes
- * and checks with as well), what ends every session of a person, and the sign-in throttle of the password form.
+ * and checks with as well), a person's sessions and what a change of their credentials ends (`revoke`), and the
+ * sign-in throttle of the password form.
  *
  * Better Auth serves `/api/auth/*` from the Worker (`workers/worker.ts`): the password sign-in the form posts
  * (`sign-in.server.ts`), passkeys (`@better-auth/passkey`), the authenticator-app second factor (`twoFactor`) and
@@ -20,6 +21,7 @@ import type { Database } from "~/db";
 import {
   accounts,
   passkeys,
+  recoveryTokens,
   sessions,
   twoFactors,
   users,
@@ -272,8 +274,11 @@ export const createAuth = async (env: Env, db: Database = createDb(env.DB)) => {
       customStorage: kvRateLimit(env.KV),
     },
     // Sign-up, Better Auth's own password reset and email verification are off: admins make the mailboxes, and a
-    // forgotten password goes through the recovery addresses (`recovery.server.ts`).
+    // forgotten password goes through the recovery addresses (`recovery.server.ts`). Its change-password endpoint is
+    // off too: the person's own change goes through `changeOwnPassword`, which calls `auth.api.changePassword` on the
+    // server (these paths close only the HTTP routes) and then ends the reset links mailed before (`revoke`).
     disabledPaths: [
+      "/change-password",
       "/sign-up/email",
       "/request-password-reset",
       "/reset-password",
@@ -483,19 +488,99 @@ export const createPasswordAccount = async (
   await writePasswordHash(db, userId, await hashPassword(password));
 };
 
-/** "Sign out everywhere": every session of the person ends; their next request asks them to sign in. */
-export const revokeSessions = async (
+/**
+ * What a revocation ends, per reason. What the old credentials allowed is of two kinds: a session, a browser that
+ * signed in with them, and a reset link, a way to a new password mailed while they held (30 minutes, to every
+ * confirmed recovery address). A reset link names the person and not the address it went to, so whatever voids one
+ * voids them all.
+ */
+const REVOCATIONS = {
+  // Nothing about the password changed, so the links to reset it stay; every browser signs in again.
+  "sign-out-everywhere": { sessions: true, resetLinks: false },
+  // An admin's one-time password or a recovery reset: whoever knew the old password may hold a session, and a link
+  // mailed before would set yet another password over the new one.
+  "new-password": { sessions: true, resetLinks: true },
+  // The person's own change in Settings: Better Auth's `changePassword` has already ended the other sessions and
+  // keeps this browser signed in, but knows nothing of the reset links.
+  "own-password-change": { sessions: false, resetLinks: true },
+  // No way in while deactivated, and none from before once reactivated.
+  deactivation: { sessions: true, resetLinks: true },
+  // A confirmed address taken off the list: someone removes one when that inbox is no longer theirs.
+  "recovery-address-removed": { sessions: false, resetLinks: true },
+} as const satisfies Record<string, { sessions: boolean; resetLinks: boolean }>;
+
+/** Why a person's credentials changed, which decides what a revocation ends. */
+export type RevocationReason = keyof typeof REVOCATIONS;
+
+/**
+ * A revocation: what the person's old credentials allowed ends, as far as the reason reaches. A session is read on
+ * every request and a reset link when it is spent, so both stop working at once.
+ */
+export const revoke = async (
   db: Database,
-  userId: string
+  userId: string,
+  reason: RevocationReason
 ): Promise<void> => {
-  await db.delete(sessions).where(eq(sessions.userId, userId));
+  const ends = REVOCATIONS[reason];
+
+  if (ends.sessions) {
+    await db.delete(sessions).where(eq(sessions.userId, userId));
+  }
+
+  if (ends.resetLinks) {
+    await db
+      .delete(recoveryTokens)
+      .where(
+        and(
+          eq(recoveryTokens.userId, userId),
+          eq(recoveryTokens.purpose, "reset-password")
+        )
+      );
+  }
+};
+
+/** One browser signed out from Settings → Account. Only a session of the person's own ends, whatever id is posted. */
+export const endSession = async (
+  db: Database,
+  userId: string,
+  sessionId: string
+): Promise<void> => {
+  await db
+    .delete(sessions)
+    .where(and(eq(sessions.id, sessionId), eq(sessions.userId, userId)));
 };
 
 /**
- * A new password for the person: an admin's one-time password or a recovery reset. Whoever knew the old one may
- * hold a session, so every one of them ends, as with "Sign out everywhere". The person's own change in Settings
- * goes through Better Auth (`changeOwnPassword`), which ends the other sessions and keeps the browser it was changed
- * in signed in.
+ * Every browser the person is signed in on, newest first, with the one this request came on marked, for Settings
+ * → Account. The tokens themselves never leave the server.
+ */
+export const listSessions = async (
+  request: Request,
+  env: Env,
+  db: Database,
+  userId: string
+) => {
+  const rows = await db.query.sessions.findMany({
+    where: eq(sessions.userId, userId),
+    orderBy: (s, { desc }) => [desc(s.createdAt)],
+  });
+
+  const auth = await authFor(env);
+  const current = await auth.api.getSession({ headers: request.headers });
+
+  return rows.map((s) => ({
+    id: s.id,
+    userAgent: s.userAgent,
+    ipAddress: s.ipAddress,
+    createdAt: s.createdAt.toISOString(),
+    current: s.token === current?.session.token,
+  }));
+};
+
+/**
+ * A new password for the person: an admin's one-time password or a recovery reset. The old one may be known to
+ * someone else, so the sessions and reset links it allowed end. The person's own change in Settings goes through
+ * Better Auth (`changeOwnPassword`) instead, which keeps the browser it was changed in signed in.
  */
 export const setPassword = async (
   db: Database,
@@ -503,7 +588,7 @@ export const setPassword = async (
   password: string
 ): Promise<void> => {
   await writePasswordHash(db, userId, await hashPassword(password));
-  await revokeSessions(db, userId);
+  await revoke(db, userId, "new-password");
 };
 
 /** An admin's way out for someone who lost their authenticator: the second factor off, its secret and codes gone. */

@@ -7,7 +7,7 @@ import { env } from "cloudflare:workers";
 import { beforeAll, describe, expect, it } from "vitest";
 
 import type { User } from "~/db/schema";
-import { revokeSessions } from "~/lib/auth.server";
+import { revoke } from "~/lib/auth.server";
 import { isJsonObject, stringOrNull } from "~/lib/guards";
 import { ingestInboundEmail } from "~/lib/mail/ingest.server";
 import { addDraftFiles } from "~/lib/mail/send.server";
@@ -1059,7 +1059,7 @@ describe("the Workspace API", () => {
   });
 
   it("ends with the session: after a sign-out everywhere the token gets 401 at its next request", async () => {
-    await revokeSessions(db, user.id);
+    await revoke(db, user.id, "sign-out-everywhere");
     const after = await call(token, "GET", "/me");
 
     expect(after.status).toBe(401);
