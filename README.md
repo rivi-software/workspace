@@ -166,7 +166,8 @@ The [button](https://developers.cloudflare.com/workers/platform/deploy-buttons/)
 | Field | What to enter |
 | --- | --- |
 | Git account, project name | Where the copy goes, and the Worker's name. |
-| The KV namespaces | Different names for the two: `workspace-kv` for `KV` and `workspace-previous-assets` for `PREVIOUS_ASSETS`. The database and the buckets can keep the names it suggests. |
+| The KV namespaces | Different names for the two: `workspace-kv` for `KV` and `workspace-previous-assets` for `PREVIOUS_ASSETS`. |
+| The database and the buckets | The names it suggests, unless the account already runs a workspace: then it selects that workspace's `workspace-db`, `workspace-mail` and `workspace-drive`, and a second workspace needs **new** ones of its own. |
 | `SESSION_SECRET` | The output of `openssl rand -base64 48`. The other secrets stay empty unless you send through [Amazon SES](#amazon-ses) or use the [Microsoft 365 import](#microsoft-365-import). |
 | `APP_URL` | The Worker's address: `https://<project name>.<your subdomain>.workers.dev` (the subdomain is on **Workers & Pages**), or a custom domain. |
 | `MAIL_DOMAIN` | The domain the mailboxes are on; it must be a zone on the same account. The other variables are in the table of step 3 below. |
