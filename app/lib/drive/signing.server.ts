@@ -28,6 +28,7 @@ import type { SigningEvent, SigningRequest, User } from "~/db/schema";
 import { randomToken, sha256Hex } from "~/lib/crypto";
 import { defined, errorMessage } from "~/lib/guards";
 
+import { sameOriginPost } from "../auth.server";
 import { newId } from "../ids";
 import { domainOf, isValidEmail } from "../mail/addresses";
 import { sendAsPerson } from "../mail/mail.server";
@@ -1682,7 +1683,8 @@ const customerJsonPost = async (
  * The posts of `/s/sign/$token`. The code's forms (`send-code`, `code`) are classic form posts (`visitorPost`),
  * answered with a redirect back to the page (with the pass once the code was right, else an `error` or the `step` to
  * show). Signing and declining are JSON from the page's script (`{ intent: "sign", values, signature, agree }`, `{
- * intent: "decline", reason }`), answered with JSON, and need the pass. A post from another site is refused.
+ * intent: "decline", reason }`), answered with JSON, and need the pass. A post from another site is refused, by the
+ * same rule for both (`sameOriginPost`).
  */
 export const customerPost = async (
   env: Env,
@@ -1691,17 +1693,9 @@ export const customerPost = async (
   token: string,
   at = Date.now()
 ): Promise<Response> => {
-  const site = request.headers.get("sec-fetch-site");
-
   const json = (request.headers.get("content-type") ?? "").includes(
     "application/json"
   );
-
-  if (site && site !== "same-origin" && site !== "none") {
-    return json
-      ? answer({ ok: false, error: "Refused." }, 403)
-      : new Response(null, { status: 403 });
-  }
 
   if (!json) {
     return visitorPost(
@@ -1726,6 +1720,10 @@ export const customerPost = async (
       },
       at
     );
+  }
+
+  if (!sameOriginPost(request)) {
+    return answer({ ok: false, error: "Refused." }, 403);
   }
 
   return customerJsonPost(

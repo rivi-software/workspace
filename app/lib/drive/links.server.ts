@@ -663,7 +663,8 @@ export const sharedPage = async (
 };
 
 /**
- * The forms of `/s/$token`, posted without JavaScript (`visitorPost`): `password` (a link's password), `send-code` (mail an invite's code) and `code` (confirm it). Answers a redirect back
+ * The forms of `/s/$token`, posted without JavaScript (`visitorPost`, which refuses a post from another site):
+ * `password` (a link's password), `send-code` (mail an invite's code) and `code` (confirm it). Answers a redirect back
  * to the page, with the pass cookie once the password or the code was right, else an `error` (`password`, `code`,
  * `codes`, `throttled`) or the `step` to show.
  */

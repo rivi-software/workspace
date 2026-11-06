@@ -11,8 +11,8 @@
  *   before the code is compared, and spent by the right one (`sendCode`, `confirmCode`);
  * - the pass a visitor carries once a proof was right: a sealed cookie naming its row, `Path=/s/`, at most
  *   `PASS_TTL_SECONDS` and never past the row's own end (`passCookie`, `readPasses`);
- * - the page's classic form posts (`visitorPost`): the code's two forms answered, everything answered with a redirect
- *   back to the page.
+ * - the page's classic form posts (`visitorPost`): refused from another site by the sign-in form's rule
+ *   (`sameOriginPost`), the code's two forms answered, everything answered with a redirect back to the page.
  *
  * What a token opens and what a visitor sees once in stay with each kind: Drive's gate (`openLink`) and a link's
  * password, a signing request's states.
@@ -24,7 +24,7 @@ import { driveLinks, signingRequests } from "~/db/schema";
 import { sha256Hex } from "~/lib/crypto";
 import { defined, numberOr, parseJsonObject, stringOrNull } from "~/lib/guards";
 
-import { isSecure } from "../auth.server";
+import { isSecure, sameOriginPost } from "../auth.server";
 import { openSecret, sealSecret } from "../secret-box.server";
 import { mailOut } from "./mail-out.server";
 
@@ -348,8 +348,9 @@ export const readPasses = async <Row extends ProofRow>(
 type Back = (params?: Record<string, string>, pass?: string) => Response;
 
 /**
- * A classic form post to a visitor's page, which works without JavaScript, answered with a redirect back to
- * `page.path`, keeping the `page.keep` params of the address posted to, with the `step` to show or
+ * A classic form post to a visitor's page, which works without JavaScript. A post from another site is refused (403):
+ * only a page on this origin, or no browser at all, posts here (`sameOriginPost`). Everything else is answered with a
+ * redirect back to `page.path`, keeping the `page.keep` params of the address posted to, with the `step` to show or
  * the `error` (`throttled`, `code`, `codes`), and the pass once a proof was right.
  *
  * `page.own` answers a form of the page's own first (a link's password), or null to go on. Then `page.row` finds
@@ -371,6 +372,10 @@ export const visitorPost = async <Row extends ProofRow>(
   },
   at = Date.now()
 ): Promise<Response> => {
+  if (!sameOriginPost(request)) {
+    return new Response(null, { status: 403 });
+  }
+
   const url = new URL(request.url);
 
   const back: Back = (params: Record<string, string> = {}, pass?: string) => {

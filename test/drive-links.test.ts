@@ -1095,6 +1095,92 @@ describe("invitations", () => {
     expect(defined(row).codeAttempts).toBe(5);
   });
 
+  it("takes the page's forms from its own origin or from no browser, never from another site", async () => {
+    const owner = await mailbox("lk-own14");
+    const file = await putFile(owner.id, null, "origin.txt", "origin");
+    const mail = recordingEmail();
+
+    const { url } = await createExternalShare(mail.env, db, owner, file.id, {
+      kind: "invite",
+      email: "origin@example.org",
+      allowDownload: true,
+    });
+
+    const invite = defined(url.split("/s/")[1]);
+
+    const { token: locked } = await linkTo(owner, file.id, {
+      password: "letmein1",
+    });
+
+    const post = (
+      token: string,
+      fields: Record<string, string>,
+      headers: Record<string, string>
+    ) => {
+      const form = new FormData();
+
+      for (const [k, v] of Object.entries(fields)) {
+        form.set(k, v);
+      }
+
+      return sharedPagePost(
+        mail.env,
+        db,
+        visitor(`/s/${token}`, { method: "POST", headers }),
+        token,
+        form
+      );
+    };
+
+    const answered = (res: Response) => ({
+      status: res.status,
+      location: res.headers.get("location"),
+      pass: res.headers.has("set-cookie"),
+      mailed: mail.sent.length,
+    });
+
+    const { origin } = new URL(env.APP_URL);
+    const sendCodeForm = { intent: "send-code" };
+    const password = { intent: "password", password: "letmein1" };
+
+    expect([
+      // Another site's page posts with the visitor's browser: nothing is mailed, and no pass is given.
+      answered(
+        await post(invite, sendCodeForm, { "sec-fetch-site": "cross-site" })
+      ),
+      answered(await post(locked, password, { "sec-fetch-site": "same-site" })),
+      // A browser that sends no `Sec-Fetch-Site` still names the page it posts from.
+      answered(
+        await post(invite, sendCodeForm, {
+          origin: "https://elsewhere.example",
+        })
+      ),
+      // The page's own form, a browser before `Sec-Fetch-Site`, and a script that is no browser at all.
+      answered(
+        await post(invite, sendCodeForm, { "sec-fetch-site": "same-origin" })
+      ),
+      answered(await post(invite, sendCodeForm, { origin })),
+      answered(await post(locked, password, {})),
+    ]).toStrictEqual([
+      { status: 403, location: null, pass: false, mailed: 1 },
+      { status: 403, location: null, pass: false, mailed: 1 },
+      { status: 403, location: null, pass: false, mailed: 1 },
+      {
+        status: 303,
+        location: `/s/${invite}?step=code`,
+        pass: false,
+        mailed: 2,
+      },
+      {
+        status: 303,
+        location: `/s/${invite}?step=code`,
+        pass: false,
+        mailed: 3,
+      },
+      { status: 303, location: `/s/${locked}`, pass: true, mailed: 3 },
+    ]);
+  });
+
   it("refuses a second live invite to an address, past an expired one", async () => {
     const owner = await mailbox("lk-own13");
     const file = await putFile(owner.id, null, "twice.txt", "twice");

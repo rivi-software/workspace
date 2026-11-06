@@ -898,6 +898,48 @@ describe("the customer's side", () => {
     ]);
   });
 
+  it("takes the code's forms from its own page or from no browser, never from another site", async () => {
+    const { mail, token } = await sent("sg-origin");
+    const { origin: appOrigin } = new URL(env.APP_URL);
+    const before = mail.sent.length;
+
+    const post = async (headers: Record<string, string>) => {
+      const res = await customerPost(
+        mail.env,
+        db,
+        visitor(`/s/sign/${token}`, {
+          method: "POST",
+          body: form({ intent: "send-code" }),
+          headers,
+        }),
+        token
+      );
+
+      return {
+        status: res.status,
+        location: res.headers.get("location"),
+        mailed: mail.sent.length - before,
+      };
+    };
+
+    expect([
+      await post({ "sec-fetch-site": "cross-site" }),
+      // Only a person typing an address sends `none`; no form or script on a page does.
+      await post({ "sec-fetch-site": "none" }),
+      await post({ origin: "https://elsewhere.example" }),
+      await post({ "sec-fetch-site": "same-origin" }),
+      await post({ origin: appOrigin }),
+      await post({}),
+    ]).toStrictEqual([
+      { status: 403, location: null, mailed: 0 },
+      { status: 403, location: null, mailed: 0 },
+      { status: 403, location: null, mailed: 0 },
+      { status: 303, location: `/s/sign/${token}?step=code`, mailed: 1 },
+      { status: 303, location: `/s/sign/${token}?step=code`, mailed: 2 },
+      { status: 303, location: `/s/sign/${token}?step=code`, mailed: 3 },
+    ]);
+  });
+
   it("answers an unknown token with nothing", async () => {
     await expect(
       customerPage(env, db, visitor("/s/sign/nope"), "nope")
