@@ -1,4 +1,3 @@
-import { waitUntil } from "cloudflare:workers";
 /**
  * The Mail section of the Workspace API (docs/API.md): the lists, a conversation and its messages' documents, the
  * actions and their undo, the composer's start, sending, drafts, contacts and labels, over the same server modules
@@ -6,45 +5,29 @@ import { waitUntil } from "cloudflare:workers";
  */
 import { and, eq } from "drizzle-orm";
 
-import type { Database } from "~/db";
 import { attachments, messages } from "~/db/schema";
 import type { Address, Thread } from "~/db/schema";
 import { parseAddressList, parseJsonAddresses } from "~/lib/mail/addresses";
 import { composeData } from "~/lib/mail/compose.server";
 import { searchContacts } from "~/lib/mail/contacts.server";
 import { signFileUrl } from "~/lib/mail/files.server";
-import { isFolder } from "~/lib/mail/folders";
-import type { Folder, LabelRef } from "~/lib/mail/folders";
-import { createLabel, listLabels } from "~/lib/mail/labels.server";
-import {
-  countThreads,
-  emptyFolder,
-  labelsForThreads,
-  listThreads,
-  loadThread,
-  pruneExpired,
-} from "~/lib/mail/mailbox.server";
-import type { ListOptions } from "~/lib/mail/mailbox.server";
-import { parsePreferences } from "~/lib/mail/preferences";
+import { createLabel } from "~/lib/mail/labels.server";
+import { emptyFolder, loadThread } from "~/lib/mail/mailbox.server";
+import { askedView, listPage } from "~/lib/mail/reads.server";
 import { mailDocument, mailReading, sanitizeHtml } from "~/lib/mail/sanitize";
-import { listScheduled } from "~/lib/mail/schedule.server";
 import {
   deleteDraft,
   draftFilesForSending,
-  listDrafts,
   saveDraft,
   sendMail,
   sendableAddresses,
 } from "~/lib/mail/send.server";
 import type { OutgoingFile } from "~/lib/mail/send.server";
-import { pruneSpamTokens } from "~/lib/mail/spam.server";
-import { participantLabel } from "~/lib/mail/threading";
 import {
   applyThreadAction,
   markAllRead,
   markThreadRead,
   undoThreadAction,
-  wakeSnoozed,
 } from "~/lib/mail/threads.server";
 import { isThreadIntent } from "~/lib/mail/views";
 
@@ -52,51 +35,6 @@ import { field, fieldOrNull, idsOf, objectList, readBody } from "./body.server";
 import type { JsonBody } from "./body.server";
 import { ApiRequestError, json } from "./routing.server";
 import type { ApiContext, ApiRoute } from "./routing.server";
-
-const PAGE_SIZES = new Set([25, 50, 100]);
-
-/** The list a request asks for: the folder or label, the search, the page. */
-const listRequest = async (
-  db: Database,
-  context: ApiContext,
-  given: { folder?: string | null; label?: string | null; q?: string | null }
-) => {
-  const { user } = context;
-  const prefs = parsePreferences(user.preferencesJson);
-  const labels = await listLabels(db, user.id);
-
-  const label = given.label
-    ? (labels.find((l) => l.id === given.label) ?? null)
-    : null;
-
-  const asked = given.folder ?? undefined;
-  let folder: Folder = "inbox";
-
-  if (label) {
-    folder = "archive";
-  } else if (isFolder(asked)) {
-    folder = asked;
-  }
-
-  return { prefs, labels, label, folder, q: (given.q ?? "").trim() };
-};
-
-const threadRow = (t: Thread, labels: LabelRef[]) => ({
-  id: t.id,
-  subject: t.subject,
-  snippet: t.snippet,
-  people: participantLabel(parseJsonAddresses(t.participantsJson)) || "me",
-  count: t.messageCount,
-  unread: t.unreadCount > 0,
-  starred: t.starred,
-  hasAttachments: t.hasAttachments,
-  lastMessageAt: t.lastMessageAt,
-  folder: t.folder,
-  snoozedUntil: t.snoozedUntil,
-  muted: t.muted,
-  sent: t.sentCount > 0,
-  labels,
-});
 
 const threadView = (t: Thread) => ({
   id: t.id,
@@ -129,83 +67,15 @@ const cidLinks = (
 const list = async (context: ApiContext): Promise<Response> => {
   const { db, env, user, query } = context;
 
-  const { prefs, labels, label, folder, q } = await listRequest(db, context, {
-    folder: query.get("folder"),
-    label: query.get("label"),
-    q: query.get("q"),
-  });
-
-  const page = Math.max(
-    1,
-    Math.min(10_000, Math.floor(Number(query.get("page")) || 1))
+  return json(
+    await listPage(db, env, user, {
+      folder: query.get("folder"),
+      label: query.get("label"),
+      q: query.get("q"),
+      page: query.get("page"),
+      pageSize: query.get("pageSize"),
+    })
   );
-
-  const askedSize = Number(query.get("pageSize"));
-
-  const pageSize = PAGE_SIZES.has(askedSize) ? askedSize : prefs.pageSize;
-
-  // As the console's list does: snoozed conversations whose time has come return now, and the housekeeping runs a
-  // few times a day after the answer.
-  await wakeSnoozed(db, new Date(), user.id);
-  const pruneKey = `prune:${user.id}`;
-
-  if (!(await env.KV.get(pruneKey))) {
-    await env.KV.put(pruneKey, "1", { expirationTtl: 6 * 3600 });
-    waitUntil(
-      Promise.all([
-        pruneExpired(db, env, user.id),
-        pruneSpamTokens(db, user.id),
-      ])
-    );
-  }
-
-  const base = { folder, q, page, pageSize, label, labels };
-
-  if ((folder === "drafts" || folder === "scheduled") && !label) {
-    const rows =
-      folder === "drafts"
-        ? await listDrafts(db, user.id)
-        : await listScheduled(db, user.id);
-
-    return json({
-      ...base,
-      total: rows.length,
-      threads: [],
-      drafts: rows.map((d) => ({
-        id: d.id,
-        to: participantLabel(parseJsonAddresses(d.toJson)),
-        subject: d.subject,
-        snippet: d.text.replaceAll(/\s+/gu, " ").trim().slice(0, 120),
-        updatedAt: d.updatedAt,
-        scheduledAt: d.scheduledAt,
-        sendError: d.sendError,
-      })),
-    });
-  }
-
-  const options: ListOptions = { folder, q, label: label?.id ?? null };
-
-  const [rows, total] = await Promise.all([
-    listThreads(db, user.id, {
-      ...options,
-      limit: pageSize,
-      offset: (page - 1) * pageSize,
-    }),
-    countThreads(db, user.id, options),
-  ]);
-
-  const threadLabels = await labelsForThreads(
-    db,
-    user.id,
-    rows.map((t) => t.id)
-  );
-
-  return json({
-    ...base,
-    total,
-    drafts: [],
-    threads: rows.map((t) => threadRow(t, threadLabels.get(t.id) ?? [])),
-  });
 };
 
 const thread = async (context: ApiContext): Promise<Response> => {
@@ -352,7 +222,7 @@ const readAll = async (context: ApiContext): Promise<Response> => {
   const { db, request } = context;
   const body = await readBody(request);
 
-  const { label, folder, q } = await listRequest(db, context, {
+  const { label, folder, q } = await askedView(db, context.user.id, {
     folder: fieldOrNull(body, "folder"),
     label: fieldOrNull(body, "label"),
     q: fieldOrNull(body, "q"),

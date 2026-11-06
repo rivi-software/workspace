@@ -43,7 +43,6 @@ import {
 import { listParams } from "~/components/mail-list";
 import { useSelection } from "~/components/mail-selection";
 import { MessageCard } from "~/components/message-card";
-import type { MessageData, SenderRuleView } from "~/components/message-card";
 import { SnoozeMenu, SnoozeTriggerButton } from "~/components/snooze-menu";
 import { useToast } from "~/components/toast";
 import {
@@ -70,15 +69,10 @@ import {
 import { composeData } from "~/lib/mail/compose.server";
 import type { ComposeData } from "~/lib/mail/compose.server";
 import type { LabelRef } from "~/lib/mail/folders";
-import { listImageSenders, loadsImages } from "~/lib/mail/images.server";
-import { loadThread } from "~/lib/mail/mailbox.server";
-import { sanitizeHtml } from "~/lib/mail/sanitize";
+import type { MessageData, SenderRuleView } from "~/lib/mail/reads";
+import { openThread } from "~/lib/mail/reads.server";
 import { draftForThread } from "~/lib/mail/send.server";
 import { snoozeLabel } from "~/lib/mail/snooze";
-import { senderRuleFor } from "~/lib/mail/spam";
-import { listSenderRules } from "~/lib/mail/spam.server";
-import { isForwardSubject } from "~/lib/mail/threading";
-import { markThreadRead } from "~/lib/mail/threads.server";
 import type { ThreadAction } from "~/lib/mail/views";
 import { appContext } from "~/lib/request.server";
 import { serverFnFetch } from "~/lib/server-fn-fetch";
@@ -89,37 +83,13 @@ const getThread = createServerFn()
   .validator((d: { threadId: string }) => d)
   .handler(async ({ data }) => {
     const { db, env, user, request } = await appContext();
-    const loaded = await loadThread(db, env, user.id, data.threadId);
+    const opened = await openThread(db, env, user.id, data.threadId);
 
-    if (!loaded) {
+    if (!opened) {
       throw notFound();
     }
 
-    const { thread, messages, labels } = loaded;
-    // Opening a conversation reads it, as in every mail client.
-    const wasUnread = thread.unreadCount > 0;
-
-    if (wasUnread) {
-      await markThreadRead(db, user.id, thread.id);
-    }
-
-    // Whether the owner blocked or allowed each sender, for the messages' menus, and whose images they always load.
-    const [rules, imageSenders] = await Promise.all([
-      listSenderRules(db, user.id),
-      listImageSenders(db, user.id),
-    ]);
-
-    const senderRules: Record<string, SenderRuleView | null> = {};
-
-    for (const m of messages) {
-      if (m.direction === "inbound" && !(m.from.email in senderRules)) {
-        const rule = senderRuleFor(rules, m.from.email);
-        senderRules[m.from.email] = rule
-          ? { sender: rule.sender, verdict: rule.verdict }
-          : null;
-      }
-    }
-
+    const { thread, labels } = opened;
     // A reply or forward begun here and not sent opens again in the reply box.
     const draft = await draftForThread(db, user.id, thread.id);
 
@@ -131,9 +101,9 @@ const getThread = createServerFn()
 
     return {
       origin,
-      wasUnread,
+      wasUnread: opened.wasUnread,
       draftCompose,
-      senderRules,
+      senderRules: opened.senderRules,
       thread: {
         id: thread.id,
         subject: thread.subject,
@@ -144,32 +114,7 @@ const getThread = createServerFn()
         messageCount: thread.messageCount,
         labels,
       },
-      messages: messages.map((m): MessageData => {
-        const inline = new Map(
-          m.attachments
-            .filter((a) => a.contentId)
-            .map(
-              (a) => [defined(a.contentId, "the content id"), a.url] as const
-            )
-        );
-
-        const safe = m.html
-          ? sanitizeHtml(m.html, {
-              cidUrl: (cid) => inline.get(cid) ?? null,
-              forward: isForwardSubject(m.subject),
-            })
-          : null;
-
-        return {
-          ...m,
-          html: safe?.html ?? null,
-          remoteImages: safe?.remoteImages ?? false,
-          loadImages:
-            m.direction === "inbound" &&
-            loadsImages(imageSenders, m.from.email, thread.folder),
-          files: m.attachments.filter((a) => !a.inline || !a.contentId),
-        };
-      }),
+      messages: opened.messages,
     };
   });
 
