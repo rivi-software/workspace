@@ -30,8 +30,8 @@
     "smoke": "node scripts/smoke.mjs",
     "email:simulate": "node scripts/simulate-inbound-email.mjs",
     "deploy:assets": "cloudflare-retain-assets --config dist/server/wrangler.json",
-    "deploy": "pnpm run db:migrate:remote && wrangler deploy",
-    "deploy:production": "pnpm run db:migrate:remote && pnpm run deploy:assets && wrangler deploy",
+    "deploy": "pnpm run db:migrate:remote && pnpm run deploy:assets && wrangler deploy",
+    "deploy:production": "pnpm run deploy",
     "deploy:production:dry-run": "wrangler deploy --dry-run",
     "clean": "rm -rf dist .wrangler/deploy worker-configuration.d.ts tsconfig.node.tsbuildinfo tsconfig.cloudflare.tsbuildinfo seed/seed.generated.sql"
   },

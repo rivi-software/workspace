@@ -171,7 +171,7 @@ The [button](https://developers.cloudflare.com/workers/platform/deploy-buttons/)
 | `SESSION_SECRET` | The output of `openssl rand -base64 48`. The other secrets stay empty unless you send through [Amazon SES](#amazon-ses) or use the [Microsoft 365 import](#microsoft-365-import). |
 | `APP_URL` | The Worker's address: `https://<project name>.<your subdomain>.workers.dev` (the subdomain is on **Workers & Pages**), or a custom domain. |
 | `MAIL_DOMAIN` | The domain the mailboxes are on; it must be a zone on the same account. The other variables are in the table of step 3 below. |
-| Build and deploy commands | Keep `pnpm run build` and `pnpm run deploy` (the D1 migrations, then `wrangler deploy`), and turn **preview builds** off: the workspace runs at one address, `APP_URL`. |
+| Build and deploy commands | Keep `pnpm run build` and `pnpm run deploy` (step 6 below says what it does), and turn **preview builds** off: the workspace runs at one address, `APP_URL`. |
 
 Then clone the copy, run `pnpm install` and `wrangler login`, and continue with the mail domain (step 4 below) and the first admin (step 7). A later change to `wrangler.jsonc` in the copy, such as `addresses` or a custom domain in `routes`, deploys with the push that makes it.
 
@@ -216,7 +216,7 @@ Then clone the copy, run `pnpm install` and `wrangler login`, and continue with 
 
    `AI_PROVIDER=anthropic` needs no secret in the Worker: the AI Gateway holds the Anthropic key (BYOK, in the gateway's settings).
 
-6. `pnpm run deploy`: the D1 migrations on the remote database, then `wrangler deploy`. `pnpm run deploy:production` also copies the build's client files into the `PREVIOUS_ASSETS` namespace first, so a tab open on an earlier build can still load its chunks for seven days (`@rivi-software/cloudflare-deploy`).
+6. `pnpm run build`, then `pnpm run deploy`: the D1 migrations on the remote database, the build's client files into the `PREVIOUS_ASSETS` namespace, so a tab open on an earlier build can still load its chunks for seven days (`@rivi-software/cloudflare-deploy`), then `wrangler deploy`. Workers Builds runs the same two commands for a deploy made with the button.
 7. The first admin: `pnpm run admin:create --remote --email you@<MAIL_DOMAIN> --name "You"` prints a one-time password. Sign in, change it under Settings → Account, then add the team under Settings → People. The same command resets a locked-out admin (a new password, every session ended, the authenticator app reset).
 
 ### Email Routing
@@ -271,9 +271,9 @@ Optional. With `POSTHOG_PROJECT_TOKEN` and `POSTHOG_HOST` set in `wrangler.jsonc
 | `pnpm run admin:create` | Create or reset an admin: `--remote` or `--local`, `--email`, `--name`, optionally `--password` (12+ characters; else one is generated and printed). |
 | `pnpm run smoke` | The end-to-end smoke test against a running server (`BASE_URL`). |
 | `pnpm run email:simulate` | Deliver an inbound message to the dev server (`"Subject" "Body"`, `TO=`, `FROM=`, `IN_REPLY_TO=`). |
-| `pnpm run deploy` | The remote migrations, then `wrangler deploy`. |
+| `pnpm run deploy` | The remote migrations, `deploy:assets`, then `wrangler deploy`, of the build `pnpm run build` made. |
 | `pnpm run deploy:assets` | Copy the build's client files into the `PREVIOUS_ASSETS` namespace. |
-| `pnpm run deploy:production` | The remote migrations, `deploy:assets`, then `wrangler deploy`. |
+| `pnpm run deploy:production` | The same as `deploy`. |
 | `pnpm run deploy:production:dry-run` | `wrangler deploy --dry-run`. |
 | `pnpm run clean` | Remove the build, the generated types and the rendered seed. |
 
