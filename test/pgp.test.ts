@@ -604,6 +604,82 @@ describe("mail that arrives with OpenPGP", () => {
     });
   });
 
+  it("counts an unsigned encrypted file as partial, and trusts a signed block inside an encrypted one", async () => {
+    const from = "jane@acme.com";
+    const cleoKey = await ownPublicKey(cleo);
+
+    const signedBody = await openpgp.encrypt({
+      message: await openpgp.createMessage({ text: "See the file." }),
+      encryptionKeys: cleoKey,
+      signingKeys: jane.privateKey,
+    });
+
+    // A file anyone could encrypt to Cleo's public key, with no signature in it.
+    const unsignedFile = await openpgp.encrypt({
+      message: await openpgp.createMessage({
+        binary: new TextEncoder().encode("new bank details"),
+      }),
+      encryptionKeys: cleoKey,
+      format: "binary",
+    });
+
+    const withFile = await deliver(
+      [
+        ...envelope({ from, to: cleo.email, subject: "With a file" }),
+        'Content-Type: multipart/mixed; boundary="mix"',
+        "",
+        "--mix",
+        "Content-Type: text/plain",
+        "",
+        signedBody,
+        "--mix",
+        'Content-Type: application/octet-stream; name="notes.txt.pgp"',
+        'Content-Disposition: attachment; filename="notes.txt.pgp"',
+        "Content-Transfer-Encoding: base64",
+        "",
+        btoa(String.fromCodePoint(...unsignedFile)),
+        "--mix--",
+        "",
+      ].join(CRLF),
+      cleo
+    );
+
+    // Signed as cleartext, then encrypted without a signature of its own: the cleartext signature covers it all.
+    const nested = await openpgp.encrypt({
+      message: await openpgp.createMessage({
+        text: await cleartext("Signed, then sealed.", jane.privateKey),
+      }),
+      encryptionKeys: cleoKey,
+    });
+
+    const sealed = await deliver(
+      textMail({ from, to: cleo.email, subject: "Sealed", body: nested }),
+      cleo
+    );
+
+    expect({
+      withFile: withFile.pgp,
+      files: withFile.files.map((f) => f.filename),
+      sealed: { text: sealed.message.text.trim(), pgp: sealed.pgp },
+    }).toMatchObject({
+      withFile: {
+        partial: true,
+        decrypted: true,
+        signature: { state: "good" },
+      },
+      files: ["notes.txt"],
+      sealed: {
+        text: "Signed, then sealed.",
+        pgp: {
+          partial: false,
+          encrypted: true,
+          decrypted: true,
+          signature: { state: "good" },
+        },
+      },
+    });
+  });
+
   it("keeps what stays shut as it came, and opens it on Check again once the key is back", async () => {
     const dot = await mailbox("dot", "Dot Later");
     await generateOwnKey(env, db, dot);
