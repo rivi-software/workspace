@@ -14,6 +14,7 @@ import {
   mailDocument,
   mailReading,
   sanitizeHtml,
+  withoutStyles,
 } from "~/lib/mail/sanitize";
 import { textToHtml, withSignature } from "~/lib/text";
 
@@ -33,16 +34,23 @@ const folded = (html: string, forward = false) =>
   );
 
 // Markup whose close never comes: the expressions that read it searched again from every opening for a `-->`, `]]>`,
-// `>` or end tag that was not there, so 40 KB took up to 2.6 s and 2 MB minutes (#3591). One pass reads each in well
-// under a second; the budget is wide, so a slow runner does not fail it, and still far below the old times.
-const CRAFTED_BUDGET_MS = 1500;
+// `>` or end tag that was not there, so 40 KB took up to 2.6 s (#3591). At 200,000 characters each of these took the
+// old sanitiser more than a second and takes this one a few milliseconds: the budget sits between, wide of both, and
+// small enough that the tests running beside these keep their CPU.
+const CRAFTED_SIZE = 200_000;
+const CRAFTED_BUDGET_MS = 500;
 
-/** The units that, repeated to `MAX_HTML` (or once, when longer), take the sanitiser the budget or more. */
-const slowToRead = (units: string[]) =>
-  units.filter((unit) => {
-    const html = unit.repeat(Math.ceil(MAX_HTML / unit.length));
-    const started = performance.now();
+/** The units that, repeated to `CRAFTED_SIZE` (or once, when longer), take `reader` (the sanitiser) the budget or more. */
+const slowToRead = (
+  units: string[],
+  reader: (html: string) => void = (html) => {
     sanitizeHtml(html, { cidUrl });
+  }
+) =>
+  units.filter((unit) => {
+    const html = unit.repeat(Math.ceil(CRAFTED_SIZE / unit.length));
+    const started = performance.now();
+    reader(html);
 
     return performance.now() - started >= CRAFTED_BUDGET_MS;
   });
@@ -250,11 +258,17 @@ describe(sanitizeHtml, () => {
     ).toBe('<style>a{background:none}</style><p style="background:none">x</p>');
   });
 
-  it("reads only the first MAX_HTML characters of a longer part", () => {
+  it("reads only the first MAX_HTML characters of a longer part, and says so", () => {
     const within = "<p>within</p>";
     const pad = " ".repeat(MAX_HTML - within.length);
 
-    expect(read(`${pad}${within}<p>beyond</p>`).trim()).toBe(within);
+    expect({
+      longer: read(`${pad}${within}<p>beyond</p>`).trim(),
+      exactly: read(`${pad}${within}`).trim(),
+    }).toStrictEqual({
+      longer: `${within}<p>[Message clipped: it is longer than Workspace shows, and only its start is here.]</p>`,
+      exactly: within,
+    });
   });
 
   it("reads 80,000 unclosed comments, doctypes, CDATA sections or tags in linear time, all as text (#3591)", () => {
@@ -305,7 +319,7 @@ describe(sanitizeHtml, () => {
     ).toStrictEqual([]);
     // One unit each, under the bound so that its close is read: one tag name, CSS whose expressions read on from one
     // opening to the end, and kept `<style-x>` tags, from each of which the quote's fold searched for a `</style>`.
-    const room = MAX_HTML - 100;
+    const room = CRAFTED_SIZE - 100;
 
     expect(
       slowToRead([
@@ -316,6 +330,23 @@ describe(sanitizeHtml, () => {
         `x<div class="gmail_quote">y</div>${"<style-x>".repeat(Math.floor(room / 9))}`,
       ])
     ).toStrictEqual([]);
+  });
+
+  it("takes the style element out of a quote, a signature or what is sent, in linear time, and keeps `style-` tags (#3591)", () => {
+    const { html } = sanitizeHtml(
+      "<style>p{}</style><style-x>a</style-x><p>b</p>",
+      { cidUrl }
+    );
+
+    expect({
+      html,
+      without: withoutStyles(html),
+      slow: slowToRead(["<style-x>", "<style "], withoutStyles),
+    }).toStrictEqual({
+      html: "<style>p{}</style><style-x>a</style-x><p>b</p>",
+      without: "<style-x>a</style-x><p>b</p>",
+      slow: [],
+    });
   });
 
   it("keeps the body's colours on a div in its place", () => {

@@ -7,6 +7,7 @@ import { parseAddressList } from "~/lib/mail/addresses";
 import { saveFilter } from "~/lib/mail/filters.server";
 import { ingestInboundEmail } from "~/lib/mail/ingest.server";
 import { listThreads, loadThread } from "~/lib/mail/mailbox.server";
+import { MAX_HTML } from "~/lib/mail/sanitize";
 import {
   SendError,
   addDraftFiles,
@@ -359,6 +360,38 @@ describe("sending mail", () => {
       // got32.length
       before,
     ]);
+  });
+
+  it("refuses a body longer than the sanitiser reads rather than send it cut off, and sends and stores nothing", async () => {
+    const user = await mailbox("sam");
+    const before = await listThreads(db, user.id, { folder: "sent" });
+    const binding = recordingEmail();
+
+    const error = await rejection(
+      sendMail(binding.env, db, user, {
+        from: user.email,
+        to: [{ email: "a@b.co", name: null }],
+        cc: [],
+        bcc: [],
+        subject: "Long",
+        text: "",
+        html: `<div>${"x".repeat(MAX_HTML)}</div>`,
+        files: [],
+      })
+    );
+
+    const after = await listThreads(db, user.id, { folder: "sent" });
+
+    expect({
+      refused: error instanceof SendError && error.message,
+      sent: binding.sent.length,
+      filed: after.length,
+    }).toStrictEqual({
+      refused:
+        "The message is too long to send: shorten it, or send the long part as a file.",
+      sent: 0,
+      filed: before.length,
+    });
   });
 
   it("keeps a draft until it is sent", async () => {

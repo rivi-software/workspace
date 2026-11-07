@@ -26,9 +26,9 @@ import type { Markup } from "./markup";
 import { markupScan, nextMarkup } from "./markup";
 
 /**
- * The most HTML `sanitizeHtml` reads: past it, the message shows its start. Gmail clips a message at 102 KB, and what
- * the composer sends carries its signature's images as `data:` URIs (`MAX_SIGNATURE_HTML`, 800,000 characters) above
- * the quote, so mail a person wrote stays below it; the bound holds down what a crafted part costs (#3591).
+ * The most HTML `sanitizeHtml` reads: past it, a message shows its start and says it was clipped (Gmail clips one at
+ * 102 KB). The bound holds down what a crafted part costs (#3591). What the composer sends is never cut: a body over
+ * it is refused before it goes out (`composeBody`).
  */
 export const MAX_HTML = 2_000_000;
 
@@ -733,6 +733,20 @@ const liftStyles = (html: string, lift: (css: string) => void): string => {
   return out + html.slice(last);
 };
 
+/**
+ * The sanitised markup without its style element, for markup that goes into another message (a reply's quote, the
+ * composer's body, a signature), where a client keeps inline styles only. The sanitiser keeps every tag whose name
+ * starts `style-`, and `/<style\b[^>]*>[\s\S]*?<\/style>/` searched to the end from each for an end tag (#3591).
+ */
+export const withoutStyles = (html: string): string =>
+  liftStyles(html, () => {
+    // Nothing kept: the CSS goes with its element.
+  });
+
+/** What ends a part cut at `MAX_HTML`, so that the reader and a client of the API know its end is missing. */
+const CLIPPED =
+  "<p>[Message clipped: it is longer than Workspace shows, and only its start is here.]</p>";
+
 /** One tag of the message: dropped, or written anew. */
 const writeTag = (
   state: SanitizeState,
@@ -829,8 +843,12 @@ export const sanitizeHtml = (
       : state.out;
 
   const styleTag = styles.length ? `<style>${styles.join("\n")}</style>` : "";
+  const clipped = input.length > MAX_HTML ? CLIPPED : "";
 
-  return { html: styleTag + folded, remoteImages: state.remoteImages };
+  return {
+    html: styleTag + folded + clipped,
+    remoteImages: state.remoteImages,
+  };
 };
 
 type Attr = [name: string, value: string | null];

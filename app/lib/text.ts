@@ -2,7 +2,7 @@ import type { Address } from "~/db/schema";
 import { defined } from "~/lib/guards";
 
 import { formatAddress } from "./mail/addresses";
-import { decodeEntities } from "./mail/sanitize";
+import { decodeEntities, withoutStyles } from "./mail/sanitize";
 
 export const escapeHtml = (s: string): string =>
   s.replaceAll(/[&<>"']/gu, (c) =>
@@ -540,7 +540,7 @@ const longDate = (iso: string): string => {
 /** The original's markup for a quote: its own HTML without the style blocks the sanitiser lifted, else its text. */
 const quotedBody = (m: Quotable): string => {
   if (m.html?.trim()) {
-    return m.html.replaceAll(/<style\b[^>]*>[\s\S]*?<\/style>/giu, "");
+    return withoutStyles(m.html);
   }
 
   return textBlocks(m.text.replaceAll(/\r\n?/gu, "\n").trimEnd().split("\n"));

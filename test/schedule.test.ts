@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 import { draftFiles, drafts, messages, users } from "~/db/schema";
 import { parseAddressList } from "~/lib/mail/addresses";
 import { folderCounts } from "~/lib/mail/mailbox.server";
+import { MAX_HTML } from "~/lib/mail/sanitize";
 import {
   ScheduleError,
   listScheduled,
@@ -283,7 +284,7 @@ describe("scheduled send", () => {
     expect(draftRow?.sendError).toMatch(/deactivated/u);
   });
 
-  it("refuses, when it is scheduled, what the send would refuse: a deleted signature, or files over 20 MB", async () => {
+  it("refuses, when it is scheduled, what the send would refuse: a deleted signature, a body too long, or files over 20 MB", async () => {
     const user = await mailbox("vera", "Vera");
     const now = new Date();
 
@@ -307,6 +308,16 @@ describe("scheduled send", () => {
 
     const goneSignature = await rejection(
       scheduleComposed(env, db, user, later({ signatureId: gone }), now)
+    );
+
+    const tooLong = await rejection(
+      scheduleComposed(
+        env,
+        db,
+        user,
+        later({ html: `<div>${"x".repeat(MAX_HTML)}</div>` }),
+        now
+      )
     );
 
     // The draft's files fit by themselves; the signature's image takes the message over.
@@ -350,6 +361,7 @@ describe("scheduled send", () => {
 
     expect({
       goneSignature: goneSignature?.message,
+      tooLong: tooLong?.message,
       tooLarge: tooLarge?.message,
       sendRefuses: sendRefuses?.message,
       sent: sent.length,
@@ -360,6 +372,8 @@ describe("scheduled send", () => {
     }).toStrictEqual({
       goneSignature:
         "The signature you chose no longer exists. Choose another and send again.",
+      tooLong:
+        "The message is too long to send: shorten it, or send the long part as a file.",
       tooLarge:
         "The attachments are too large: 20 MB is the most a message can carry.",
       sendRefuses:

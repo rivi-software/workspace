@@ -19,7 +19,7 @@ import {
 import { formatAddress } from "./addresses";
 import type { AddressList } from "./addresses";
 import { fileMessage } from "./filing.server";
-import { sanitizeHtml } from "./sanitize";
+import { MAX_HTML, sanitizeHtml, withoutStyles } from "./sanitize";
 import { base64Bytes, inlineDataImages } from "./signatures";
 import type { InlineImage } from "./signatures";
 import { findSignature } from "./signatures.server";
@@ -34,6 +34,9 @@ export const MAX_ATTACHMENT_BYTES = 20 * 1024 * 1024;
 
 const TOO_LARGE =
   "The attachments are too large: 20 MB is the most a message can carry.";
+
+const TOO_LONG =
+  "The message is too long to send: shorten it, or send the long part as a file.";
 
 export interface OutgoingFile {
   filename: string;
@@ -98,10 +101,12 @@ export const sendableAddresses = async (
  * no handler, no unsafe URL), the quote never folded, and the style blocks a quoted original brought along dropped.
  */
 export const sanitizeOutgoingHtml = (html: string): string =>
-  sanitizeHtml(html, {
-    cidUrl: () => null,
-    forward: true,
-  }).html.replaceAll(/<style\b[^>]*>[\s\S]*?<\/style>/giu, "");
+  withoutStyles(
+    sanitizeHtml(html, {
+      cidUrl: () => null,
+      forward: true,
+    }).html
+  );
 
 const base64 = (buf: ArrayBuffer): string => {
   let s = "";
@@ -215,6 +220,11 @@ const composeBody = (
   mail: Pick<OutgoingMail, "text" | "html">,
   signature: Prepared["signature"]
 ) => {
+  // The sanitiser reads at most `MAX_HTML` characters, and a message sent cut off is worse than one refused.
+  if (mail.html && mail.html.length > MAX_HTML) {
+    throw new SendError(TOO_LONG);
+  }
+
   if (mail.html && !htmlIsBlank(mail.html)) {
     const body = sanitizeOutgoingHtml(mail.html);
     const signed = signature ? withSignatureHtml(body, signature) : body;

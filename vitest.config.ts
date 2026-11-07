@@ -47,5 +47,8 @@ export default defineConfig({
     // closes a WebSocket on a message over 1 MiB: with Better Auth's module graph warm, that snapshot overflowed and
     // a runner died on its way up ("Worker exited unexpectedly", close code 1009). Off, the modules come one by one.
     fsModuleCache: false,
+    // Some tests file a hundred messages through D1 or run a whole import: on CI they take up to 4.7 seconds, and on a
+    // runner busy with the other files they went past the 5-second default.
+    testTimeout: 20_000,
   },
 });

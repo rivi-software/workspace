@@ -5,7 +5,7 @@
  * clients show without asking to load images.
  */
 import { newId } from "../ids";
-import { sanitizeHtml } from "./sanitize";
+import { sanitizeHtml, withoutStyles } from "./sanitize";
 
 /** The largest image a signature takes: a logo or a portrait, not a photo. */
 export const MAX_SIGNATURE_IMAGE_BYTES = 256 * 1024;
@@ -27,13 +27,13 @@ export const SIGNATURE_IMAGE_TYPES = [
  * signature's own `data:` images kept.
  */
 export const sanitizeSignatureHtml = (html: string): string =>
-  sanitizeHtml(html, {
-    cidUrl: () => null,
-    forward: true,
-    dataImages: true,
-  })
-    .html.replaceAll(/<style\b[^>]*>[\s\S]*?<\/style>/giu, "")
-    .trim();
+  withoutStyles(
+    sanitizeHtml(html, {
+      cidUrl: () => null,
+      forward: true,
+      dataImages: true,
+    }).html
+  ).trim();
 
 export interface InlineImage {
   contentId: string;
