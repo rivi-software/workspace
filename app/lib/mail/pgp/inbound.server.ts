@@ -439,7 +439,48 @@ interface InlineState {
   /** Why something encrypted stayed shut. */
   failure: string | null;
   own: { key: PrivateKey } | { error: string } | null;
+  /**
+   * An encrypted block or file opened with no signature in it: anyone can encrypt to the owner's public key, so
+   * another block's signature does not speak for it.
+   */
+  unsignedBlock: boolean;
+  unsignedFile: boolean;
 }
+
+/** What `replaceBlocks` answers: the text with each block opened, whether any opened, and what no opened block covers. */
+type Replaced = Awaited<ReturnType<typeof replaceBlocks>>;
+
+/**
+ * Whether inline blocks leave part of the message unprotected. A block protects only itself: text around it, a file
+ * beside it, or an encrypted block nobody signed (anyone can encrypt to the owner's public key) could be anyone's, the
+ * partial signing of "Johnny, you are fired" (USENIX 2019). The status then says so rather than speak for the whole
+ * body.
+ */
+const isPartial = (o: {
+  text: string;
+  opened: Replaced;
+  signed: Replaced;
+  state: InlineState;
+  decrypted: boolean;
+  plainFiles: boolean;
+}): boolean => {
+  const unencrypted = o.opened.found ? o.opened.outside : o.text;
+  const unsigned = o.signed.found ? o.signed.outside : unencrypted;
+
+  if (o.plainFiles || (o.decrypted && !blank(unencrypted))) {
+    return true;
+  }
+
+  if (o.state.signature === null) {
+    return false;
+  }
+
+  // An unsigned encrypted block is covered only when cleartext signatures cover all the opened text it became.
+  const unsignedBlocks =
+    o.state.unsignedBlock && !(o.signed.found && blank(o.signed.outside));
+
+  return !blank(unsigned) || unsignedBlocks || o.state.unsignedFile;
+};
 
 const openInline = async (ctx: Context, input: OpenInput): Promise<Opened> => {
   const openpgp = await loadOpenPgp();
@@ -449,10 +490,13 @@ const openInline = async (ctx: Context, input: OpenInput): Promise<Opened> => {
     encrypted: false,
     failure: null,
     own: null,
+    unsignedBlock: false,
+    unsignedFile: false,
   };
 
   const decrypt = async (
-    message: Awaited<ReturnType<typeof openpgp.readMessage>>
+    message: Awaited<ReturnType<typeof openpgp.readMessage>>,
+    piece: "block" | "file"
   ): Promise<Uint8Array | null> => {
     state.encrypted = true;
     state.own ??= await decryptionKey(ctx);
@@ -475,10 +519,15 @@ const openInline = async (ctx: Context, input: OpenInput): Promise<Opened> => {
         config: PGP_CONFIG,
       });
 
-      state.signature = worse(
-        state.signature,
-        await judge(result.signatures, candidate, ctx.from)
-      );
+      const verdict = await judge(result.signatures, candidate, ctx.from);
+
+      if (!verdict && piece === "block") {
+        state.unsignedBlock = true;
+      } else if (!verdict) {
+        state.unsignedFile = true;
+      }
+
+      state.signature = worse(state.signature, verdict);
 
       return result.data;
     } catch (error) {
@@ -498,7 +547,8 @@ const openInline = async (ctx: Context, input: OpenInput): Promise<Opened> => {
           await openpgp.readMessage({
             armoredMessage: block,
             config: PGP_CONFIG,
-          })
+          }),
+          "block"
         );
 
         return data ? new TextDecoder().decode(data) : null;
@@ -583,7 +633,7 @@ const openInline = async (ctx: Context, input: OpenInput): Promise<Opened> => {
           });
 
       // oxlint-disable-next-line eslint/no-await-in-loop -- as above
-      const data = await decrypt(message);
+      const data = await decrypt(message, "file");
 
       if (data) {
         attachments.push({
@@ -609,18 +659,16 @@ const openInline = async (ctx: Context, input: OpenInput): Promise<Opened> => {
       : { kind: "none" };
   }
 
-  // Inline blocks protect only themselves: text around them, or a file beside them, could be anyone's (the partial
-  // signing of "Johnny, you are fired", USENIX 2019). The status says so rather than speak for the whole body.
-  const unencrypted = opened.found ? opened.outside : input.text;
-
-  const unsigned = signed.found ? signed.outside : unencrypted;
-
   const decrypted = state.encrypted && !state.failure;
 
-  const partial =
-    plainFiles ||
-    (decrypted && !blank(unencrypted)) ||
-    (state.signature !== null && !blank(unsigned));
+  const partial = isPartial({
+    text: input.text,
+    opened,
+    signed,
+    state,
+    decrypted,
+    plainFiles,
+  });
 
   return {
     kind: "inline",

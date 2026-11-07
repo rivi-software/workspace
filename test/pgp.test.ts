@@ -560,13 +560,47 @@ describe("mail that arrives with OpenPGP", () => {
       cleo
     );
 
-    expect({ wrapped: wrapped.pgp, twoBlocks: twoBlocks.pgp }).toMatchObject({
+    // A block Jane signed and encrypted, then one anyone could encrypt to Cleo's public key, unsigned.
+    const cleoKey = await ownPublicKey(cleo);
+
+    const signedBlock = await openpgp.encrypt({
+      message: await openpgp.createMessage({ text: "Lunch at noon." }),
+      encryptionKeys: cleoKey,
+      signingKeys: jane.privateKey,
+    });
+
+    const unsignedBlock = await openpgp.encrypt({
+      message: await openpgp.createMessage({ text: "New bank details." }),
+      encryptionKeys: cleoKey,
+    });
+
+    const mixed = await deliver(
+      textMail({
+        from,
+        to: cleo.email,
+        subject: "Mixed blocks",
+        body: `${signedBlock}\n${unsignedBlock}`,
+      }),
+      cleo
+    );
+
+    expect({
+      wrapped: wrapped.pgp,
+      twoBlocks: twoBlocks.pgp,
+      mixed: mixed.pgp,
+    }).toMatchObject({
       wrapped: {
         format: "inline",
         partial: true,
         signature: { state: "good" },
       },
       twoBlocks: { partial: false, signature: { state: "bad" } },
+      mixed: {
+        partial: true,
+        encrypted: true,
+        decrypted: true,
+        signature: { state: "good" },
+      },
     });
   });
 
