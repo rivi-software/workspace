@@ -135,7 +135,7 @@ export const importOwnKey = async (
     });
   } catch {
     throw new PgpError(
-      "That is not an OpenPGP private key. Paste the whole block, from -----BEGIN PGP PRIVATE KEY BLOCK----- to its END line."
+      "That is not an OpenPGP private key. Paste the whole armored block, from its BEGIN line to its END line."
     );
   }
 
@@ -370,7 +370,7 @@ export const importPeerKeys = async (
     });
   } catch {
     throw new PgpError(
-      "That is not an OpenPGP public key. Paste the whole block, from -----BEGIN PGP PUBLIC KEY BLOCK----- to its END line."
+      "That is not an OpenPGP public key. Paste the whole armored block, from its BEGIN line to its END line."
     );
   }
 

@@ -98,7 +98,7 @@ const NoKey = () => {
                 rows={6}
                 spellCheck={false}
                 autoComplete="off"
-                placeholder="-----BEGIN PGP PRIVATE KEY BLOCK-----"
+                placeholder="The whole armored block, BEGIN line to END line"
                 className={`${textareaClass} font-mono text-xs`}
               />
             </Field>
@@ -314,7 +314,7 @@ const PeerKeys = ({ peers }: { peers: PeerKeyView[] }) => {
               rows={4}
               required
               spellCheck={false}
-              placeholder="-----BEGIN PGP PUBLIC KEY BLOCK-----"
+              placeholder="The whole armored block, BEGIN line to END line"
               className={`${textareaClass} font-mono text-xs`}
             />
           </Field>
