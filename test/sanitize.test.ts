@@ -9,7 +9,12 @@ import {
   lightness,
   parseColor,
 } from "~/lib/mail/colors";
-import { mailDocument, mailReading, sanitizeHtml } from "~/lib/mail/sanitize";
+import {
+  MAX_HTML,
+  mailDocument,
+  mailReading,
+  sanitizeHtml,
+} from "~/lib/mail/sanitize";
 import { textToHtml, withSignature } from "~/lib/text";
 
 import { defined, sorted } from "./fixtures";
@@ -26,6 +31,21 @@ const folded = (html: string, forward = false) =>
   sanitizeHtml(html, { cidUrl, forward }).html.includes(
     '<details class="rivi-quote">'
   );
+
+// Markup whose close never comes: the expressions that read it searched again from every opening for a `-->`, `]]>`,
+// `>` or end tag that was not there, so 40 KB took up to 2.6 s and 2 MB minutes (#3591). One pass reads each in well
+// under a second; the budget is wide, so a slow runner does not fail it, and still far below the old times.
+const CRAFTED_BUDGET_MS = 1500;
+
+/** The units that, repeated to `MAX_HTML` (or once, when longer), take the sanitiser the budget or more. */
+const slowToRead = (units: string[]) =>
+  units.filter((unit) => {
+    const html = unit.repeat(Math.ceil(MAX_HTML / unit.length));
+    const started = performance.now();
+    sanitizeHtml(html, { cidUrl });
+
+    return performance.now() - started >= CRAFTED_BUDGET_MS;
+  });
 
 const light = { dark: false, sheet: false };
 const dark = { dark: true, sheet: false };
@@ -194,6 +214,108 @@ describe(sanitizeHtml, () => {
     });
 
     expect(html).toBe("<p>Hi</p>");
+  });
+
+  it("reads a comment, CDATA or a tag left open as it read them before (#3591)", () => {
+    expect({
+      // Without its `-->` or `]]>`, a comment or CDATA is a bogus comment to the first `>`.
+      comment: read("<p>a</p><!-- open <b>x</b>"),
+      cdata: read("<![CDATA[x]]><p>y</p>"),
+      openCdata: read("<![CDATA[ x <p>y</p>"),
+      // A `<` that starts no tag, or that no `>` ends, is text; a `>` in a quoted value is the value's.
+      text: read("<p>1 < 2</p>and <b this"),
+      quoted: read(`<p title="a>b" lang='c"d'>x</p>`),
+      selfClosing: read('<br/><p title="x/">y</p><script/>z'),
+      // A closed style is lifted, one left open goes with everything after it.
+      styles: read("<style>a{}</style><p>x</p><style>b{}<p>gone"),
+      // What the browser reads as text is read as markup, its own tags gone.
+      textElements: read("<noframes><b>x</b></noframes><plaintext>y"),
+    }).toStrictEqual({
+      comment: "<p>a</p>x</b>",
+      cdata: "<p>y</p>",
+      openCdata: "y</p>",
+      text: "<p>1 &lt; 2</p>and &lt;b this",
+      quoted: '<p title="a&gt;b" lang="c&quot;d">x</p>',
+      selfClosing: '<br /><p title="x/">y</p>z',
+      styles: "<style>a{}</style><p>x</p>",
+      textElements: "<b>x</b>y",
+    });
+  });
+
+  it("neutralises a URL in CSS behind spaces and a quote", () => {
+    expect(
+      read(
+        `<p style="background:url(  ' javascript:x')">x</p><style>a{background:url( "data:text/html,x" )}</style>`
+      )
+    ).toBe('<style>a{background:none}</style><p style="background:none">x</p>');
+  });
+
+  it("reads only the first MAX_HTML characters of a longer part", () => {
+    const within = "<p>within</p>";
+    const pad = " ".repeat(MAX_HTML - within.length);
+
+    expect(read(`${pad}${within}<p>beyond</p>`).trim()).toBe(within);
+  });
+
+  it("reads 80,000 unclosed comments, doctypes, CDATA sections or tags in linear time, all as text (#3591)", () => {
+    const units = ["<!--", "<!", "<![CDATA[", "<a <"];
+
+    expect(
+      units.filter((unit) => {
+        const html = unit.repeat(80_000);
+        const started = performance.now();
+        const out = read(html);
+
+        return (
+          performance.now() - started >= 100 ||
+          out !== html.replaceAll("<", "&lt;")
+        );
+      })
+    ).toStrictEqual([]);
+  });
+
+  it("reads comments, doctypes, CDATA and dropped elements that never close in linear time (#3591)", () => {
+    expect(
+      slowToRead([
+        "<!--",
+        "<!",
+        "<?",
+        "<![CDATA[",
+        "<!--x--><!--",
+        "<style>",
+        "<style",
+        "<STYLE>",
+        "<script>",
+        "<script><a <",
+      ])
+    ).toStrictEqual([]);
+  });
+
+  it("reads tags that never end in linear time (#3591)", () => {
+    expect(
+      slowToRead([
+        "<",
+        "<a",
+        "<a <",
+        '<a "',
+        '<a "<b "',
+        "<a \"'<b ",
+        "<p title='",
+      ])
+    ).toStrictEqual([]);
+    // One unit each, under the bound so that its close is read: one tag name, CSS whose expressions read on from one
+    // opening to the end, and kept `<style-x>` tags, from each of which the quote's fold searched for a `</style>`.
+    const room = MAX_HTML - 100;
+
+    expect(
+      slowToRead([
+        `<${"a".repeat(room)}`,
+        `<style>url(${" ".repeat(room)}</style>`,
+        `<style>${"expression(".repeat(Math.floor(room / 11))}</style>`,
+        `<p style="${"url(javascript:".repeat(Math.floor(room / 15))}">`,
+        `x<div class="gmail_quote">y</div>${"<style-x>".repeat(Math.floor(room / 9))}`,
+      ])
+    ).toStrictEqual([]);
   });
 
   it("keeps the body's colours on a div in its place", () => {

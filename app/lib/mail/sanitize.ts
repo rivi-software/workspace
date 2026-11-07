@@ -7,10 +7,11 @@ import { defined } from "~/lib/guards";
  * from the sources the reader allowed). Remote images stay in the markup, blocked by the CSP until the reader loads
  * them; `cid:` images are rewritten to the message's own attachment links.
  *
- * The sanitiser reads markup with regular expressions, not as the browser does, so its output is canonical: every
+ * The sanitiser reads markup its own way (`nextMarkup`), not as the browser does, so its output is canonical: every
  * tag is written anew, every `<` in text and every `<` or `>` in an attribute is escaped, and no element whose content
  * the browser reads as text (`xmp`, `noembed`, …) is kept. Whatever it failed to read as a tag reaches the browser as
- * text, never as an incomplete tag that the markup around it (a reply's quote) completes (CORE-1302).
+ * text, never as an incomplete tag that the markup around it (a reply's quote) completes (CORE-1302). It reads at most
+ * `MAX_HTML` characters, in time linear in their length whatever the markup (#3591).
  */
 import {
   colorsIn,
@@ -21,6 +22,15 @@ import {
   mapColors,
   parseColor,
 } from "./colors";
+import type { Markup } from "./markup";
+import { markupScan, nextMarkup } from "./markup";
+
+/**
+ * The most HTML `sanitizeHtml` reads: past it, the message shows its start. Gmail clips a message at 102 KB, and what
+ * the composer sends carries its signature's images as `data:` URIs (`MAX_SIGNATURE_HTML`, 800,000 characters) above
+ * the quote, so mail a person wrote stays below it; the bound holds down what a crafted part costs (#3591).
+ */
+export const MAX_HTML = 2_000_000;
 
 const DROP_WITH_CONTENT = new Set([
   "script",
@@ -107,8 +117,8 @@ export interface Sanitized {
   remoteImages: boolean;
 }
 
-// Comments, CDATA, and what the browser drops as a bogus comment up to the next `>`: a doctype, Outlook's
-// `<![if !supportLists]>`, an XML processing instruction. Then a start or end tag.
+// A tag in the sanitiser's own output, where every `<` starts a tag that ends with its `>`, so no search runs on past
+// it. Markup from outside goes through `nextMarkup`: on a message this expression read in time quadratic in its size.
 const TAG =
   /<!--[\s\S]*?-->|<!\[CDATA\[[\s\S]*?\]\]>|<[!?][^>]*>|<\/?(?<name>[a-zA-Z][\w:-]*)(?<attrs>(?:"[^"]*"|'[^']*'|[^'">])*)\/?>/gu;
 
@@ -262,20 +272,30 @@ const urlAsRead = (value: string): string => {
 };
 
 /**
+ * `css` with every match of `pattern`, an expression whose matches end with a `)`, replaced: searched only up to the
+ * last `)`, since after it no match can end. Searched to the end, each opening without its `)` read on to the end
+ * again, and CSS made of them took time quadratic in its size (#3591).
+ */
+const replaceCalls = (css: string, pattern: RegExp, by: string): string => {
+  const end = css.lastIndexOf(")") + 1;
+
+  return css.slice(0, end).replaceAll(pattern, by) + css.slice(end);
+};
+
+/**
  * Styles keep their layout; what could run code or reach the web in old engines goes. A `<` becomes CSS's own escape
  * for it, so no `</style` in the sender's CSS ends the style element early.
  */
 const sanitizeCss = (css: string): string =>
-  css
-    .replaceAll("<", "\\3c ")
-    .replaceAll(/expression\s*\([^)]*\)/giu, "")
-    .replaceAll(/behavior\s*:[^;]*;?/giu, "")
-    .replaceAll(/-moz-binding\s*:[^;]*;?/giu, "")
-    .replaceAll(/@import[^;]*;?/giu, "")
-    .replaceAll(
-      /url\(\s*(?:['"]?)\s*(?:javascript|vbscript|data):[^)]*\)/giu,
-      "none"
-    );
+  replaceCalls(
+    replaceCalls(css.replaceAll("<", "\\3c "), /expression\s*\([^)]*\)/giu, "")
+      .replaceAll(/behavior\s*:[^;]*;?/giu, "")
+      .replaceAll(/-moz-binding\s*:[^;]*;?/giu, "")
+      .replaceAll(/@import[^;]*;?/giu, ""),
+    // The space before and after the quote in one run: `\s*['"]?\s*` split a run of spaces every way it could.
+    /url\(\s*(?:['"]\s*)?(?:javascript|vbscript|data):[^)]*\)/giu,
+    "none"
+  );
 
 /** An attribute that never survives: an event handler, a form's target, a link's own `target` and `rel`. */
 const dropsAttribute = (tag: string, name: string): boolean => {
@@ -488,11 +508,10 @@ const quoteKind = (tag: string, attrs: string): "element" | "rest" | null => {
   return id === "appendonsend" || id === "divRplyFwdMsg" ? "rest" : null;
 };
 
+// It reads the sanitiser's own output, which holds no style element (each is lifted or dropped), so it removes none:
+// `/<style[\s\S]*?<\/style>/` searched to the end from every kept `<style-x>` tag for an end tag never written (#3591).
 const visibleText = (html: string): string =>
-  html
-    .replaceAll(/<style[\s\S]*?<\/style>/giu, "")
-    .replaceAll(/<[^>]*>/gu, " ")
-    .replaceAll(/&nbsp;|&#160;|\u00A0/giu, " ");
+  html.replaceAll(/<[^>]*>/gu, " ").replaceAll(/&nbsp;|&#160;|\u00A0/giu, " ");
 
 const shows = (html: string): boolean =>
   /\S/u.test(visibleText(html)) || /<img\b/iu.test(html);
@@ -595,15 +614,10 @@ interface SanitizeState {
 }
 
 /** A tag inside a dropped element: only its closing tag ends the drop. */
-const skipTag = (
-  state: SanitizeState,
-  raw: string,
-  name: string | undefined,
-  index: number
-) => {
-  if (raw.startsWith("</") && name?.toLowerCase() === state.skipUntil) {
+const skipTag = (state: SanitizeState, m: Markup) => {
+  if (m.closing && m.name === state.skipUntil) {
     state.skipUntil = null;
-    state.last = index + raw.length;
+    state.last = m.end;
   }
 };
 
@@ -628,8 +642,7 @@ const openTag = (
   state: SanitizeState,
   tag: string,
   as: string,
-  raw: string,
-  attrs: string,
+  { attrs, selfClosing }: Markup,
   options: SanitizeOptions
 ) => {
   if (!state.quote) {
@@ -664,7 +677,7 @@ const openTag = (
     .map(([n, v]) => (v === null ? n : `${n}="${escapeAttr(v)}"`))
     .join(" ");
 
-  state.out += `<${as}${text ? ` ${text}` : ""}${raw.endsWith("/>") ? " /" : ""}>`;
+  state.out += `<${as}${text ? ` ${text}` : ""}${selfClosing ? " /" : ""}>`;
 };
 
 /** The quoted earlier message folded away under "Show quoted text", the blank lines around it with it. */
@@ -683,6 +696,82 @@ const foldQuote = (out: string, { start, end }: Quote): string => {
     .replaceAll(BREAK, "")}${out.slice(resume)}`;
 };
 
+const STYLE_START = /<style\b/giu;
+const STYLE_END = /<\/style>/giu;
+
+/**
+ * The markup without its closed style elements, each one's CSS handed to `lift`: from a `<style` to its first `>`,
+ * then to the first `</style>` after it, as `/<style\b[^>]*>([\s\S]*?)<\/style>/gi` read them. That expression
+ * searched again from every `<style` for a `>` or an end tag that was not there; here the first one missing ends the
+ * search, since no later `<style` has one after it either (#3591).
+ */
+const liftStyles = (html: string, lift: (css: string) => void): string => {
+  let out = "";
+  let last = 0;
+  STYLE_START.lastIndex = 0;
+
+  for (let m = STYLE_START.exec(html); m; m = STYLE_START.exec(html)) {
+    const gt = html.indexOf(">", STYLE_START.lastIndex);
+
+    if (gt === -1) {
+      break;
+    }
+
+    STYLE_END.lastIndex = gt + 1;
+    const end = STYLE_END.exec(html);
+
+    if (!end) {
+      break;
+    }
+
+    lift(html.slice(gt + 1, end.index));
+    out += html.slice(last, m.index);
+    last = STYLE_END.lastIndex;
+    STYLE_START.lastIndex = last;
+  }
+
+  return out + html.slice(last);
+};
+
+/** One tag of the message: dropped, or written anew. */
+const writeTag = (
+  state: SanitizeState,
+  m: Markup,
+  tag: string,
+  options: SanitizeOptions,
+  styles: string[]
+) => {
+  if (DROP_WITH_CONTENT.has(tag)) {
+    if (!m.closing && !m.selfClosing) {
+      state.skipUntil = tag;
+    }
+
+    return;
+  }
+
+  if (tag === "meta" && !m.closing) {
+    // The sender's word on dark mode, which `mailDocument` reads from the CSS.
+    const scheme = colorSchemeMeta(m.attrs);
+
+    if (scheme) {
+      styles.push(`:root{color-scheme:${scheme}}`);
+    }
+  }
+
+  if (DROP_TAG_ONLY.has(tag)) {
+    return;
+  }
+
+  // The body becomes a div, so its background and text colour stay with the message.
+  const as = tag === "body" ? "div" : tag;
+
+  if (m.closing) {
+    closeTag(state, tag, as);
+  } else {
+    openTag(state, tag, as, m, options);
+  }
+};
+
 export const sanitizeHtml = (
   input: string,
   options: SanitizeOptions
@@ -690,13 +779,9 @@ export const sanitizeHtml = (
   const styles: string[] = [];
 
   // Style blocks are kept (inline styles are allowed by the CSP), the rest of the head goes.
-  const html = input.replaceAll(
-    /<style\b[^>]*>(?<css>[\s\S]*?)<\/style>/giu,
-    (_, css: string) => {
-      styles.push(sanitizeCss(css));
-
-      return "";
-    }
+  const html = liftStyles(
+    input.length > MAX_HTML ? input.slice(0, MAX_HTML) : input,
+    (css) => styles.push(sanitizeCss(css))
   );
 
   const state: SanitizeState = {
@@ -708,56 +793,21 @@ export const sanitizeHtml = (
     lastQuote: null,
   };
 
-  TAG.lastIndex = 0;
+  const scan = markupScan(html);
 
-  for (let m = TAG.exec(html); m; m = TAG.exec(html)) {
-    const [raw, name, attrs = ""] = m;
-
+  for (let m = nextMarkup(scan, 0); m; m = nextMarkup(scan, m.end)) {
     if (state.skipUntil) {
       // Inside a dropped element: wait for its closing tag.
-      skipTag(state, raw, name, m.index);
+      skipTag(state, m);
       continue;
     }
 
-    state.out += escapeText(html.slice(state.last, m.index));
-    state.last = m.index + raw.length;
+    state.out += escapeText(html.slice(state.last, m.start));
+    state.last = m.end;
 
-    if (!name) {
-      // A comment, a doctype or CDATA.
-      continue;
-    }
-
-    const tag = name.toLowerCase();
-    const closing = raw.startsWith("</");
-
-    if (DROP_WITH_CONTENT.has(tag)) {
-      if (!closing && !raw.endsWith("/>")) {
-        state.skipUntil = tag;
-      }
-
-      continue;
-    }
-
-    if (tag === "meta" && !closing) {
-      // The sender's word on dark mode, which `mailDocument` reads from the CSS.
-      const scheme = colorSchemeMeta(attrs);
-
-      if (scheme) {
-        styles.push(`:root{color-scheme:${scheme}}`);
-      }
-    }
-
-    if (DROP_TAG_ONLY.has(tag)) {
-      continue;
-    }
-
-    // The body becomes a div, so its background and text colour stay with the message.
-    const as = tag === "body" ? "div" : tag;
-
-    if (closing) {
-      closeTag(state, tag, as);
-    } else {
-      openTag(state, tag, as, raw, attrs, options);
+    // A comment, a doctype or CDATA has no name, and goes.
+    if (m.name) {
+      writeTag(state, m, m.name, options, styles);
     }
   }
 

@@ -34,6 +34,7 @@ app/
   lib/mail/addresses.ts   parse and format addresses, typed recipient lists, +tags
   lib/mail/threading.ts   Message-ID / References, subject prefixes, reply recipients, quoting
   lib/mail/sanitize.ts    the HTML part made safe, and the sandboxed document with its CSP
+  lib/mail/markup.ts      the HTML part's comments and tags as the sanitiser reads them, in one forward pass
   lib/mail/colors.ts      a message's colours read and rewritten for the dark reading (OKLab)
   lib/mail/folders.ts     the folder names and the label palette the sidebar, the list and the server share
   lib/mail/views.ts       the views and the intents, defined once for the client and the server: each view's condition (read in JS,
