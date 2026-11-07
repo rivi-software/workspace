@@ -3,8 +3,11 @@ import { useServerFn } from "@tanstack/react-start";
 import {
   CalendarClock,
   ExternalLink,
+  Lock,
+  LockOpen,
   Paperclip,
   Send,
+  Signature,
   Trash2,
   X,
 } from "lucide-react";
@@ -23,6 +26,7 @@ import type {
   DraftFileView,
   Prefill,
 } from "~/lib/mail/compose.server";
+import { pgpRecipientsAction } from "~/lib/mail/pgp/actions";
 import { sendLaterPresets, snoozeLabel } from "~/lib/mail/snooze";
 import { formatBytes } from "~/lib/text";
 
@@ -96,6 +100,104 @@ const oneWay = () => {
     },
     taken: () => taken,
   };
+};
+
+/**
+ * The composer's OpenPGP switches: Sign with the owner's key, Encrypt to every recipient's. They post as `pgpSign` and
+ * `pgpEncrypt`; while Encrypt is on, the recipients are checked for keys a moment after they change, so the composer
+ * names whom it cannot reach before Send refuses.
+ */
+const PgpSwitches = ({
+  initialSign,
+  initialEncrypt,
+  recipients,
+  onChange,
+}: {
+  initialSign: boolean;
+  initialEncrypt: boolean;
+  recipients: { to: string; cc: string; bcc: string };
+  onChange: () => void;
+}) => {
+  const checkKeys = useServerFn(pgpRecipientsAction);
+  const [sign, setSign] = useState(initialSign);
+  const [encrypt, setEncrypt] = useState(initialEncrypt);
+  const [unreachable, setUnreachable] = useState<string[]>([]);
+  // Only the latest check's answer counts: an earlier one may come back after it.
+  const round = useRef(0);
+  const { to, cc, bcc } = recipients;
+
+  useEffect(() => {
+    if (!encrypt) {
+      return;
+    }
+
+    const check = async () => {
+      round.current += 1;
+      const mine = round.current;
+
+      try {
+        const result = await checkKeys({ data: { to, cc, bcc } });
+
+        if (mine === round.current) {
+          setUnreachable(result.missing);
+        }
+      } catch {
+        // A check that failed says nothing; Send still refuses what it cannot encrypt.
+      }
+    };
+
+    const timer = setTimeout(check, 400);
+
+    return () => clearTimeout(timer);
+  }, [encrypt, to, cc, bcc, checkKeys]);
+
+  return (
+    <>
+      <input type="hidden" name="pgpSign" value={sign ? "on" : ""} />
+      <input type="hidden" name="pgpEncrypt" value={encrypt ? "on" : ""} />
+      <span className="flex items-center gap-0.5">
+        <IconButton
+          label={
+            sign ? "Signed with your OpenPGP key" : "Sign with your OpenPGP key"
+          }
+          active={sign}
+          aria-pressed={sign}
+          onClick={() => {
+            setSign(!sign);
+            onChange();
+          }}
+        >
+          <Signature className="h-4 w-4" />
+        </IconButton>
+        <IconButton
+          label={
+            encrypt
+              ? "Encrypted to every recipient"
+              : "Encrypt to every recipient"
+          }
+          active={encrypt}
+          aria-pressed={encrypt}
+          onClick={() => {
+            setEncrypt(!encrypt);
+            onChange();
+          }}
+        >
+          {encrypt ? (
+            <Lock className="h-4 w-4" />
+          ) : (
+            <LockOpen className="h-4 w-4" />
+          )}
+        </IconButton>
+      </span>
+      {encrypt && unreachable.length > 0 && (
+        <Notice tone="error" className="order-last basis-full">
+          There is no OpenPGP key for {unreachable.join(", ")}, so the message
+          cannot go encrypted. Switch Encrypt off, or import their key under
+          Settings → Mail.
+        </Notice>
+      )}
+    </>
+  );
 };
 
 /** The fields the composer posts that the person never edits: the conversation it answers, its mode and the plain-text start. */
@@ -235,7 +337,7 @@ export const Composer = ({
   onSent?: (threadId: string) => void;
   className?: string;
 }) => {
-  const { froms, signatures, prefill, undoSendSeconds } = data;
+  const { froms, signatures, prefill, undoSendSeconds, pgp } = data;
   const router = useRouter();
   const navigate = useNavigate();
   const toast = useToast();
@@ -253,6 +355,13 @@ export const Composer = ({
   const [error, setError] = useState<string | null>(null);
   const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
+
+  // The recipients as typed, for the OpenPGP switches to check for keys while Encrypt is on.
+  const [recipients, setRecipients] = useState({
+    to: prefill.to,
+    cc: prefill.cc,
+    bcc: prefill.bcc,
+  });
 
   const [savedAt, setSavedAt] = useState<string | null>(
     prefill.draftId ? "kept" : null
@@ -711,7 +820,10 @@ export const Composer = ({
           label="To"
           initial={prefill.to}
           autoFocus={!prefill.to && !inline}
-          onChange={() => touch()}
+          onChange={(to) => {
+            touch();
+            setRecipients((r) => ({ ...r, to }));
+          }}
           className="min-w-0 flex-1"
         />
         {!showCc && (
@@ -731,13 +843,19 @@ export const Composer = ({
             name="cc"
             label="Cc"
             initial={prefill.cc}
-            onChange={() => touch()}
+            onChange={(cc) => {
+              touch();
+              setRecipients((r) => ({ ...r, cc }));
+            }}
           />
           <AddressField
             name="bcc"
             label="Bcc"
             initial={prefill.bcc}
-            onChange={() => touch()}
+            onChange={(bcc) => {
+              touch();
+              setRecipients((r) => ({ ...r, bcc }));
+            }}
           />
         </>
       )}
@@ -851,6 +969,14 @@ export const Composer = ({
               ))}
             </select>
           </label>
+        )}
+        {pgp.hasKey && (
+          <PgpSwitches
+            initialSign={prefill.pgpSign}
+            initialEncrypt={prefill.pgpEncrypt}
+            recipients={recipients}
+            onChange={touch}
+          />
         )}
         <span className="text-subtle text-xs" aria-live="polite">
           {draftStatus(saving, dirty, savedAt)}

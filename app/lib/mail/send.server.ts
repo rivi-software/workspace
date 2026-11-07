@@ -1,4 +1,4 @@
-import { sendMail as deliver } from "@rivi-software/workers-mail";
+import { sendMail as deliver, sendRawMail } from "@rivi-software/workers-mail";
 import type { SentMail } from "@rivi-software/workers-mail";
 import { and, desc, eq, isNull } from "drizzle-orm";
 
@@ -19,6 +19,10 @@ import {
 import { formatAddress } from "./addresses";
 import type { AddressList } from "./addresses";
 import { fileMessage } from "./filing.server";
+import { PgpError } from "./pgp/keys.server";
+import { buildPgpMail, pgpKeysFor, recipientsOf } from "./pgp/outbound.server";
+import type { PgpChoice } from "./pgp/outbound.server";
+import type { PgpStatus } from "./pgp/pgp";
 import { MAX_HTML, sanitizeHtml, withoutStyles } from "./sanitize";
 import { base64Bytes, inlineDataImages } from "./signatures";
 import type { InlineImage } from "./signatures";
@@ -61,6 +65,8 @@ export interface OutgoingMail {
   /** One of the owner's signatures, put under the text after a "-- " line; none when null. */
   signatureId?: string | null;
   files: OutgoingFile[];
+  /** Sign it with the owner's OpenPGP key, encrypt it to every recipient's, or both; neither when null. */
+  pgp?: PgpChoice | null;
 }
 
 /** What the composer holds, as the console, the API and a scheduled message hand it over. */
@@ -80,6 +86,7 @@ export interface ComposedMail {
   draftId?: string | null;
   /** Files sent along besides the draft's, after them. */
   files?: OutgoingFile[];
+  pgp?: PgpChoice | null;
 }
 
 export class SendError extends Error {
@@ -288,27 +295,40 @@ const failureWords = (error: unknown): string => {
   return [e.code, e.message].filter(Boolean).join(" ");
 };
 
-interface Sent {
-  threadId: string;
-  messageId: string;
-}
+/** The choice when it asks for anything, else null: an unsigned, unencrypted message is sent as structured mail. */
+const wantsPgp = (choice: PgpChoice | null | undefined): PgpChoice | null =>
+  choice && (choice.sign || choice.encrypt) ? choice : null;
 
-/** The send itself, once `prepareMail` has passed the message. */
-const sendPrepared = async (
+/** A PgpError (no key of the owner's, none for a recipient, too large) as the SendError the composer shows. */
+const pgpOrRefuse = async <T>(run: () => Promise<T>): Promise<T> => {
+  try {
+    return await run();
+  } catch (error) {
+    if (error instanceof PgpError) {
+      throw new SendError(error.message);
+    }
+
+    throw error;
+  }
+};
+
+/** A message without OpenPGP: its fields handed to the provider, which writes the MIME itself. */
+const deliverStructured = async (
   env: Env,
-  db: Database,
-  user: User,
   mail: OutgoingMail,
-  prepared: Prepared
-): Promise<Sent> => {
-  const { from, allowed, original } = prepared;
-  const { headers, references } = threadingHeaders(original);
-  const { subject, text, html, images } = composeMessage(env, mail, prepared);
-  const total = carriedBytes(fileBytes(mail.files), images);
-  let result: SentMail;
+  composed: {
+    from: Address;
+    subject: string;
+    text: string;
+    html: string;
+    headers: Record<string, string>;
+    images: InlineImage[];
+  }
+): Promise<SentMail> => {
+  const { from, subject, text, html, headers, images } = composed;
 
   try {
-    result = await deliver(env, {
+    return await deliver(env, {
       from,
       to: mail.to.map(formatAddress),
       cc: mail.cc.map(formatAddress),
@@ -337,13 +357,75 @@ const sendPrepared = async (
   } catch (error) {
     throw new SendError(`The message was not sent: ${failureWords(error)}`);
   }
+};
+
+interface Sent {
+  threadId: string;
+  messageId: string;
+}
+
+/** The send itself, once `prepareMail` has passed the message. */
+const sendPrepared = async (
+  env: Env,
+  db: Database,
+  user: User,
+  mail: OutgoingMail,
+  prepared: Prepared
+): Promise<Sent> => {
+  const { from, allowed, original } = prepared;
+  const { headers, references } = threadingHeaders(original);
+  const { subject, text, html, images } = composeMessage(env, mail, prepared);
+  const total = carriedBytes(fileBytes(mail.files), images);
+  const ownMessageId = `<${newId("msg")}@${env.MAIL_DOMAIN}>`;
+  const choice = wantsPgp(mail.pgp);
+  let pgp: PgpStatus | null = null;
+  let result: SentMail;
+
+  if (choice) {
+    const built = await pgpOrRefuse(() =>
+      buildPgpMail(env, db, user, {
+        ...choice,
+        from,
+        to: mail.to,
+        cc: mail.cc,
+        bcc: mail.bcc,
+        subject,
+        text,
+        html,
+        images,
+        files: mail.files,
+        threading: headers,
+        messageId: ownMessageId,
+        date: new Date(),
+      })
+    );
+
+    try {
+      result = await sendRawMail(env, {
+        from: from.email,
+        recipients: built.recipients,
+        raw: built.raw,
+        sesOnlyHeaders: built.sesOnlyHeaders,
+      });
+    } catch (error) {
+      throw new SendError(`The message was not sent: ${failureWords(error)}`);
+    }
+
+    ({ pgp } = built);
+  } else {
+    result = await deliverStructured(env, mail, {
+      from,
+      subject,
+      text,
+      html,
+      headers,
+      images,
+    });
+  }
 
   // Filed with the Message-ID SES or Email Service gave it, so a reply threads back by In-Reply-To.
   const now = new Date().toISOString();
-
-  const sentMessageId =
-    normalizeMessageId(result.messageId) ??
-    `<${newId("msg")}@${env.MAIL_DOMAIN}>`;
+  const sentMessageId = normalizeMessageId(result.messageId) ?? ownMessageId;
 
   const filed = await fileMessage(env, db, user, {
     policy: "sent",
@@ -382,6 +464,7 @@ const sendPrepared = async (
       ],
       size: text.length + total,
       unsubscribe: null,
+      pgp,
     },
     raw: null,
     // A conversation the owner starts shows under Sent until someone answers, as in Gmail.
@@ -424,6 +507,8 @@ export interface DraftInput {
   text: string;
   html?: string | null;
   signatureId?: string | null;
+  /** Sign it, encrypt it, or both, when it is sent (or when the cron sends it). */
+  pgp?: PgpChoice | null;
 }
 
 export const saveDraft = async (
@@ -450,6 +535,8 @@ export const saveDraft = async (
     text: html ? htmlToText(html) : input.text,
     html,
     signatureId: signature?.id ?? null,
+    pgpSign: input.pgp?.sign ?? false,
+    pgpEncrypt: input.pgp?.encrypt ?? false,
     updatedAt: new Date().toISOString(),
   };
 
@@ -646,6 +733,7 @@ const outgoing = (composed: ComposedMail): Omit<OutgoingMail, "files"> => ({
   html: composed.html,
   inReplyToId: composed.inReplyToId,
   signatureId: composed.signatureId,
+  pgp: composed.pgp,
 });
 
 /**
@@ -701,4 +789,13 @@ export const checkComposed = async (
     kept.reduce((n, f) => n + f.size, 0) + fileBytes(composed.files ?? []),
     images
   );
+
+  // The keys it needs, there now: the owner's own, and one for every recipient when it goes encrypted.
+  const choice = wantsPgp(mail.pgp);
+
+  if (choice) {
+    await pgpOrRefuse(() =>
+      pgpKeysFor(env, db, user, choice, recipientsOf(mail))
+    );
+  }
 };

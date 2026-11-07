@@ -157,6 +157,7 @@ export const mail = (over: Partial<ParsedMail> = {}): ParsedMail => {
     unsubscribe: null,
     automated: false,
     signals: null,
+    autocrypt: null,
     ...over,
   };
 };

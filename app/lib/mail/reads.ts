@@ -5,6 +5,7 @@
 import type { Address } from "~/db/schema";
 
 import type { Folder, LabelRef, Place } from "./folders";
+import type { PgpStatus } from "./pgp/pgp";
 import type { SpamCheck } from "./spam";
 import type { Unsubscribe } from "./unsubscribe";
 
@@ -84,6 +85,8 @@ export interface MessageView {
   unsubscribe: Unsubscribe | null;
   /** Why the spam filter put it in Spam when it arrived; null when it did not. */
   spam: SpamCheck | null;
+  /** What OpenPGP did to it (signed, encrypted, opened here); null for mail without OpenPGP. */
+  pgp: PgpStatus | null;
   attachments: AttachmentView[];
 }
 

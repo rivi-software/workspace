@@ -27,3 +27,5 @@ nodeOptions: --disable-warning=DEP0205
 
 minimumReleaseAgeExclude:
   - "@rivi-software/deploy-watch@0.7.0"
+  # sendRawMail, which signed and encrypted mail goes out through (OpenPGP).
+  - "@rivi-software/workers-mail@0.2.0"

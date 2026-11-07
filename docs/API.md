@@ -49,8 +49,8 @@ client ── POST /api/auth/sign-out, Authorization: Bearer <token> ──▶ 2
 | `POST /mail/read-all` | `{ folder?, label?, q? }` as a list request | `{ ok: true }` |
 | `POST /mail/folders/:folder/empty` | `trash` or `spam` | `{ ok: true, count }` |
 | `GET /mail/compose` | `?reply=<messageId>&mode=reply\|all\|forward`, or `?draft=<draftId>`, or `?to=<address>`, or nothing for a blank message | `ComposeData` |
-| `POST /mail/send` | `{ from, to, cc, bcc, subject, text, inReplyToId?, signatureId?, draftId?, files?: [{ filename, contentType, base64 }] }`; `to`, `cc` and `bcc` are typed lists (`Ada <ada@acme.com>, bob@acme.com`); `from` one of `ComposeData.froms`; `draftId` deletes the draft once sent; the files together at most 20 MB | `{ ok: true, threadId }` |
-| `POST /mail/drafts` | `{ id?, threadId?, inReplyToId?, mode: "new" \| "reply" \| "forward", from, to, cc, bcc, subject, text, signatureId? }` | `{ ok: true, draftId, savedAt }` |
+| `POST /mail/send` | `{ from, to, cc, bcc, subject, text, inReplyToId?, signatureId?, draftId?, files?: [{ filename, contentType, base64 }], pgpSign?: boolean, pgpEncrypt?: boolean }`; `to`, `cc` and `bcc` are typed lists (`Ada <ada@acme.com>, bob@acme.com`); `from` one of `ComposeData.froms`; `draftId` deletes the draft once sent; the files together at most 20 MB; `pgpSign` signs with the person's OpenPGP key and `pgpEncrypt` encrypts to every recipient's (`400` naming whoever has no key, or when the person has none) | `{ ok: true, threadId }` |
+| `POST /mail/drafts` | `{ id?, threadId?, inReplyToId?, mode: "new" \| "reply" \| "forward", from, to, cc, bcc, subject, text, signatureId?, pgpSign?, pgpEncrypt? }` | `{ ok: true, draftId, savedAt }` |
 | `DELETE /mail/drafts/:id` | | `{ ok: true }` |
 | `GET /mail/contacts` | `?q=` | `{ contacts: Address[] }` (at most 8, most used first) |
 | `POST /mail/labels` | `{ name, color? }` | `{ ok: true, label: LabelRef }` |
@@ -83,7 +83,22 @@ interface MessageView {
   date: string; read: boolean;
   deliveryStatus: "received" | "sent" | "failed"; deliveryError: string | null;
   spam: boolean;             // the spam filter put it in Spam when it arrived
+  pgp: PgpStatus | null;     // what OpenPGP did to it; null for mail without OpenPGP
   attachments: [{ id: string; filename: string; contentType: string; size: number; inline: boolean; contentId: string | null; url: string }];
+}
+interface PgpStatus {
+  format: "mime" | "inline";
+  partial: boolean;          // inline only: text or files beside the blocks were neither signed nor encrypted
+  encrypted: boolean;
+  decrypted: boolean;        // encrypted and opened with the person's key: `text` and the files are the opened ones
+  error: string | null;      // why an encrypted message stayed shut
+  signature: {
+    state: "good" | "bad" | "unknown-key" | "other-address";
+    keyId: string;           // 16 hex digits
+    fingerprint: string | null;
+    source: "workspace" | "imported" | "autocrypt" | "wkd" | null;  // where the checking key came from
+    reason: string | null;   // why a `bad` signature failed
+  } | null;
 }
 // `url` is a signed link (six hours) that needs no token: GET it for the bytes, `&download=1` as an attachment.
 interface ComposeData {
@@ -91,8 +106,10 @@ interface ComposeData {
   signatures: [{ id: string; name: string; text: string; html: string | null }];
   prefill: { draftId: string | null; threadId: string | null; inReplyToId: string | null; mode: "new" | "reply" | "forward";
              from: string; to: string; cc: string; bcc: string; subject: string; text: string; html: string; signatureId: string | null;
-             files: [{ id: string; filename: string; contentType: string; size: number }] };
+             files: [{ id: string; filename: string; contentType: string; size: number }];
+             pgpSign: boolean; pgpEncrypt: boolean };
   undoSendSeconds: number;
+  pgp: { hasKey: boolean; signByDefault: boolean };  // the person has an OpenPGP key; Settings → Mail signs every message
 }
 // A reply's or forward's `prefill.html` keeps the original's images from the web in `data-held-src`, `data-held-background`,
 // `data-held-poster` and `data-held-style` (and leaves out an `svg`) unless opening the original loads them, so a view of it
