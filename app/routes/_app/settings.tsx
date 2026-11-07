@@ -57,6 +57,7 @@ import { listImageSenders } from "~/lib/mail/images.server";
 import { importView, latestImport } from "~/lib/mail/import/import.server";
 import { microsoftConfigured } from "~/lib/mail/import/microsoft.server";
 import { listLabels } from "~/lib/mail/labels.server";
+import { listPeerKeys, ownKeyView } from "~/lib/mail/pgp/keys.server";
 import { parsePreferences } from "~/lib/mail/preferences";
 import { sanitizeSignatureHtml } from "~/lib/mail/signatures";
 import {
@@ -193,6 +194,13 @@ const getSettings = createServerFn().handler(async () => {
           latest: latest ? importView(latest) : null,
         };
       })(),
+      // Settings → Mail → OpenPGP: the person's own key and the keys of the people they write to.
+      pgp: {
+        own: await ownKeyView(db, user.id),
+        peers: await listPeerKeys(db, user.id),
+        signByDefault: parsePreferences(user.preferencesJson).pgpSign,
+        mailDomain: env.MAIL_DOMAIN,
+      },
     },
   };
 });

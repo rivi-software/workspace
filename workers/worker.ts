@@ -7,6 +7,7 @@ import { captureServerException } from "@rivi-software/posthog-tanstack-start/se
 import { createDb } from "~/db";
 import { handleApi, isApiPath } from "~/lib/api/api.server";
 import { authFor, isAuthPath } from "~/lib/auth.server";
+import { isWkdPath, serveWkd } from "~/lib/mail/pgp/wkd.server";
 
 import { handleInboundEmail } from "./email/inbound";
 import { handleScheduled } from "./scheduled";
@@ -56,8 +57,8 @@ const withSecurityHeaders = (res: Response, url: URL): Response => {
 };
 
 /**
- * Better Auth (`/api/auth/*`: the password sign-in, passkeys, the second factor, sessions), the API for other
- * clients (`/api/v1/*`, docs/API.md), then Start. Served here rather than by route files, so the tests reach them
+ * The Web Key Directory (`/.well-known/openpgpkey/*`), Better Auth (`/api/auth/*`: the password sign-in, passkeys,
+ * the second factor, sessions), the API for other clients (`/api/v1/*`, docs/API.md), then Start. Served here rather than by route files, so the tests reach them
  * through `SELF.fetch` without the Vite build.
  */
 const route = async (
@@ -67,6 +68,11 @@ const route = async (
   url: URL,
   start: StartHandler
 ): Promise<Response> => {
+  // The workspace's OpenPGP keys for other mail clients (WKD): `openpgpkey.<MAIL_DOMAIN>` routed here serves them.
+  if (isWkdPath(url.pathname)) {
+    return serveWkd(request, env);
+  }
+
   if (isAuthPath(url.pathname)) {
     const auth = await authFor(env);
 

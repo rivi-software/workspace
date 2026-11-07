@@ -14,6 +14,8 @@ import { describeSender } from "~/lib/mail/spam";
 import { ColorPalette, LabelChip } from "./labels";
 import { MailImport } from "./mail-import";
 import type { ImportSettings } from "./mail-import";
+import { PgpSettings } from "./pgp-settings";
+import type { PgpSettingsData } from "./pgp-settings";
 import {
   Button,
   Checkbox,
@@ -48,6 +50,7 @@ export interface MailSettingsData {
     until: string | null;
   };
   imports: ImportSettings;
+  pgp: PgpSettingsData;
 }
 
 const Feedback = ({
@@ -825,6 +828,7 @@ export const MailSettings = ({
   imageSenders,
   vacation,
   imports,
+  pgp,
   connect,
   reason,
 }: MailSettingsData & { connect?: string; reason?: string }) => (
@@ -834,6 +838,7 @@ export const MailSettings = ({
     <Filters filters={filters} labels={labels} />
     <Spam spam={spam} />
     <Images senders={imageSenders} />
+    <PgpSettings pgp={pgp} />
     <Vacation vacation={vacation} />
     <MailImport settings={imports} connect={connect} reason={reason} />
   </>

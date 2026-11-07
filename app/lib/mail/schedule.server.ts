@@ -136,6 +136,7 @@ export const scheduleComposed = async (
     text: mail.text,
     html: mail.html,
     signatureId: mail.signatureId,
+    pgp: mail.pgp,
   });
 
   await scheduleDraft(db, user.id, draftId, at);
@@ -174,6 +175,7 @@ const sendScheduled = async (
     html: d.html,
     inReplyToId: d.inReplyToId,
     signatureId: d.signatureId,
+    pgp: { sign: d.pgpSign, encrypt: d.pgpEncrypt },
     draftId: d.id,
   });
 };

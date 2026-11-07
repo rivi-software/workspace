@@ -254,20 +254,27 @@ describe("mail preferences", () => {
       layout: "split",
       undoSendSeconds: 5,
       pageSize: 50,
+      pgpSign: false,
     });
     expect(
-      parsePreferences('{"layout":"full","undoSendSeconds":20,"pageSize":25}')
+      parsePreferences(
+        '{"layout":"full","undoSendSeconds":20,"pageSize":25,"pgpSign":true}'
+      )
     ).toStrictEqual({
       layout: "full",
       undoSendSeconds: 20,
       pageSize: 25,
+      pgpSign: true,
     });
     expect(
-      parsePreferences('{"layout":"wide","undoSendSeconds":7,"pageSize":999}')
+      parsePreferences(
+        '{"layout":"wide","undoSendSeconds":7,"pageSize":999,"pgpSign":"yes"}'
+      )
     ).toStrictEqual({
       layout: "split",
       undoSendSeconds: 5,
       pageSize: 50,
+      pgpSign: false,
     });
   });
 });

@@ -17,6 +17,7 @@ import { snippetOf } from "../text";
 import { touchContacts } from "./contacts.server";
 import type { ParsedAttachment, ParsedMail } from "./ingest.server";
 import { inIds } from "./mailbox.server";
+import type { PgpStatus } from "./pgp/pgp";
 import type { SpamCheck } from "./spam";
 import { normalizeSubject } from "./threading";
 import {
@@ -56,7 +57,11 @@ export type FiledMail = Pick<
   | "attachments"
   | "size"
   | "unsubscribe"
-> & { bcc?: Address[] };
+> & {
+  bcc?: Address[];
+  /** What OpenPGP did to it: opened on arrival (`openPgpMail`), or signed and encrypted on its way out. */
+  pgp?: PgpStatus | null;
+};
 
 /** Where a message puts its conversation and how it marks it and itself. */
 export interface Placement {
@@ -196,7 +201,7 @@ const askedOf = (
 };
 
 /** A stored message's files, each in R2 under `att/<user>/<id>` with its row (inline images keep their Content-ID). */
-const storeAttachments = async (
+export const storeAttachments = async (
   env: Env,
   db: Database,
   userId: string,
@@ -384,6 +389,7 @@ const messageRowOf = (
       ? JSON.stringify(placement.spam.check)
       : null,
     spamLearned: placement.spam?.learned ?? null,
+    pgpJson: mail.pgp ? JSON.stringify(mail.pgp) : null,
   };
 };
 

@@ -11,6 +11,10 @@ import { htmlToText } from "../text";
 import { canonicalAddress, parseAddress } from "./addresses";
 import { fileMessage } from "./filing.server";
 import { filterOutcome } from "./filters.server";
+import { parseAutocrypt } from "./pgp/autocrypt";
+import type { Autocrypt } from "./pgp/autocrypt";
+import { learnAutocrypt, openPgp } from "./pgp/inbound.server";
+import type { PgpStatus } from "./pgp/pgp";
 import { mailSignals } from "./spam";
 import type { SpamSignals } from "./spam";
 import { judgeMail, trainTokens } from "./spam.server";
@@ -50,6 +54,8 @@ export interface ParsedMail {
   automated: boolean;
   /** What the headers tell the spam filter (Cloudflare's checks among them); null for a message without them. */
   signals: SpamSignals | null;
+  /** The sender's key on an Autocrypt header, believed only of mail that passed DKIM (`learnAutocrypt`). */
+  autocrypt: Autocrypt | null;
 }
 
 /** Where mail that arrives goes: Spam when it was judged spam, else as the filters say (the trash, the archive, the inbox). */
@@ -140,6 +146,86 @@ export const parseRawEmail = async (
     ),
     automated: isAutomatedMail(headers, from.email),
     signals: mailSignals(headers),
+    autocrypt: parseAutocrypt(headerOf(headers, "Autocrypt")),
+  };
+};
+
+/**
+ * A message with what OpenPGP protects in it opened for `user` (`pgp/inbound.server.ts`): a PGP/MIME message is parsed
+ * again with its protected part in place, an inline one gets its opened text and files. What describes the message
+ * (its addresses, ids, date, the headers the spam filter reads) stays the outer message's; the subject may come from
+ * the protected headers. A message without OpenPGP, or one that could not be read, comes back as it was.
+ */
+export const openPgpMail = async (
+  env: Env,
+  db: Database,
+  user: Pick<User, "id">,
+  raw: ArrayBuffer,
+  parsed: ParsedMail,
+  options: { fetch?: typeof fetch } = {}
+): Promise<{ mail: ParsedMail; pgp: PgpStatus | null }> => {
+  let opened: Awaited<ReturnType<typeof openPgp>>;
+
+  try {
+    opened = await openPgp(
+      env,
+      db,
+      user,
+      {
+        raw,
+        from: parsed.from.email,
+        text: parsed.text,
+        attachments: parsed.attachments,
+      },
+      options
+    );
+  } catch (error) {
+    // The message matters more than its signature: it is filed as it came.
+    console.log(
+      JSON.stringify({
+        event: "pgp.open_failed",
+        user: user.id,
+        error: errorMessage(error),
+      })
+    );
+
+    return { mail: parsed, pgp: null };
+  }
+
+  if (opened.kind === "none") {
+    return { mail: parsed, pgp: null };
+  }
+
+  if (opened.kind === "shut") {
+    return { mail: parsed, pgp: opened.pgp };
+  }
+
+  if (opened.kind === "inline") {
+    return {
+      mail: {
+        ...parsed,
+        text: opened.text,
+        html: null,
+        attachments: opened.attachments,
+      },
+      pgp: opened.pgp,
+    };
+  }
+
+  const inner = await parseRawEmail(opened.message.buffer, parsed.from.email, {
+    messageId: parsed.messageId,
+    date: parsed.date,
+  });
+
+  return {
+    mail: {
+      ...parsed,
+      subject: inner.subject,
+      text: inner.text,
+      html: inner.html,
+      attachments: inner.attachments,
+    },
+    pgp: opened.pgp,
   };
 };
 
@@ -193,8 +279,9 @@ export type IngestResult =
 export const ingestInboundEmail = async (
   env: Env,
   raw: ArrayBuffer | null,
-  p: ParsedMail,
-  recipient: string
+  arrived: ParsedMail,
+  recipient: string,
+  options: { fetch?: typeof fetch } = {}
 ): Promise<IngestResult> => {
   const db = createDb(env.DB);
   const user = await resolveMailbox(db, recipient);
@@ -203,13 +290,18 @@ export const ingestInboundEmail = async (
     return { status: "no-mailbox" };
   }
 
+  // Opened with this mailbox's key: a message delivered to two mailboxes is opened by each.
+  const { mail: p, pgp } = raw
+    ? await openPgpMail(env, db, user, raw, arrived, options)
+    : { mail: arrived, pgp: null };
+
   // Decided in `place`, once the conversation is known; a duplicate is never judged.
   // SAFETY: `place` assigns it inside a callback, which flow analysis does not follow: a bare `null` would narrow to `never` below.
   let judgement = null as Judgement | null;
 
   const filed = await fileMessage(env, db, user, {
     policy: "arrival",
-    mail: p,
+    mail: { ...p, pgp },
     raw,
     place: async (thread) => {
       const outcome = await filterOutcome(db, user.id, {
@@ -242,6 +334,11 @@ export const ingestInboundEmail = async (
   }
 
   const { tokens, ...judged } = defined(judgement, "the judgement");
+
+  // A key from mail judged spam is a key from someone who may not be who they say.
+  if (!judged.spam) {
+    await learnAutocrypt(env, db, user, p);
+  }
 
   if (judged.learn) {
     try {

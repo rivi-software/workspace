@@ -7,6 +7,9 @@ import type { Address, Message, User } from "~/db/schema";
 import { quoteHtmlForForward, quoteHtmlForReply } from "../text";
 import { formatAddressList, parseJsonAddresses } from "./addresses";
 import { listImageSenders, loadsImages } from "./images.server";
+import { ownKeyRow } from "./pgp/keys.server";
+import { parsePgpStatus } from "./pgp/pgp";
+import type { PgpComposeView } from "./pgp/pgp";
 import { parsePreferences } from "./preferences";
 import { sanitizeHtml } from "./sanitize";
 import { listDraftFiles, sendableAddresses } from "./send.server";
@@ -43,6 +46,9 @@ export interface Prefill {
   html: string;
   signatureId: string | null;
   files: DraftFileView[];
+  /** The composer's Sign and Encrypt switches as they start. */
+  pgpSign: boolean;
+  pgpEncrypt: boolean;
 }
 
 export interface ComposeData {
@@ -50,6 +56,7 @@ export interface ComposeData {
   signatures: { id: string; name: string; text: string; html: string | null }[];
   prefill: Prefill;
   undoSendSeconds: number;
+  pgp: PgpComposeView;
 }
 
 export interface ComposeParams {
@@ -119,7 +126,9 @@ export const composeData = async (
     html,
   }));
 
-  const { undoSendSeconds } = parsePreferences(user.preferencesJson);
+  const { undoSendSeconds, pgpSign } = parsePreferences(user.preferencesJson);
+  const hasKey = !!(await ownKeyRow(db, user.id));
+  const pgp: PgpComposeView = { hasKey, signByDefault: pgpSign };
 
   const blank: Prefill = {
     draftId: null,
@@ -136,6 +145,8 @@ export const composeData = async (
     // A new message starts on the default signature, a reply or forward on the reply default; a draft keeps its own.
     signatureId: mine.find((s) => s.isDefault)?.id ?? null,
     files: [],
+    pgpSign: hasKey && pgpSign,
+    pgpEncrypt: false,
   };
 
   if (params.draft) {
@@ -160,6 +171,7 @@ export const composeData = async (
       froms,
       signatures,
       undoSendSeconds,
+      pgp,
       prefill: {
         draftId: d.id,
         threadId: d.threadId,
@@ -174,6 +186,8 @@ export const composeData = async (
         html: d.html ?? "",
         signatureId: d.signatureId,
         files,
+        pgpSign: d.pgpSign,
+        pgpEncrypt: d.pgpEncrypt,
       },
     };
   }
@@ -205,14 +219,18 @@ export const composeData = async (
     )?.email;
 
     const replySignatureId = mine.find((s) => s.isReplyDefault)?.id ?? null;
+    // What came encrypted is answered encrypted, when the owner has a key to do it with.
+    const pgpEncrypt = hasKey && !!parsePgpStatus(m.pgpJson)?.encrypted;
 
     if (params.mode === "forward") {
       return {
         froms,
         signatures,
         undoSendSeconds,
+        pgp,
         prefill: {
           ...blank,
+          pgpEncrypt,
           signatureId: replySignatureId,
           threadId: m.threadId,
           inReplyToId: m.id,
@@ -234,8 +252,10 @@ export const composeData = async (
       froms,
       signatures,
       undoSendSeconds,
+      pgp,
       prefill: {
         ...blank,
+        pgpEncrypt,
         signatureId: replySignatureId,
         threadId: m.threadId,
         inReplyToId: m.id,
@@ -252,5 +272,5 @@ export const composeData = async (
     };
   }
 
-  return { froms, signatures, undoSendSeconds, prefill: blank };
+  return { froms, signatures, undoSendSeconds, pgp, prefill: blank };
 };

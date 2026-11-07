@@ -239,6 +239,8 @@ interface ComposeFields {
   text: string;
   html: string | null;
   signatureId: string | null;
+  /** The composer's Sign and Encrypt switches. */
+  pgp: { sign: boolean; encrypt: boolean };
 }
 
 const composeFields = (data: FormData, fallbackFrom: string): ComposeFields => {
@@ -256,6 +258,10 @@ const composeFields = (data: FormData, fallbackFrom: string): ComposeFields => {
     text: field(data, "text"),
     html: field(data, "html") || null,
     signatureId: field(data, "signatureId") || null,
+    pgp: {
+      sign: field(data, "pgpSign") === "on",
+      encrypt: field(data, "pgpEncrypt") === "on",
+    },
   };
 };
 
@@ -357,6 +363,7 @@ export const draftAction = createServerFn({ method: "POST" })
         text: f.text,
         html: f.html,
         signatureId: f.signatureId,
+        pgp: f.pgp,
       });
 
       if (intent === "files") {
