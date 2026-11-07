@@ -9,7 +9,13 @@ import {
   lightness,
   parseColor,
 } from "~/lib/mail/colors";
-import { mailDocument, mailReading, sanitizeHtml } from "~/lib/mail/sanitize";
+import {
+  MAX_HTML,
+  mailDocument,
+  mailReading,
+  sanitizeHtml,
+  withoutStyles,
+} from "~/lib/mail/sanitize";
 import { textToHtml, withSignature } from "~/lib/text";
 
 import { defined, sorted } from "./fixtures";
@@ -26,6 +32,28 @@ const folded = (html: string, forward = false) =>
   sanitizeHtml(html, { cidUrl, forward }).html.includes(
     '<details class="rivi-quote">'
   );
+
+// Markup whose close never comes: the expressions that read it searched again from every opening for a `-->`, `]]>`,
+// `>` or end tag that was not there, so 40 KB took up to 2.6 s (#3591). At 200,000 characters each of these took the
+// old sanitiser more than a second and takes this one a few milliseconds: the budget sits between, wide of both, and
+// small enough that the tests running beside these keep their CPU.
+const CRAFTED_SIZE = 200_000;
+const CRAFTED_BUDGET_MS = 500;
+
+/** The units that, repeated to `CRAFTED_SIZE` (or once, when longer), take `reader` (the sanitiser) the budget or more. */
+const slowToRead = (
+  units: string[],
+  reader: (html: string) => void = (html) => {
+    sanitizeHtml(html, { cidUrl });
+  }
+) =>
+  units.filter((unit) => {
+    const html = unit.repeat(Math.ceil(CRAFTED_SIZE / unit.length));
+    const started = performance.now();
+    reader(html);
+
+    return performance.now() - started >= CRAFTED_BUDGET_MS;
+  });
 
 const light = { dark: false, sheet: false };
 const dark = { dark: true, sheet: false };
@@ -194,6 +222,131 @@ describe(sanitizeHtml, () => {
     });
 
     expect(html).toBe("<p>Hi</p>");
+  });
+
+  it("reads a comment, CDATA or a tag left open as it read them before (#3591)", () => {
+    expect({
+      // Without its `-->` or `]]>`, a comment or CDATA is a bogus comment to the first `>`.
+      comment: read("<p>a</p><!-- open <b>x</b>"),
+      cdata: read("<![CDATA[x]]><p>y</p>"),
+      openCdata: read("<![CDATA[ x <p>y</p>"),
+      // A `<` that starts no tag, or that no `>` ends, is text; a `>` in a quoted value is the value's.
+      text: read("<p>1 < 2</p>and <b this"),
+      quoted: read(`<p title="a>b" lang='c"d'>x</p>`),
+      selfClosing: read('<br/><p title="x/">y</p><script/>z'),
+      // A closed style is lifted, one left open goes with everything after it.
+      styles: read("<style>a{}</style><p>x</p><style>b{}<p>gone"),
+      // What the browser reads as text is read as markup, its own tags gone.
+      textElements: read("<noframes><b>x</b></noframes><plaintext>y"),
+    }).toStrictEqual({
+      comment: "<p>a</p>x</b>",
+      cdata: "<p>y</p>",
+      openCdata: "y</p>",
+      text: "<p>1 &lt; 2</p>and &lt;b this",
+      quoted: '<p title="a&gt;b" lang="c&quot;d">x</p>',
+      selfClosing: '<br /><p title="x/">y</p>z',
+      styles: "<style>a{}</style><p>x</p>",
+      textElements: "<b>x</b>y",
+    });
+  });
+
+  it("neutralises a URL in CSS behind spaces and a quote", () => {
+    expect(
+      read(
+        `<p style="background:url(  ' javascript:x')">x</p><style>a{background:url( "data:text/html,x" )}</style>`
+      )
+    ).toBe('<style>a{background:none}</style><p style="background:none">x</p>');
+  });
+
+  it("reads only the first MAX_HTML characters of a longer part, and says so", () => {
+    const within = "<p>within</p>";
+    const pad = " ".repeat(MAX_HTML - within.length);
+
+    expect({
+      longer: read(`${pad}${within}<p>beyond</p>`).trim(),
+      exactly: read(`${pad}${within}`).trim(),
+    }).toStrictEqual({
+      longer: `${within}<p>[Message clipped: it is longer than Workspace shows, and only its start is here.]</p>`,
+      exactly: within,
+    });
+  });
+
+  it("reads 80,000 unclosed comments, doctypes, CDATA sections or tags in linear time, all as text (#3591)", () => {
+    const units = ["<!--", "<!", "<![CDATA[", "<a <"];
+
+    expect(
+      units.filter((unit) => {
+        const html = unit.repeat(80_000);
+        const started = performance.now();
+        const out = read(html);
+
+        return (
+          performance.now() - started >= 100 ||
+          out !== html.replaceAll("<", "&lt;")
+        );
+      })
+    ).toStrictEqual([]);
+  });
+
+  it("reads comments, doctypes, CDATA and dropped elements that never close in linear time (#3591)", () => {
+    expect(
+      slowToRead([
+        "<!--",
+        "<!",
+        "<?",
+        "<![CDATA[",
+        "<!--x--><!--",
+        "<style>",
+        "<style",
+        "<STYLE>",
+        "<script>",
+        "<script><a <",
+      ])
+    ).toStrictEqual([]);
+  });
+
+  it("reads tags that never end in linear time (#3591)", () => {
+    expect(
+      slowToRead([
+        "<",
+        "<a",
+        "<a <",
+        '<a "',
+        '<a "<b "',
+        "<a \"'<b ",
+        "<p title='",
+      ])
+    ).toStrictEqual([]);
+    // One unit each, under the bound so that its close is read: one tag name, CSS whose expressions read on from one
+    // opening to the end, and kept `<style-x>` tags, from each of which the quote's fold searched for a `</style>`.
+    const room = CRAFTED_SIZE - 100;
+
+    expect(
+      slowToRead([
+        `<${"a".repeat(room)}`,
+        `<style>url(${" ".repeat(room)}</style>`,
+        `<style>${"expression(".repeat(Math.floor(room / 11))}</style>`,
+        `<p style="${"url(javascript:".repeat(Math.floor(room / 15))}">`,
+        `x<div class="gmail_quote">y</div>${"<style-x>".repeat(Math.floor(room / 9))}`,
+      ])
+    ).toStrictEqual([]);
+  });
+
+  it("takes the style element out of a quote, a signature or what is sent, in linear time, and keeps `style-` tags (#3591)", () => {
+    const { html } = sanitizeHtml(
+      "<style>p{}</style><style-x>a</style-x><p>b</p>",
+      { cidUrl }
+    );
+
+    expect({
+      html,
+      without: withoutStyles(html),
+      slow: slowToRead(["<style-x>", "<style "], withoutStyles),
+    }).toStrictEqual({
+      html: "<style>p{}</style><style-x>a</style-x><p>b</p>",
+      without: "<style-x>a</style-x><p>b</p>",
+      slow: [],
+    });
   });
 
   it("keeps the body's colours on a div in its place", () => {
