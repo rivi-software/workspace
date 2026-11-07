@@ -497,6 +497,15 @@ describe("the Workspace API", () => {
       fetchFn
     );
 
+    // Signing asks for an OpenPGP key of the person's own, which Pia has not made.
+    const unsigned = await call(
+      token,
+      "POST",
+      "/mail/send",
+      { to: "sam@acme.com", text: "x", pgpSign: true },
+      fetchFn
+    );
+
     expect({
       sent: sent.data,
       outbox: outbox.length,
@@ -504,12 +513,14 @@ describe("the Workspace API", () => {
       fileLink: str(obj(list(last.attachments)[0]).url).includes("/api/files/"),
       badAddress: badAddress.data,
       notMine: notMine.data,
+      unsigned: unsigned.data,
     }).toMatchObject({
       sent: { ok: true, threadId: arrived.threadId },
       outbox: 1,
       last: {
         direction: "outbound",
         subject: "Re: Quote",
+        pgp: null,
         attachments: [
           { filename: "note.txt", contentType: "text/plain", size: 5 },
         ],
@@ -517,6 +528,11 @@ describe("the Workspace API", () => {
       fileLink: true,
       badAddress: { ok: false, error: "Check these addresses: nobody" },
       notMine: { ok: false, error: "You cannot send as other@acme.com." },
+      unsigned: {
+        ok: false,
+        error:
+          "Add your OpenPGP key under Settings → Mail to sign or encrypt a message.",
+      },
     });
 
     const draft = await call(token, "POST", "/mail/drafts", {

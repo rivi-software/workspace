@@ -53,6 +53,7 @@
     "dompurify": "3.4.17",
     "drizzle-orm": "0.45.4",
     "lucide-react": "1.68.0",
+    "openpgp": "6.3.2",
     "pdf-lib": "1.17.1",
     "pdfjs-dist": "6.5.438",
     "postal-mime": "^4.2.0",

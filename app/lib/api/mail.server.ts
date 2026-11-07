@@ -94,6 +94,7 @@ const thread = async (context: ApiContext): Promise<Response> => {
       deliveryStatus: m.deliveryStatus,
       deliveryError: m.deliveryError,
       spam: m.spam !== null,
+      pgp: m.pgp,
       attachments: m.attachments,
     })),
   });
@@ -255,6 +256,12 @@ const addressLists = (body: JsonBody) => ({
 /** A draft's recipients, refused by name as a send refuses them when one is not an address. */
 const recipients = (body: JsonBody) => checkedRecipients(addressLists(body));
 
+/** Whether to sign with the person's OpenPGP key and encrypt to every recipient's (`pgpSign`, `pgpEncrypt`). */
+const pgpOf = (body: JsonBody) => ({
+  sign: body.pgpSign === true,
+  encrypt: body.pgpEncrypt === true,
+});
+
 /** The console's send (`sendComposed`): a SendError answers `400` with its words (`problemOf`). */
 const send = async (context: ApiContext): Promise<Response> => {
   const { db, env, user, request } = context;
@@ -269,6 +276,7 @@ const send = async (context: ApiContext): Promise<Response> => {
     signatureId: fieldOrNull(body, "signatureId"),
     draftId: fieldOrNull(body, "draftId"),
     files: filesOf(body),
+    pgp: pgpOf(body),
   });
 
   return json({ ok: true, threadId: sent.threadId });
@@ -292,6 +300,7 @@ const saveDraftRoute = async (context: ApiContext): Promise<Response> => {
     subject: field(body, "subject"),
     text: field(body, "text"),
     signatureId: fieldOrNull(body, "signatureId"),
+    pgp: pgpOf(body),
   });
 
   return json({ ok: true, draftId, savedAt: new Date().toISOString() });

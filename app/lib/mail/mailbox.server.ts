@@ -32,6 +32,7 @@ import { parseJsonAddresses } from "./addresses";
 import { signFileUrl } from "./files.server";
 import { EXPIRY_DAYS, isLabelColor } from "./folders";
 import type { Folder, LabelRef } from "./folders";
+import { parsePgpStatus } from "./pgp/pgp";
 import { parseQuery, queryDate, searchScope } from "./query";
 import type { QueryTerm } from "./query";
 import type { AttachmentView, MessageView } from "./reads";
@@ -484,6 +485,7 @@ const messageView = async (
     deliveryError: m.deliveryError,
     unsubscribe: parseJsonUnsubscribe(m.listUnsubscribe),
     spam: parseSpamCheck(m.spamJson),
+    pgp: parsePgpStatus(m.pgpJson),
     attachments: atts,
   };
 };

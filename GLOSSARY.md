@@ -75,6 +75,23 @@ A mailbox's history copied in from another provider; it is filed, never delivere
 **Scheduled message**:
 A draft set to go out by itself at a moment the person chose.
 
+**OpenPGP key**:
+A person's own key pair, made in Settings or imported, which the workspace keeps sealed and signs and opens mail with for them.
+_Avoid_: GPG key, PGP key (in prose they are fine; the setting is OpenPGP)
+
+**Correspondent's key**:
+The public key of someone a person writes to, as their mailbox keeps it: imported, from the Autocrypt header of their mail, or found over WKD.
+_Avoid_: peer key (the table's word)
+
+**WKD**:
+The Web Key Directory: the place a domain publishes its people's keys, which the Worker serves for its own domain and asks of others.
+
+**Opened message**:
+Mail that arrived encrypted and was decrypted with the owner's key; its text, HTML and files are kept as opened, and its PGP status says how it came.
+
+**Signature verdict**:
+What checking a message's OpenPGP signature came to: good, bad, an unknown key, or a key for other addresses than the sender's.
+
 ### Drive
 
 **Node**:

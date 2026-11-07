@@ -54,6 +54,7 @@ Workspace is an open-source workspace that runs on Cloudflare: **Mail** (receivi
 - **Compose**: rich text (bold, italic, underline, lists, quotes, links; pasted formatting reduced to that), recipients as chips with suggestions from the people you have written to or heard from, a reply box under the conversation with the original quoted, From among your addresses, Cc and Bcc, attachments up to 20 MB kept on the draft as soon as they are chosen, drafts that save themselves, and a signature picked from yours.
 - **Undo send and Send later**: a message waits a few seconds before it leaves (Settings → Mail), with **Undo** on the toast; **Send later** sends it tomorrow morning, tomorrow afternoon, Monday morning or at a moment of your own. A scheduled message waits under **Scheduled** until the cron sends it; **Cancel send** turns it back into a draft, and a send that fails puts it back among the drafts with the reason.
 - **Signatures** (Settings → Account): several, with a default for new messages and one for replies and forwards, written in the rich editor with images (a logo) or pasted as HTML from a signature generator. Their images go out as inline attachments, so they show without "Load images".
+- **OpenPGP** (Settings → Mail): make a key or import the one you have, and sign or encrypt a message with the switches beside Send (signing every message can be the default). Mail that arrives signed or encrypted, as PGP/MIME or as an inline block, is opened with your key and its signature checked against the sender's key: one you imported, one their earlier mail carried in an Autocrypt header (believed only of mail that passed DKIM for their domain), or one their domain publishes over WKD. Your own key is published over WKD and travels on what you sign ([OpenPGP](#openpgp)). The workspace keeps your private key and opens what is encrypted to you as it arrives, so search, the spam filter and the Assistant read that mail too: it protects mail on its way, not from the workspace.
 - **Import** (Settings → Mail): connect your own Microsoft 365 mailbox and its mail comes in, oldest first, a batch a minute in the background: Inbox to the inbox, Sent Items under Sent, your folders and Outlook's categories as labels, flags as stars, read as read; nothing already here is copied twice. The workspace only reads the mailbox ([Microsoft 365 import](#microsoft-365-import)).
 - **Keyboard** (`?` lists them):
 
@@ -116,7 +117,7 @@ Workspace is an open-source workspace that runs on Cloudflare: **Mail** (receivi
 | Page | What is there |
 | --- | --- |
 | Settings → Account | Your name, password, passkeys, authenticator app and backup codes, sessions ("Sign out everywhere"), signatures, recovery addresses. |
-| Settings → Mail | The reading layout, the undo-send delay, the page size, labels, filters, the spam filter's blocked and allowed senders, the senders whose images always load, the vacation responder, the Microsoft 365 import. |
+| Settings → Mail | The reading layout, the undo-send delay, the page size, labels, filters, the spam filter's blocked and allowed senders, the senders whose images always load, your OpenPGP key and the keys of the people you write to, the vacation responder, the Microsoft 365 import. |
 | Settings → Drive | Sharing outside the workspace on or off, and every link and invitation with who made it and how often it was opened (admins). |
 | Settings → Tasks | The GitHub connection. |
 | Settings → People | Mailboxes, aliases, roles, one-time passwords, deactivation, each person's passkeys, authenticator app, recovery addresses and sessions (admins). |
@@ -231,6 +232,14 @@ A rule or the catch-all made in the dashboard for the same address is a destruct
 ### Amazon SES
 
 Outbound mail goes through [`@rivi-software/workers-mail`](https://github.com/rivi-software/tools/tree/main/packages/workers-mail#readme): Amazon SES once the Worker holds `SES_ACCESS_KEY_ID` and `SES_SECRET_ACCESS_KEY` (`SES_REGION` is a var), and the Email Service `send_email` binding until then and whenever SES refuses a message. For SES, verify `MAIL_DOMAIN` as an identity in `SES_REGION`, make an IAM user with `ses:SendEmail` on that identity, and put its access key in the two secrets. The `Message-ID` the provider gives a message is its own, so replies and the copy that comes back to the sender thread on it.
+
+### OpenPGP
+
+Each person's key lives in D1 with its private half sealed under `SESSION_SECRET` (AES-GCM, as the other secrets at rest), so the Worker signs and opens mail without asking for a passphrase. Rotating `SESSION_SECRET` loses every private key: export yours from Settings → Mail first, and import it again after.
+
+- **Sending**: signed or encrypted mail goes out as PGP/MIME (RFC 3156), written out in full by the Worker and sent raw through `@rivi-software/workers-mail`'s `sendRawMail`. Through SES it carries an `Autocrypt` header with the sender's key; Email Service refuses that header, so through the binding it goes without, one copy per recipient (its raw API takes one envelope recipient), and each copy gets its own `Message-ID` from Email Service. A reply from anyone but the first recipient may then thread by subject rather than by `In-Reply-To`.
+- **Publishing (WKD)**: the Worker serves each active person's key at `/.well-known/openpgpkey/…`, by the advanced method (`openpgpkey.<MAIL_DOMAIN>`) and the direct one (`<MAIL_DOMAIN>` itself). For other mail clients to find the keys, route `openpgpkey.<MAIL_DOMAIN>/.well-known/openpgpkey/*` to the Worker (a route in `wrangler.jsonc`, with a proxied DNS record for the name), or `<MAIL_DOMAIN>/.well-known/openpgpkey/*` when nothing else serves the bare domain. A request names the address in `?l=`, as GnuPG, Thunderbird and OpenPGP.js send it.
+- **Looking up**: a key for a correspondent is the one the person imported, one an Autocrypt header of their mail carried, or one their domain publishes over WKD (a miss is remembered in KV for a day). Encrypting to someone with none is refused, never sent in the clear.
 
 ### Microsoft 365 import
 

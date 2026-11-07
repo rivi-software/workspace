@@ -8,12 +8,15 @@ export interface MailPreferences {
   undoSendSeconds: 0 | 5 | 10 | 20 | 30;
   /** Rows per page of a list. */
   pageSize: 25 | 50 | 100;
+  /** Sign every message with the person's OpenPGP key unless the composer says otherwise (Settings → Mail → OpenPGP). */
+  pgpSign: boolean;
 }
 
 export const DEFAULT_PREFERENCES: MailPreferences = {
   layout: "split",
   undoSendSeconds: 5,
   pageSize: 50,
+  pgpSign: false,
 };
 
 export const UNDO_SEND_CHOICES: MailPreferences["undoSendSeconds"][] = [
@@ -37,5 +40,6 @@ export const parsePreferences = (
     pageSize:
       PAGE_SIZE_CHOICES.find((choice) => choice === pageSize) ??
       DEFAULT_PREFERENCES.pageSize,
+    pgpSign: raw.pgpSign === true,
   };
 };

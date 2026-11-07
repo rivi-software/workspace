@@ -470,6 +470,9 @@ export const messages = sqliteTable(
     spamJson: text("spam_json"),
     // What the message taught the spam filter (`spam_tokens`), so a later "Not spam" or "Report spam" takes it back.
     spamLearned: text("spam_learned", { enum: ["spam", "ham"] }),
+    // JSON `PgpStatus` (`app/lib/mail/pgp/pgp.ts`): how OpenPGP protected it, whether it was opened here and whose
+    // signature it carries. The text, the HTML and the files are kept as opened; null for mail without OpenPGP.
+    pgpJson: text("pgp_json"),
     createdAt: text("created_at").notNull().default(now()),
   },
   (t) => [
@@ -530,6 +533,11 @@ export const drafts = sqliteTable(
     signatureId: text("signature_id").references(() => signatures.id, {
       onDelete: "set null",
     }),
+    // Whether it goes out signed with the owner's OpenPGP key, and encrypted to every recipient's (`pgp/outbound.server.ts`).
+    pgpSign: integer("pgp_sign", { mode: "boolean" }).notNull().default(false),
+    pgpEncrypt: integer("pgp_encrypt", { mode: "boolean" })
+      .notNull()
+      .default(false),
     // When the cron sends it; null for a draft still being written.
     scheduledAt: text("scheduled_at"),
     // Why a scheduled send failed: the message went back to Drafts with this on it, until it is sent or rescheduled.
@@ -931,6 +939,52 @@ export const imageSenders = sqliteTable(
   (t) => [primaryKey({ columns: [t.userId, t.sender] })]
 );
 
+/**
+ * A person's own OpenPGP key (Settings → Mail → OpenPGP): made here or imported, it signs what they send, opens what
+ * is encrypted to them, and is published for others through WKD (`app/lib/mail/pgp/wkd.server.ts`). The private key
+ * is kept unlocked inside `sealSecret` (purpose `pgp-private-key`), so the Worker can use it without a passphrase:
+ * rotating SESSION_SECRET loses it, which is why Settings offers an export.
+ */
+export const pgpKeys = sqliteTable("pgp_keys", {
+  userId: text("user_id")
+    .primaryKey()
+    .references(() => users.id, { onDelete: "cascade" }),
+  fingerprint: text("fingerprint").notNull(),
+  // Armored, as it is offered for download and published.
+  publicKey: text("public_key").notNull(),
+  privateKeySealed: text("private_key_sealed").notNull(),
+  createdAt: text("created_at").notNull().default(now()),
+});
+
+/**
+ * The public key of someone a person writes to, as that mailbox knows it: imported by the person, taken from the
+ * Autocrypt header of mail that passed DKIM, or found over WKD. One per address; an imported key is never replaced by
+ * one that merely arrived. Colleagues' keys are read from `pgp_keys` instead, never kept here.
+ */
+export const pgpPeerKeys = sqliteTable(
+  "pgp_peer_keys",
+  {
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    // Lower-cased.
+    address: text("address").notNull(),
+    fingerprint: text("fingerprint").notNull(),
+    publicKey: text("public_key").notNull(),
+    source: text("source", {
+      enum: ["imported", "autocrypt", "wkd"],
+    }).notNull(),
+    // The sender's Autocrypt `prefer-encrypt=mutual`: they would rather have mail encrypted.
+    preferEncrypt: integer("prefer_encrypt", { mode: "boolean" })
+      .notNull()
+      .default(false),
+    // When the key was last vouched for: the Date of the message that carried it, or when WKD answered with it.
+    seenAt: text("seen_at").notNull(),
+    createdAt: text("created_at").notNull().default(now()),
+  },
+  (t) => [primaryKey({ columns: [t.userId, t.address] })]
+);
+
 export type User = typeof users.$inferSelect;
 
 export type Signature = typeof signatures.$inferSelect;
@@ -978,6 +1032,10 @@ export type SigningEvent = typeof signingEvents.$inferSelect;
 export type SenderRule = typeof senderRules.$inferSelect;
 
 export type ImageSender = typeof imageSenders.$inferSelect;
+
+export type PgpKey = typeof pgpKeys.$inferSelect;
+
+export type PgpPeerKey = typeof pgpPeerKeys.$inferSelect;
 
 /**
  * A conversation with the Assistant (the module beside Mail and Drive): a person's own, listed in the sidebar newest

@@ -23,6 +23,7 @@ import { describeSender } from "~/lib/mail/spam";
 import { formatBytes } from "~/lib/text";
 
 import { HtmlMessage, TextMessage } from "./message-body";
+import { PgpNotice, PgpPill } from "./pgp-status";
 import { useIsDark } from "./theme";
 import {
   Avatar,
@@ -199,6 +200,7 @@ const MessageHeader = ({
               {from}
             </span>
             {m.direction === "outbound" && <Pill tone="neutral">Sent</Pill>}
+            {m.pgp && <PgpPill pgp={m.pgp} />}
             {m.deliveryStatus === "failed" && (
               <Pill tone="red">Not delivered</Pill>
             )}
@@ -467,6 +469,7 @@ export const MessageCard = ({
             />
             {details && <MessageDetails message={m} />}
           </div>
+          {m.pgp && <PgpNotice message={m} />}
           {m.deliveryError && (
             <Notice tone="error" className="mb-3">
               {m.deliveryError}

@@ -4,6 +4,10 @@
     {
       "name": "0000_init.sql",
       "sha256": "5240f97e73ddf3466a4e26082505e9bbbde5728b3cc769648cf39a0bdc31dd0f"
+    },
+    {
+      "name": "0001_openpgp.sql",
+      "sha256": "74aa2a5f303b0bcd67273ecb2713bc6b0de18f678cea99d389399ece304b6993"
     }
   ]
 }
