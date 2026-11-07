@@ -113,6 +113,7 @@ export interface SanitizeOptions {
    * images. `hold` moves each into `data-held-<name>`, for markup shown where no CSP holds it back (a reply's or
    * forward's quote in the composer, in the console's own document), and drops what it cannot hold: an `svg`, and the
    * style elements. `restore` puts the held ones back, on what the composer sends, through the same checks as the rest.
+   * A `data-held-` attribute in the markup it reads goes in every mode but `restore`'s four, so only `hold` writes one.
    */
   images?: "keep" | "hold" | "restore";
 }
@@ -439,7 +440,9 @@ const sanitizeAttributes = (
     let value = m[2] ?? m[3] ?? m[4] ?? "";
     let held = false;
 
-    if (dropsAttribute(tag, name)) {
+    // Only `hold` writes these, and `restore` has read its own back by their names: one from anywhere else (a sender's
+    // markup) would come to life on send, in a reply or forward the owner never saw it in.
+    if (name.startsWith(HELD) || dropsAttribute(tag, name)) {
       continue;
     }
 

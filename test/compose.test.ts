@@ -365,7 +365,8 @@ describe("drafts and their files", () => {
       mail({
         subject: "Letters",
         from: { email: "news@letters.example", name: "Letters" },
-        html: '<p>Hi</p><img src="https://tracker.example/p.gif" alt=""><p style="background:url(https://tracker.example/b.gif)">x</p>',
+        // The last line is hidden, with a held style of the sender's own that the send must not bring to life.
+        html: '<p>Hi</p><img src="https://tracker.example/p.gif" alt=""><p style="background:url(https://tracker.example/b.gif)">x</p><p style="display:none" data-held-style="color:#000">Pay to NL00</p>',
         text: "Hi",
         to: [{ email: user.email, name: null }],
       }),
@@ -418,6 +419,9 @@ describe("drafts and their files", () => {
       forward: await loadsIn(forward),
       sent: await loadsIn(sent[0].html ?? ""),
       heldInSent: sent[0].html?.includes("data-held-"),
+      hiddenInSent: sent[0].html?.includes(
+        '<p style="display:none">Pay to NL00</p>'
+      ),
       allowed: await loadsIn(allowed),
       inSpam: await loadsIn(inSpam),
     }).toStrictEqual({
@@ -425,6 +429,7 @@ describe("drafts and their files", () => {
       forward: [],
       sent: loading,
       heldInSent: false,
+      hiddenInSent: true,
       allowed: loading,
       inSpam: [],
     });
