@@ -20,7 +20,7 @@ import { formatAddress } from "./addresses";
 import type { AddressList } from "./addresses";
 import { fileMessage } from "./filing.server";
 import { PgpError } from "./pgp/keys.server";
-import { buildPgpMail, pgpKeysFor } from "./pgp/outbound.server";
+import { buildPgpMail, pgpKeysFor, recipientsOf } from "./pgp/outbound.server";
 import type { PgpChoice } from "./pgp/outbound.server";
 import type { PgpStatus } from "./pgp/pgp";
 import { MAX_HTML, sanitizeHtml, withoutStyles } from "./sanitize";
@@ -795,13 +795,7 @@ export const checkComposed = async (
 
   if (choice) {
     await pgpOrRefuse(() =>
-      pgpKeysFor(
-        env,
-        db,
-        user,
-        choice,
-        [...mail.to, ...mail.cc, ...mail.bcc].map((a) => a.email)
-      )
+      pgpKeysFor(env, db, user, choice, recipientsOf(mail))
     );
   }
 };

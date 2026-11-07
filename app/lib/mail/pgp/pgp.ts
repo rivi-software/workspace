@@ -47,6 +47,11 @@ export interface PgpSignature {
 export interface PgpStatus {
   /** PGP/MIME (RFC 3156) or a block of armored text in the body ("inline"). */
   format: "mime" | "inline";
+  /**
+   * Inline only: the blocks are not the whole message. Text around them or a file beside them was neither signed nor
+   * encrypted, so the signature and the encryption speak for the blocks alone.
+   */
+  partial: boolean;
   encrypted: boolean;
   /** Encrypted and opened with the owner's key: the text and files kept are the opened ones. */
   decrypted: boolean;
@@ -99,6 +104,7 @@ export const parsePgpStatus = (
 
   return {
     format,
+    partial: v.partial === true,
     encrypted: v.encrypted === true,
     decrypted: v.decrypted === true,
     error: stringOrNull(v.error),

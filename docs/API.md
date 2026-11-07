@@ -88,6 +88,7 @@ interface MessageView {
 }
 interface PgpStatus {
   format: "mime" | "inline";
+  partial: boolean;          // inline only: text or files beside the blocks were neither signed nor encrypted
   encrypted: boolean;
   decrypted: boolean;        // encrypted and opened with the person's key: `text` and the files are the opened ones
   error: string | null;      // why an encrypted message stayed shut

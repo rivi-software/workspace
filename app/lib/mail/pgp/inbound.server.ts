@@ -219,6 +219,7 @@ const rebuild = (top: Entity, part: string): Uint8Array<ArrayBuffer> => {
 const status = (
   pgp: Partial<PgpStatus> & Pick<PgpStatus, "format">
 ): PgpStatus => ({
+  partial: false,
   encrypted: false,
   decrypted: false,
   error: null,
@@ -378,10 +379,12 @@ const replaceBlocks = async (
   begin: string,
   end: string,
   open: (block: string) => Promise<string | null>
-): Promise<{ text: string; found: boolean }> => {
+): Promise<{ text: string; found: boolean; outside: string }> => {
   let out = "";
   let at = 0;
   let found = false;
+  // The text no opened block covers: what is around the blocks, and a block that did not open.
+  let outside = "";
 
   for (;;) {
     const start = blockStart(text, begin, at);
@@ -395,12 +398,39 @@ const replaceBlocks = async (
     // oxlint-disable-next-line eslint/no-await-in-loop -- a body has one block, or a few at most, opened in order
     const opened = await open(text.slice(start, after));
     out += text.slice(at, start) + (opened ?? text.slice(start, after));
+    outside +=
+      text.slice(at, start) + (opened === null ? text.slice(start, after) : "");
     found ||= opened !== null;
     at = after;
   }
 
-  return { text: out + text.slice(at), found };
+  return {
+    text: out + text.slice(at),
+    found,
+    outside: outside + text.slice(at),
+  };
 };
+
+/** How bad a verdict is: of several blocks, the worst speaks for the message, never the last. */
+const SEVERITY: Record<PgpSignature["state"], number> = {
+  good: 0,
+  "unknown-key": 1,
+  "other-address": 2,
+  bad: 3,
+};
+
+const worse = (
+  a: PgpSignature | null,
+  b: PgpSignature | null
+): PgpSignature | null => {
+  if (!a || !b) {
+    return a ?? b;
+  }
+
+  return SEVERITY[b.state] > SEVERITY[a.state] ? b : a;
+};
+
+const blank = (text: string): boolean => text.trim() === "";
 
 /** What opening the inline blocks found so far, kept in one place since each block's opening adds to it. */
 interface InlineState {
@@ -445,9 +475,10 @@ const openInline = async (ctx: Context, input: OpenInput): Promise<Opened> => {
         config: PGP_CONFIG,
       });
 
-      state.signature =
-        (await judge(result.signatures, candidate, ctx.from)) ??
-        state.signature;
+      state.signature = worse(
+        state.signature,
+        await judge(result.signatures, candidate, ctx.from)
+      );
 
       return result.data;
     } catch (error) {
@@ -501,15 +532,18 @@ const openInline = async (ctx: Context, input: OpenInput): Promise<Opened> => {
             config: PGP_CONFIG,
           });
 
-          state.signature = await judge(result.signatures, candidate, ctx.from);
+          state.signature = worse(
+            state.signature,
+            await judge(result.signatures, candidate, ctx.from)
+          );
         } else {
-          state.signature = {
+          state.signature = worse(state.signature, {
             state: "unknown-key",
             keyId: ids[0]?.toHex() ?? "",
             fingerprint: null,
             source: null,
             reason: null,
-          };
+          });
         }
 
         return message.getText();
@@ -521,10 +555,13 @@ const openInline = async (ctx: Context, input: OpenInput): Promise<Opened> => {
 
   const attachments: ParsedAttachment[] = [];
   let openedFiles = false;
+  // A file that came as it was: neither signed nor encrypted, whatever the body is.
+  let plainFiles = false;
 
   for (const a of input.attachments) {
     if (!ENCRYPTED_FILE.test(a.filename)) {
       attachments.push(a);
+      plainFiles = true;
       continue;
     }
 
@@ -563,6 +600,7 @@ const openInline = async (ctx: Context, input: OpenInput): Promise<Opened> => {
     }
 
     attachments.push(a);
+    plainFiles = true;
   }
 
   if (!opened.found && !signed.found && !openedFiles) {
@@ -571,12 +609,26 @@ const openInline = async (ctx: Context, input: OpenInput): Promise<Opened> => {
       : { kind: "none" };
   }
 
+  // Inline blocks protect only themselves: text around them, or a file beside them, could be anyone's (the partial
+  // signing of "Johnny, you are fired", USENIX 2019). The status says so rather than speak for the whole body.
+  const unencrypted = opened.found ? opened.outside : input.text;
+
+  const unsigned = signed.found ? signed.outside : unencrypted;
+
+  const decrypted = state.encrypted && !state.failure;
+
+  const partial =
+    plainFiles ||
+    (decrypted && !blank(unencrypted)) ||
+    (state.signature !== null && !blank(unsigned));
+
   return {
     kind: "inline",
     pgp: status({
       format: "inline",
+      partial,
       encrypted: state.encrypted,
-      decrypted: state.encrypted && !state.failure,
+      decrypted,
       error: state.failure,
       signature: state.signature,
     }),

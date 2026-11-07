@@ -4,6 +4,8 @@
  * (`multipart/signed`, the owner's public key attached so a reply can be encrypted) or encrypted to every recipient
  * and the owner (`multipart/encrypted`, the subject outside it "..."). The send itself is `send.server.ts`'s.
  */
+import type { PrivateKey, PublicKey } from "openpgp";
+
 import type { Database } from "~/db";
 import type { Address, User } from "~/db/schema";
 
@@ -63,22 +65,33 @@ export interface BuiltPgpMail {
   pgp: PgpStatus;
 }
 
-const envelopeOf = (mail: Pick<PgpMail, "to" | "cc" | "bcc">): string[] => [
-  ...new Set(
-    [...mail.to, ...mail.cc, ...mail.bcc].map((a) => a.email.toLowerCase())
-  ),
+/** Each address once, lower-cased. */
+const addressesOf = (list: Address[]): string[] => [
+  ...new Set(list.map((a) => a.email.toLowerCase())),
 ];
 
 /**
+ * Who sees whom: the To and Cc recipients, whom the message names, and the Bcc recipients, whom it must not betray.
+ * An address on both is shown.
+ */
+export const recipientsOf = (mail: Pick<PgpMail, "to" | "cc" | "bcc">) => {
+  const shown = addressesOf([...mail.to, ...mail.cc]);
+  const hidden = addressesOf(mail.bcc).filter((a) => !shown.includes(a));
+
+  return { shown, hidden };
+};
+
+/**
  * The keys a choice needs, or a PgpError that says which is missing: the owner's own, and for encryption one for
- * every recipient (kept, a colleague's, or found over WKD). Send later runs it as it schedules a message.
+ * every recipient (kept, a colleague's, or found over WKD), the Bcc recipients' apart. Send later runs it as it
+ * schedules a message.
  */
 export const pgpKeysFor = async (
   env: Env,
   db: Database,
   user: Pick<User, "id">,
   choice: PgpChoice,
-  recipients: string[],
+  recipients: { shown: string[]; hidden: string[] },
   options: { fetch?: typeof fetch } = {}
 ) => {
   const own = await ownPrivateKey(env, db, user.id);
@@ -90,18 +103,67 @@ export const pgpKeysFor = async (
   }
 
   if (!choice.encrypt) {
-    return { own, recipientKeys: [] };
+    return { own, shownKeys: [], hiddenKeys: [] };
   }
 
-  const found = await recipientKeys(env, db, user, recipients, options);
+  const shown = await recipientKeys(env, db, user, recipients.shown, options);
+  const hidden = await recipientKeys(env, db, user, recipients.hidden, options);
+  const missing = [...shown.missing, ...hidden.missing];
 
-  if (found.missing.length) {
+  if (missing.length) {
     throw new PgpError(
-      `There is no OpenPGP key for ${found.missing.join(", ")}. Send it without encryption, or import their key under Settings → Mail.`
+      `There is no OpenPGP key for ${missing.join(", ")}. Send it without encryption, or import their key under Settings → Mail.`
     );
   }
 
-  return { own, recipientKeys: found.keys };
+  return { own, shownKeys: shown.keys, hiddenKeys: hidden.keys };
+};
+
+/**
+ * The inner entity encrypted once, under one session key, for the To and Cc recipients and the owner by their key
+ * IDs, and for each Bcc recipient under a wildcard key ID (GnuPG's `--hidden-recipient`): every recipient gets the
+ * same message, and none can read from it whose keys the others are.
+ */
+const encryptFor = async (
+  inner: string,
+  keys: { shown: PublicKey[]; hidden: PublicKey[] },
+  signingKey: PrivateKey | undefined
+): Promise<string> => {
+  const openpgp = await loadOpenPgp();
+
+  const sessionKey = await openpgp.generateSessionKey({
+    encryptionKeys: [...keys.shown, ...keys.hidden],
+    config: PGP_CONFIG,
+  });
+
+  const message = await openpgp.encrypt({
+    message: await openpgp.createMessage({ binary: stringBytes(inner) }),
+    encryptionKeys: keys.shown,
+    signingKeys: signingKey,
+    sessionKey,
+    format: "object",
+    config: PGP_CONFIG,
+  });
+
+  if (keys.hidden.length) {
+    const hidden = await openpgp.encryptSessionKey({
+      ...sessionKey,
+      encryptionKeys: keys.hidden,
+      wildcard: true,
+      format: "object",
+      config: PGP_CONFIG,
+    });
+
+    // The session key packets come before the encrypted data; the hidden ones go after the shown ones.
+    const dataAt = message.packets.findIndex(
+      (packet) =>
+        packet.constructor !== openpgp.PublicKeyEncryptedSessionKeyPacket
+    );
+
+    message.packets.splice(dataAt, 0, ...hidden.packets);
+  }
+
+  return message.armor();
 };
 
 /** The body: the text, and the HTML beside it with the images it shows. */
@@ -143,9 +205,9 @@ export const buildPgpMail = async (
   mail: PgpMail,
   options: { fetch?: typeof fetch } = {}
 ): Promise<BuiltPgpMail> => {
-  const recipients = envelopeOf(mail);
+  const recipients = recipientsOf(mail);
 
-  const { own, recipientKeys: keys } = await pgpKeysFor(
+  const { own, shownKeys, hiddenKeys } = await pgpKeysFor(
     env,
     db,
     user,
@@ -195,14 +257,12 @@ export const buildPgpMail = async (
   let outer: Part;
 
   if (mail.encrypt) {
-    const encrypted = await openpgp.encrypt({
-      message: await openpgp.createMessage({ binary: stringBytes(inner) }),
+    const encrypted = await encryptFor(
+      inner,
       // The owner's own key too, so what they sent stays readable to them in another client.
-      encryptionKeys: [...keys, publicKey],
-      signingKeys: mail.sign ? own : undefined,
-      format: "armored",
-      config: PGP_CONFIG,
-    });
+      { shown: [...shownKeys, publicKey], hidden: hiddenKeys },
+      mail.sign ? own : undefined
+    );
 
     outer = multipart(
       "encrypted",
@@ -294,12 +354,13 @@ export const buildPgpMail = async (
 
   return {
     raw,
-    recipients,
+    recipients: [...recipients.shown, ...recipients.hidden],
     sesOnlyHeaders: {
       Autocrypt: autocryptHeader(mail.from.email, publicKey.write()),
     },
     pgp: {
       format: "mime",
+      partial: false,
       encrypted: mail.encrypt,
       decrypted: mail.encrypt,
       error: null,

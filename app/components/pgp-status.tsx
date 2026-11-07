@@ -42,9 +42,20 @@ export const PgpPill = ({ pgp }: { pgp: PgpStatus }) => {
     );
   }
 
+  // Blocks with text or files around them that no signature or encryption covers.
+  if (pgp.partial) {
+    return (
+      <Pill tone="amber">
+        <ShieldQuestionMark className="h-3 w-3" />
+        {pgp.encrypted ? "Partly encrypted" : "Partly signed"}
+      </Pill>
+    );
+  }
+
+  // Encrypted without the sender's good signature: anyone with the owner's public key could have written it.
   if (pgp.encrypted) {
     return (
-      <Pill tone={state === "good" ? "accent" : "neutral"}>
+      <Pill tone={state === "good" ? "accent" : "amber"}>
         <Lock className="h-3 w-3" />
         Encrypted
       </Pill>
@@ -111,15 +122,28 @@ const encryptionWords = (m: MessageData, pgp: PgpStatus): string | null => {
     );
   }
 
-  return m.direction === "outbound"
-    ? "Sent encrypted."
-    : "Encrypted to you, and opened with your key.";
+  if (m.direction === "outbound") {
+    return "Sent encrypted.";
+  }
+
+  // Encryption says nothing of who wrote it: with the owner's public key anyone can, or can send a captured
+  // ciphertext on under their own name, hoping for a reply that quotes it.
+  return pgp.signature?.state === "good"
+    ? "Encrypted to you, and opened with your key."
+    : "Encrypted to you, and opened with your key, but not signed by the sender: anyone could have sent it. Take care quoting it in a reply.";
 };
+
+const PARTIAL_WORDS =
+  "Only part of this message was signed or encrypted: the text around it, and any file, could have been added by anyone.";
 
 /** The notice's icon: a broken signature first, then encryption, then a signature. */
 const NoticeIcon = ({ pgp }: { pgp: PgpStatus }) => {
   if (pgp.signature?.state === "bad") {
     return <ShieldX className="text-red h-3.5 w-3.5" />;
+  }
+
+  if (pgp.partial) {
+    return <ShieldQuestionMark className="text-amber h-3.5 w-3.5" />;
   }
 
   return pgp.encrypted ? (
@@ -145,7 +169,11 @@ export const PgpNotice = ({ message: m }: { message: MessageData }) => {
     return null;
   }
 
-  const words = [encryptionWords(m, pgp), signatureWords(m, pgp)]
+  const words = [
+    pgp.partial ? PARTIAL_WORDS : null,
+    encryptionWords(m, pgp),
+    signatureWords(m, pgp),
+  ]
     .filter(Boolean)
     .join(" ");
 

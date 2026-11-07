@@ -193,6 +193,13 @@ const textMail = (o: {
   extra?: string[];
 }) => [...envelope(o), "Content-Type: text/plain", "", o.body].join(CRLF);
 
+/** A cleartext-signed block, as a mail client writes one inline. */
+const cleartext = async (text: string, key: PrivateKey) =>
+  await openpgp.sign({
+    message: await openpgp.createCleartextMessage({ text }),
+    signingKeys: key,
+  });
+
 /** Deliver a raw message to a mailbox as Email Routing would, and read back what was filed. */
 const deliver = async (
   raw: string,
@@ -476,10 +483,7 @@ describe("mail that arrives with OpenPGP", () => {
   });
 
   it("opens inline blocks: a cleartext signature and an encrypted body", async () => {
-    const cleartext = await openpgp.sign({
-      message: await openpgp.createCleartextMessage({ text: "Signed inline." }),
-      signingKeys: jane.privateKey,
-    });
+    const signedBlock = await cleartext("Signed inline.", jane.privateKey);
 
     const armored = await openpgp.encrypt({
       message: await openpgp.createMessage({ text: "Encrypted inline." }),
@@ -493,7 +497,7 @@ describe("mail that arrives with OpenPGP", () => {
         from,
         to: cleo.email,
         subject: "Inline signed",
-        body: cleartext,
+        body: signedBlock,
       }),
       cleo
     );
@@ -525,6 +529,44 @@ describe("mail that arrives with OpenPGP", () => {
           signature: null,
         },
       },
+    });
+  });
+
+  it("says an inline signature covers only its block, and lets the worst of two blocks speak", async () => {
+    const from = "jane@acme.com";
+    const genuine = await cleartext("Lunch at noon.", jane.privateKey);
+    const second = await cleartext("Second block.", jane.privateKey);
+
+    // Someone wraps a block Jane really signed in words of their own.
+    const wrapped = await deliver(
+      textMail({
+        from,
+        to: cleo.email,
+        subject: "Wrapped",
+        body: `Change of bank details: pay to NL00 EVIL 0000.\n\n${genuine}`,
+      }),
+      cleo
+    );
+
+    const tampered = genuine.replace("Lunch at noon.", "Lunch at one.");
+
+    const twoBlocks = await deliver(
+      textMail({
+        from,
+        to: cleo.email,
+        subject: "Two blocks",
+        body: `${tampered}\n${second}`,
+      }),
+      cleo
+    );
+
+    expect({ wrapped: wrapped.pgp, twoBlocks: twoBlocks.pgp }).toMatchObject({
+      wrapped: {
+        format: "inline",
+        partial: true,
+        signature: { state: "good" },
+      },
+      twoBlocks: { partial: false, signature: { state: "bad" } },
     });
   });
 
@@ -797,6 +839,56 @@ describe("sending signed and encrypted mail", () => {
     }).toMatchObject({
       subject: "Secret plans",
       pgp: { encrypted: true, signature: { state: "good" } },
+    });
+  });
+
+  it("hides a Bcc recipient's key in encrypted mail, and the Bcc recipient still opens it", async () => {
+    const { calls, spy } = spySes();
+
+    try {
+      await sendMail(sesEnv(recordingEmail().env), db, eve, {
+        from: eve.email,
+        to: [{ email: "max@acme.com", name: "Max" }],
+        cc: [],
+        bcc: [{ email: fay.email, name: null }],
+        subject: "Quietly copied",
+        text: "Fay is on Bcc.",
+        files: [],
+        pgp: { sign: true, encrypt: true },
+      });
+    } finally {
+      spy.mockRestore();
+    }
+
+    const { raw, recipients } = defined(calls[0]);
+
+    const armored = raw.slice(
+      raw.indexOf("-----BEGIN PGP MESSAGE-----"),
+      raw.indexOf("-----END PGP MESSAGE-----") + 25
+    );
+
+    const message = await openpgp.readMessage({ armoredMessage: armored });
+    const named = message.getEncryptionKeyIDs().map((id) => id.toHex());
+    const fayPublic = await ownPublicKey(fay);
+    const fayKey = await fayPublic.getEncryptionKey();
+    const maxKey = await max.publicKey.getEncryptionKey();
+    const copy = await deliver(raw, fay);
+
+    expect({
+      recipients: recipients.toSorted(),
+      namesMax: named.includes(maxKey.getKeyID().toHex()),
+      namesFay: named.includes(fayKey.getKeyID().toHex()),
+      hidden: named.filter((id) => /^0+$/u.test(id)).length,
+      fayOpens: { text: copy.message.text, pgp: copy.pgp },
+    }).toMatchObject({
+      recipients: [fay.email, "max@acme.com"].toSorted(),
+      namesMax: true,
+      namesFay: false,
+      hidden: 1,
+      fayOpens: {
+        text: "Fay is on Bcc.",
+        pgp: { encrypted: true, decrypted: true, signature: { state: "good" } },
+      },
     });
   });
 
