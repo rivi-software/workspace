@@ -98,13 +98,15 @@ export const sendableAddresses = async (
 
 /**
  * What the rich composer wrote, made safe to send: the same sanitiser as for mail that arrives (no script, no form,
- * no handler, no unsafe URL), the quote never folded, and the style blocks a quoted original brought along dropped.
+ * no handler, no unsafe URL), the quote never folded, the style blocks a quoted original brought along dropped, and
+ * the images its quote held in the composer (`quotableHtml`) put back, so the recipient sees the original whole.
  */
 export const sanitizeOutgoingHtml = (html: string): string =>
   withoutStyles(
     sanitizeHtml(html, {
       cidUrl: () => null,
       forward: true,
+      images: "restore",
     }).html
   );
 

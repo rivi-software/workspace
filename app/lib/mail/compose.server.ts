@@ -1,11 +1,12 @@
 import { and, eq } from "drizzle-orm";
 
 import type { Database } from "~/db";
-import { drafts, messages } from "~/db/schema";
-import type { Address, User } from "~/db/schema";
+import { drafts, messages, threads } from "~/db/schema";
+import type { Address, Message, User } from "~/db/schema";
 
 import { quoteHtmlForForward, quoteHtmlForReply } from "../text";
 import { formatAddressList, parseJsonAddresses } from "./addresses";
+import { listImageSenders, loadsImages } from "./images.server";
 import { parsePreferences } from "./preferences";
 import { sanitizeHtml } from "./sanitize";
 import { listDraftFiles, sendableAddresses } from "./send.server";
@@ -64,13 +65,42 @@ export class ComposeNotFoundError extends Error {
 
 export { ComposeNotFoundError as ComposeNotFound };
 
-/** The original's markup for a quote: sanitised, never folded, its style blocks dropped. */
-const quotableHtml = (html: string | null): string | null => {
-  if (!html) {
+/**
+ * The original's markup for a quote: sanitised, never folded, its style blocks dropped. The composer shows it in the
+ * console's own document, where no CSP holds an image back, so its images from the web wait in `data-held-`
+ * attributes unless opening the original loads them (`loadsImages`): a tracking pixel would otherwise tell the sender
+ * it was answered, and from where. Sending puts them back (`sanitizeOutgoingHtml`).
+ */
+const quotableHtml = async (
+  db: Database,
+  user: User,
+  m: Pick<Message, "html" | "direction" | "fromEmail" | "threadId">
+): Promise<string | null> => {
+  if (!m.html) {
     return null;
   }
 
-  return sanitizeHtml(html, { cidUrl: () => null, forward: true }).html;
+  const [senders, thread] = await Promise.all([
+    listImageSenders(db, user.id),
+    db.query.threads.findFirst({
+      where: and(eq(threads.id, m.threadId), eq(threads.userId, user.id)),
+      columns: { folder: true },
+    }),
+  ]);
+
+  const loads =
+    !!thread &&
+    loadsImages(
+      senders,
+      { direction: m.direction, from: m.fromEmail },
+      thread.folder
+    );
+
+  return sanitizeHtml(m.html, {
+    cidUrl: () => null,
+    forward: true,
+    images: loads ? "keep" : "hold",
+  }).html;
 };
 
 export const composeData = async (
@@ -166,7 +196,7 @@ export const composeData = async (
       cc: parseJsonAddresses(m.ccJson),
       subject: m.subject,
       text: m.text,
-      html: quotableHtml(m.html),
+      html: await quotableHtml(db, user, m),
     };
 
     // Answer from the address the message came to, when it is one of the owner's.

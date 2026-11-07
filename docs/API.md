@@ -94,6 +94,9 @@ interface ComposeData {
              files: [{ id: string; filename: string; contentType: string; size: number }] };
   undoSendSeconds: number;
 }
+// A reply's or forward's `prefill.html` keeps the original's images from the web in `data-held-src`, `data-held-background`,
+// `data-held-poster` and `data-held-style` (and leaves out an `svg`) unless opening the original loads them, so a view of it
+// loads nothing; the console's composer sends them back out as they were.
 ```
 
 ### Drive
