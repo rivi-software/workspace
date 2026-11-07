@@ -7,7 +7,7 @@ import { and, asc, eq, sql } from "drizzle-orm";
 
 import type { Database } from "~/db";
 import { imageSenders } from "~/db/schema";
-import type { ImageSender, Thread } from "~/db/schema";
+import type { ImageSender, Message, Thread } from "~/db/schema";
 
 import { senderRuleFor, senderRuleOf } from "./spam";
 
@@ -81,9 +81,15 @@ export const removeImageSender = async (
     );
 };
 
-/** Whether a message from `email` in a conversation in `folder` loads its images from the web on opening. */
+/**
+ * Whether a message in a conversation in `folder` loads its images from the web on opening, and so whether its quote
+ * in the composer does: one that arrived, from a sender on the list, outside Spam.
+ */
 export const loadsImages = (
   senders: ImageSender[],
-  email: string,
+  message: { direction: Message["direction"]; from: string },
   folder: Thread["folder"]
-): boolean => folder !== "spam" && senderRuleFor(senders, email) !== null;
+): boolean =>
+  message.direction === "inbound" &&
+  folder !== "spam" &&
+  senderRuleFor(senders, message.from) !== null;

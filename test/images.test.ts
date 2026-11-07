@@ -57,15 +57,30 @@ describe("senders whose images always load", () => {
     ]);
   });
 
-  it("loads them for the address or everyone at the domain, never in Spam", async () => {
+  it("loads them for the address or everyone at the domain, in mail that arrived, never in Spam", async () => {
     await addImageSender(db, user.id, "@shop.example");
     const senders = await listImageSenders(db, user.id);
-    expect(loadsImages(senders, "News@letters.example", "inbox")).toBeTruthy();
-    expect(
-      loadsImages(senders, "deals@eu.shop.example", "archive")
-    ).toBeTruthy();
-    expect(loadsImages(senders, "someone@else.example", "inbox")).toBeFalsy();
-    expect(loadsImages(senders, "news@letters.example", "spam")).toBeFalsy();
+
+    const loads = (from: string, folder: "inbox" | "archive" | "spam") =>
+      loadsImages(senders, { direction: "inbound", from }, folder);
+
+    expect({
+      address: loads("News@letters.example", "inbox"),
+      domain: loads("deals@eu.shop.example", "archive"),
+      other: loads("someone@else.example", "inbox"),
+      spam: loads("news@letters.example", "spam"),
+      sent: loadsImages(
+        senders,
+        { direction: "outbound", from: "news@letters.example" },
+        "inbox"
+      ),
+    }).toStrictEqual({
+      address: true,
+      domain: true,
+      other: false,
+      spam: false,
+      sent: false,
+    });
   });
 
   it("stops at its limit, but still takes a sender already on the list", async () => {

@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 
 import { draftFiles, drafts, messages, users } from "~/db/schema";
 import { composeData } from "~/lib/mail/compose.server";
+import { addImageSender } from "~/lib/mail/images.server";
 import {
   handleInboundEmail,
   ingestInboundEmail,
@@ -21,6 +22,7 @@ import {
   sendMail,
 } from "~/lib/mail/send.server";
 import { saveSignature } from "~/lib/mail/signatures.server";
+import { applyThreadAction } from "~/lib/mail/threads.server";
 import {
   isAutomatedMail,
   maybeAutoReply,
@@ -100,6 +102,29 @@ const handlersIn = async (html: string): Promise<string[]> => {
         for (const pair of el.attributes) {
           if (isAttributePair(pair) && pair[0].startsWith("on")) {
             found.push(`${el.tagName} ${pair[0]}`);
+          }
+        }
+      },
+    })
+    .transform(new Response(html))
+    .text();
+
+  return found;
+};
+
+/** What markup loads from the web as an HTML parser reads it: an image's address, a style that names a `url(`. */
+const loadsIn = async (html: string): Promise<string[]> => {
+  const found: string[] = [];
+  await new HTMLRewriter()
+    .on("*", {
+      element(el) {
+        for (const pair of el.attributes) {
+          if (
+            isAttributePair(pair) &&
+            (["src", "background", "poster"].includes(pair[0]) ||
+              (pair[0] === "style" && pair[1].includes("url(")))
+          ) {
+            found.push(`${el.tagName} ${pair[0]}=${pair[1]}`);
           }
         }
       },
@@ -329,6 +354,85 @@ describe("drafts and their files", () => {
         await expect(handlersIn(prefill.html)).resolves.toStrictEqual([]);
       })
     );
+  });
+
+  it("holds the original's images from the web in the quote unless opening it loads them, and sends them all the same", async () => {
+    const user = await mailbox("pia", "Pia Pixel");
+
+    const inbound = await ingestInboundEmail(
+      env,
+      null,
+      mail({
+        subject: "Letters",
+        from: { email: "news@letters.example", name: "Letters" },
+        // The last line is hidden, with a held style of the sender's own that the send must not bring to life.
+        html: '<p>Hi</p><img src="https://tracker.example/p.gif" alt=""><p style="background:url(https://tracker.example/b.gif)">x</p><p style="display:none" data-held-style="color:#000">Pay to NL00</p>',
+        text: "Hi",
+        to: [{ email: user.email, name: null }],
+      }),
+      user.email
+    );
+
+    if (inbound.status !== "stored") {
+      throw new Error("not stored");
+    }
+
+    const quote = async (mode: "reply" | "forward") => {
+      const { prefill } = await composeData(db, user, {
+        reply: inbound.messageId,
+        mode,
+      });
+
+      return prefill.html;
+    };
+
+    const loading = [
+      "img src=https://tracker.example/p.gif",
+      "p style=background:url(https://tracker.example/b.gif)",
+    ];
+
+    const reply = await quote("reply");
+    const forward = await quote("forward");
+
+    const { sent, env: testEnv } = recordingEmail();
+    await sendMail(testEnv, db, user, {
+      from: user.email,
+      to: [{ email: "ann@acme.com", name: null }],
+      cc: [],
+      bcc: [],
+      subject: "Fwd: Letters",
+      text: "",
+      html: forward,
+      files: [],
+    });
+
+    await addImageSender(db, user.id, "letters.example");
+    const allowed = await quote("reply");
+
+    await applyThreadAction(db, env, user.id, [inbound.threadId], {
+      intent: "spam",
+    });
+    const inSpam = await quote("reply");
+
+    expect({
+      reply: await loadsIn(reply),
+      forward: await loadsIn(forward),
+      sent: await loadsIn(sent[0].html ?? ""),
+      heldInSent: sent[0].html?.includes("data-held-"),
+      hiddenInSent: sent[0].html?.includes(
+        '<p style="display:none">Pay to NL00</p>'
+      ),
+      allowed: await loadsIn(allowed),
+      inSpam: await loadsIn(inSpam),
+    }).toStrictEqual({
+      reply: [],
+      forward: [],
+      sent: loading,
+      heldInSent: false,
+      hiddenInSent: true,
+      allowed: loading,
+      inSpam: [],
+    });
   });
 });
 

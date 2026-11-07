@@ -107,9 +107,29 @@ export interface SanitizeOptions {
    * as inline attachments (`inlineDataImages`). Mail that arrives never gets them.
    */
   dataImages?: boolean;
+  /**
+   * What happens to what the markup would load from the web: an image's `src`, a `background`, a `poster`, a style
+   * that could reach a `url(`. `keep`, the default, leaves it for the frame's CSP to block until the reader loads
+   * images. `hold` moves each into `data-held-<name>`, for markup shown where no CSP holds it back (a reply's or
+   * forward's quote in the composer, in the console's own document), and drops what it cannot hold: an `svg`, and the
+   * style elements. `restore` puts the held ones back, on what the composer sends, through the same checks as the rest.
+   * A `data-held-` attribute in the markup it reads goes in every mode but `restore`'s four, so only `hold` writes one.
+   */
+  images?: "keep" | "hold" | "restore";
 }
 
 const DATA_IMAGE = /^data:image\/(?:png|jpeg|gif|webp);base64,[a-z0-9+/]+=*$/iu;
+
+/** Where `images: "hold"` moves an attribute aside, and the names it moves: all `restore` puts back. */
+const HELD = "data-held-";
+const HOLDABLE = new Set(["src", "background", "poster", "style"]);
+
+/**
+ * A style that could load from the web, or that spells something this check cannot read: a CSS escape (`\75 rl(` is
+ * `url(`), or a character reference the browser decodes once more (`&#40;` read from `&amp;#40;`). `image(` and `src(`
+ * take a plain string.
+ */
+const CSS_MAY_LOAD = /(?:url|src|image|image-set)\(|[\\&]/iu;
 
 export interface Sanitized {
   html: string;
@@ -379,12 +399,31 @@ const urlAttribute = (
     return { value, remoteImage: true };
   }
 
-  // A relative image would resolve against our own origin.
-  if (!scheme && url && (name === "src" || name === "background")) {
+  // A relative image would resolve against our own origin, and `//host/…` against another one.
+  if (
+    !scheme &&
+    url &&
+    (name === "src" || name === "background" || name === "poster")
+  ) {
     return null;
   }
 
   return { value, remoteImage: false };
+};
+
+/** An attribute's name as it is checked: under `images: "restore"`, a held one by the name it was held from. */
+const nameAsRead = (raw: string, options: SanitizeOptions): string => {
+  const name = raw.toLowerCase();
+
+  if (options.images === "restore" && name.startsWith(HELD)) {
+    const original = name.slice(HELD.length);
+
+    if (HOLDABLE.has(original)) {
+      return original;
+    }
+  }
+
+  return name;
 };
 
 const sanitizeAttributes = (
@@ -397,16 +436,20 @@ const sanitizeAttributes = (
   ATTR.lastIndex = 0;
 
   for (let m = ATTR.exec(attrs); m; m = ATTR.exec(attrs)) {
-    const name = m[1].toLowerCase();
+    const name = nameAsRead(m[1], options);
     let value = m[2] ?? m[3] ?? m[4] ?? "";
+    let held = false;
 
-    if (dropsAttribute(tag, name)) {
+    // Only `hold` writes these, and `restore` has read its own back by their names: one from anywhere else (a sender's
+    // markup) would come to life on send, in a reply or forward the owner never saw it in.
+    if (name.startsWith(HELD) || dropsAttribute(tag, name)) {
       continue;
     }
 
     if (name === "style") {
       // Checked as the browser reads it: character references decoded first.
       value = sanitizeCss(decodeEntities(value));
+      held = options.images === "hold" && CSS_MAY_LOAD.test(value);
     } else if (URL_ATTRS.has(name)) {
       const checked = urlAttribute(tag, name, value, options);
 
@@ -415,11 +458,12 @@ const sanitizeAttributes = (
       }
 
       ({ value } = checked);
-      remoteImage ||= checked.remoteImage;
+      held = options.images === "hold" && checked.remoteImage;
+      remoteImage ||= checked.remoteImage && !held;
     }
 
     kept.push([
-      name,
+      held ? `${HELD}${name}` : name,
       value === "" && m[2] === undefined && m[3] === undefined ? null : value,
     ]);
   }
@@ -431,11 +475,15 @@ const sanitizeAttributes = (
   return { attrs: kept, remoteImage };
 };
 
-/** The body's attributes for the div that takes its place: `bgcolor` and `text` as CSS in front of its own style. */
+/**
+ * The body's attributes for the div that takes its place: `bgcolor` and `text` as CSS in front of its own style. A
+ * held style takes them along, so the div goes out with one style and not two.
+ */
 const bodyAttributes = (attrs: Attr[]): Attr[] => {
   const css: string[] = [];
   const rest: Attr[] = [];
   let style = "";
+  let styleName = "style";
 
   for (const [name, value] of attrs) {
     if (name === "bgcolor" || name === "text") {
@@ -444,8 +492,9 @@ const bodyAttributes = (attrs: Attr[]): Attr[] => {
           `${name === "bgcolor" ? "background-color" : "color"}:${value.trim()}`
         );
       }
-    } else if (name === "style") {
+    } else if (name === "style" || name === `${HELD}style`) {
       style = value ?? "";
+      styleName = name;
     } else if (!BODY_DROP.has(name)) {
       rest.push([name, value]);
     }
@@ -453,7 +502,7 @@ const bodyAttributes = (attrs: Attr[]): Attr[] => {
 
   const merged = [...css, style].filter((s) => s.trim()).join(";");
 
-  return merged ? [["style", merged], ...rest] : rest;
+  return merged ? [[styleName, merged], ...rest] : rest;
 };
 
 const readAttr = (attrs: string, wanted: string): string | null => {
@@ -755,7 +804,12 @@ const writeTag = (
   options: SanitizeOptions,
   styles: string[]
 ) => {
-  if (DROP_WITH_CONTENT.has(tag)) {
+  // SVG reaches the web in more ways than an attribute can be held (an image's `href`, a `fill` or a `filter` that
+  // names a `url(`), so held markup goes without it.
+  if (
+    DROP_WITH_CONTENT.has(tag) ||
+    (tag === "svg" && options.images === "hold")
+  ) {
     if (!m.closing && !m.selfClosing) {
       state.skipUntil = tag;
     }
@@ -842,7 +896,12 @@ export const sanitizeHtml = (
       ? foldQuote(state.out, lastQuote)
       : state.out;
 
-  const styleTag = styles.length ? `<style>${styles.join("\n")}</style>` : "";
+  // A style element can load from the web too, and markup that holds its images goes where none is kept.
+  const styleTag =
+    styles.length && options.images !== "hold"
+      ? `<style>${styles.join("\n")}</style>`
+      : "";
+
   const clipped = input.length > MAX_HTML ? CLIPPED : "";
 
   return {

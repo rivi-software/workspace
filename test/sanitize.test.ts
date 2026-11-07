@@ -148,8 +148,47 @@ describe(sanitizeHtml, () => {
 
     expect(remote.remoteImages).toBeTruthy();
     expect(remote.html).toContain('src="https://tracker.example/p.gif"');
-    const relative = sanitizeHtml('<img src="/local.png">', { cidUrl });
-    expect(relative.html).toBe('<img alt="">');
+
+    const relative = sanitizeHtml(
+      '<img src="/local.png"><video poster="//tracker.example/p.gif"></video>',
+      { cidUrl }
+    );
+
+    expect(relative.html).toBe('<img alt=""><video></video>');
+  });
+
+  it("holds what would load from the web for the composer, and puts it back on the way out", () => {
+    const held = sanitizeHtml(
+      '<style>p{background:url(https://t.example/s.gif)}</style><body style="background:url(https://t.example/b.gif)" bgcolor="#fff"><img src="https://t.example/p.gif" alt="Logo" width="1"><table background="https://t.example/t.gif"><tr><td>x</td></tr></table><video poster="https://t.example/v.gif" src="https://t.example/v.mp4"></video><p style="color:red">kept</p><p style="list-style-image:\\75 rl(https://t.example/e.gif)">escaped</p><p style="background:url&amp;#40;https://t.example/r.gif)">referenced</p><p style="background-image:image-set(&quot;https://t.example/i.gif&quot; 1x)">set</p><svg><image href="https://t.example/s.svg"/><rect fill="url(https://t.example/f.svg#g)"/></svg><a href="https://t.example/link">link</a><p style="display:none" data-held-style="color:#000">Pay to NL00</p><img data-held-src="https://t.example/x.gif" alt=""></body>',
+      { cidUrl, forward: true, images: "hold" }
+    );
+
+    // The sender's own held attributes went with the hold, unseen. One the composer posts comes back only as one of the
+    // four it can hold, and through the checks of any other.
+    const restored = sanitizeHtml(
+      `${held.html}<p data-held-onclick="alert(1)" data-held-src="javascript:alert(1)">x</p>`,
+      { cidUrl, forward: true, images: "restore" }
+    );
+
+    // Read for the frame, the sender's own held attributes go as well.
+    const inFrame = sanitizeHtml(
+      '<p style="display:none" data-held-style="color:#000">Pay to NL00</p>',
+      { cidUrl }
+    );
+
+    expect({
+      held,
+      restored: restored.html,
+      inFrame: inFrame.html,
+    }).toStrictEqual({
+      held: {
+        html: '<div data-held-style="background-color:#fff;background:url(https://t.example/b.gif)"><img data-held-src="https://t.example/p.gif" alt="Logo" width="1"><table data-held-background="https://t.example/t.gif"><tr><td>x</td></tr></table><video data-held-poster="https://t.example/v.gif" data-held-src="https://t.example/v.mp4"></video><p style="color:red">kept</p><p data-held-style="list-style-image:\\75 rl(https://t.example/e.gif)">escaped</p><p data-held-style="background:url&#40;https://t.example/r.gif)">referenced</p><p data-held-style="background-image:image-set(&quot;https://t.example/i.gif&quot; 1x)">set</p><a href="https://t.example/link" target="_blank" rel="noopener noreferrer">link</a><p style="display:none">Pay to NL00</p><img alt=""></div>',
+        remoteImages: false,
+      },
+      restored:
+        '<div style="background-color:#fff;background:url(https://t.example/b.gif)"><img src="https://t.example/p.gif" alt="Logo" width="1"><table background="https://t.example/t.gif"><tr><td>x</td></tr></table><video poster="https://t.example/v.gif" src="https://t.example/v.mp4"></video><p style="color:red">kept</p><p style="list-style-image:\\75 rl(https://t.example/e.gif)">escaped</p><p style="background:url(https://t.example/r.gif)">referenced</p><p style="background-image:image-set(&quot;https://t.example/i.gif&quot; 1x)">set</p><a href="https://t.example/link" target="_blank" rel="noopener noreferrer">link</a><p style="display:none">Pay to NL00</p><img alt=""></div><p>x</p>',
+      inFrame: '<p style="display:none">Pay to NL00</p>',
+    });
   });
 
   it("neutralises CSS that runs code or loads, also behind character references", () => {

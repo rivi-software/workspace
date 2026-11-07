@@ -307,9 +307,11 @@ export const openThread = async (
         ...m,
         html: safe?.html ?? null,
         remoteImages: safe?.remoteImages ?? false,
-        loadImages:
-          m.direction === "inbound" &&
-          loadsImages(imageSenders, m.from.email, thread.folder),
+        loadImages: loadsImages(
+          imageSenders,
+          { direction: m.direction, from: m.from.email },
+          thread.folder
+        ),
         files: m.attachments.filter((a) => !a.inline || !a.contentId),
       };
     }),
