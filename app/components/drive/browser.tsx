@@ -1277,8 +1277,17 @@ export const DriveBrowser = ({ data }: { data: DriveListData }) => {
     return id ? [id] : [];
   };
 
-  const pickFiles = () => canWrite && fileInput.current?.click();
-  const pickFolder = () => canWrite && folderInput.current?.click();
+  const pickFiles = () => {
+    if (canWrite) {
+      fileInput.current?.click();
+    }
+  };
+
+  const pickFolder = () => {
+    if (canWrite) {
+      folderInput.current?.click();
+    }
+  };
 
   const up = () => {
     if (!folder) {
@@ -1325,10 +1334,38 @@ export const DriveBrowser = ({ data }: { data: DriveListData }) => {
       keys: "Delete",
       run: () => (inTrash ? deleteForever(targets()) : trash(targets())),
     },
-    { keys: "s", run: () => !inTrash && star(targets()) },
-    { keys: "r", run: () => !inTrash && rename(targets()) },
-    { keys: "m", run: () => !inTrash && move(targets()) },
-    { keys: "n", run: () => canWrite && setDialog({ kind: "folder" }) },
+    {
+      keys: "s",
+      run: () => {
+        if (!inTrash) {
+          star(targets());
+        }
+      },
+    },
+    {
+      keys: "r",
+      run: () => {
+        if (!inTrash) {
+          rename(targets());
+        }
+      },
+    },
+    {
+      keys: "m",
+      run: () => {
+        if (!inTrash) {
+          move(targets());
+        }
+      },
+    },
+    {
+      keys: "n",
+      run: () => {
+        if (canWrite) {
+          setDialog({ kind: "folder" });
+        }
+      },
+    },
     { keys: "u", run: pickFiles },
     { keys: "Backspace", run: up },
   ]);

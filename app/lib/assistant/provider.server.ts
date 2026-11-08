@@ -1,7 +1,8 @@
 import { createAnthropic } from "@ai-sdk/anthropic";
 import { createAI } from "agents/models/ai-sdk";
+import { simulateReadableStream } from "ai";
 import type { LanguageModel } from "ai";
-import { MockLanguageModelV4, simulateReadableStream } from "ai/test";
+import { MockLanguageModelV4 } from "ai/test";
 import { z } from "zod";
 
 import { registerAssistantTelemetry } from "./telemetry.server";

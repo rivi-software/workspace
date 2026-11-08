@@ -527,8 +527,9 @@ export const spamRules = (
 ): RuleHit[] => {
   const hits: RuleHit[] = [];
 
-  const hit: Hit = (rule, points, reason) =>
+  const hit: Hit = (rule, points, reason) => {
     hits.push({ rule, points: round(points), reason });
+  };
 
   const rules: RuleContext = {
     m,

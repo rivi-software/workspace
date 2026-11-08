@@ -13,7 +13,7 @@ import {
   X,
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { FormEvent, ReactNode } from "react";
+import type { SubmitEvent, ReactNode } from "react";
 
 import { useAction } from "~/lib/action";
 import { withCleanup } from "~/lib/cleanup";
@@ -39,6 +39,7 @@ import type {
   ExternalShareView,
   ExternalSharing,
 } from "~/lib/drive/links.server";
+import { errorMessage } from "~/lib/guards";
 
 import { useToast } from "../toast";
 import {
@@ -96,7 +97,7 @@ export const NameDialog = ({
     });
   }, [open, initial]);
 
-  const submit = async (e: FormEvent) => {
+  const submit = async (e: SubmitEvent) => {
     e.preventDefault();
     const name = input.current?.value.trim() ?? "";
 
@@ -120,7 +121,7 @@ export const NameDialog = ({
     <Dialog open={open} onClose={onClose} title={title}>
       <form
         onSubmit={(e) => {
-          submit(e);
+          void submit(e);
         }}
         className="space-y-3"
       >
@@ -185,9 +186,16 @@ export const MoveDialog = ({
       setTargets(null);
       setChosen(undefined);
 
-      const r = await fetchTargets({
-        data: { ids: key.split(",").filter(Boolean) },
-      });
+      // A read that fails is said in the dialog, as a refusal is.
+      let r: MoveTargetsResult;
+
+      try {
+        r = await fetchTargets({
+          data: { ids: key.split(",").filter(Boolean) },
+        });
+      } catch (error) {
+        r = { ok: false, error: errorMessage(error) };
+      }
 
       if (reading.signal.aborted) {
         return;
@@ -213,7 +221,7 @@ export const MoveDialog = ({
       setChosen(currentId ?? (r.root ? null : undefined));
     };
 
-    readTargets();
+    void readTargets();
 
     return () => reading.abort();
   }, [open, key, currentId, fetchTargets]);
@@ -328,7 +336,11 @@ export const MoveDialog = ({
               type="button"
               disabled={blocked}
               onClick={() => setChosen(f.id)}
-              onDoubleClick={() => kids.length && toggle(f.id)}
+              onDoubleClick={() => {
+                if (kids.length > 0) {
+                  toggle(f.id);
+                }
+              }}
               className="flex min-w-0 flex-1 items-center gap-2 text-left disabled:cursor-not-allowed"
               aria-pressed={chosen === f.id}
             >
@@ -386,7 +398,7 @@ export const MoveDialog = ({
             loading={busy}
             disabled={chosen === undefined}
             onClick={() => {
-              move();
+              void move();
             }}
           >
             Move here
@@ -441,7 +453,7 @@ export const CopyLinkButton = ({ url }: { url: string }) => {
       size="sm"
       label="Copy link"
       onClick={() => {
-        copy(url);
+        void copy(url);
       }}
     >
       <Copy className="h-3.5 w-3.5" />
@@ -539,7 +551,7 @@ const ExternalSection = ({
   const live = external.links.filter((l) => l.live);
   const ended = external.links.filter((l) => !l.live);
 
-  const create = async (e: FormEvent) => {
+  const create = async (e: SubmitEvent) => {
     e.preventDefault();
     setBusy(true);
 
@@ -629,7 +641,7 @@ const ExternalSection = ({
                       : "Stop link"
                   }
                   onClick={() => {
-                    revoke(l);
+                    void revoke(l);
                   }}
                 >
                   <X className="h-3.5 w-3.5" />
@@ -642,7 +654,7 @@ const ExternalSection = ({
       {external.canCreate && (
         <form
           onSubmit={(e) => {
-            create(e);
+            void create(e);
           }}
           className="border-line space-y-3 rounded-md border p-3"
         >
@@ -768,7 +780,11 @@ export const ShareDialog = ({
       return;
     }
 
-    setData(await fetchSharing({ data: { id } }));
+    try {
+      setData(await fetchSharing({ data: { id } }));
+    } catch (error) {
+      setData({ ok: false, error: errorMessage(error) });
+    }
   };
 
   useEffect(() => {
@@ -783,14 +799,21 @@ export const ShareDialog = ({
       setSubject("");
       setRole("viewer");
 
-      const r = await fetchSharing({ data: { id } });
+      // A read that fails is said in the dialog, as a refusal is.
+      let r: SharingResult;
+
+      try {
+        r = await fetchSharing({ data: { id } });
+      } catch (error) {
+        r = { ok: false, error: errorMessage(error) };
+      }
 
       if (live) {
         setData(r);
       }
     };
 
-    readSharing();
+    void readSharing();
 
     return () => {
       live = false;
@@ -805,7 +828,7 @@ export const ShareDialog = ({
 
   const everyoneShared = shared.some((s) => s.subject === EVERYONE);
 
-  const add = async (e: FormEvent) => {
+  const add = async (e: SubmitEvent) => {
     e.preventDefault();
 
     if (!subject) {
@@ -855,7 +878,7 @@ export const ShareDialog = ({
           <div className="space-y-4">
             <form
               onSubmit={(e) => {
-                add(e);
+                void add(e);
               }}
               className="flex items-end gap-2"
             >
@@ -945,7 +968,7 @@ export const ShareDialog = ({
                         const next = e.currentTarget.value;
 
                         if (isShareRole(next)) {
-                          change(s.subject, next);
+                          void change(s.subject, next);
                         }
                       }}
                       className={cx(selectClass, "h-6 text-sm")}
@@ -959,7 +982,7 @@ export const ShareDialog = ({
                     <button
                       type="button"
                       onClick={() => {
-                        remove(s.subject);
+                        void remove(s.subject);
                       }}
                       className="text-subtle hover:text-fg rounded-sm p-0.5"
                       aria-label={`Stop sharing with ${s.person?.name ?? "everyone"}`}
@@ -988,7 +1011,7 @@ export const ShareDialog = ({
             node={node}
             external={data.external}
             onChanged={() => {
-              refresh();
+              void refresh();
             }}
           />
         )}

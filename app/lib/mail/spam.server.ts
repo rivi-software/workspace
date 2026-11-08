@@ -18,7 +18,7 @@ import {
   senderRules,
   spamTokens as spamTokenRows,
 } from "~/db/schema";
-import type { Message, SenderRule, Thread, User } from "~/db/schema";
+import type { Address, Message, SenderRule, Thread, User } from "~/db/schema";
 
 import type { FilterOutcome } from "./filters.server";
 import type { ParsedMail } from "./ingest.server";
@@ -275,10 +275,11 @@ const tokensOf = (
   m: Message,
   files: { filename: string; inline: boolean }[]
 ): string[] => {
-  let replyTo = null;
+  let replyTo: Address | null = null;
 
   try {
-    replyTo = m.replyTo ? JSON.parse(m.replyTo) : null;
+    // SAFETY: the column is written by `JSON.stringify` of the message's Reply-To address (`fileMessage`).
+    replyTo = m.replyTo ? (JSON.parse(m.replyTo) as Address) : null;
   } catch {
     // an unreadable Reply-To says nothing
   }

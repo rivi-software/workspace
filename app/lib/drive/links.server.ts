@@ -17,7 +17,7 @@ import type { DriveLink, DriveNode } from "~/db/schema";
  * file route (`/s/$token/file/$nodeId`).
  */
 import { randomToken, sha256Hex } from "~/lib/crypto";
-import { defined } from "~/lib/guards";
+import { defined, formText } from "~/lib/guards";
 
 import { hashPassword } from "../auth.server";
 import { newId } from "../ids";
@@ -686,7 +686,7 @@ export const sharedPagePost = (
       keep: ["n"],
       form: () => Promise.resolve(form),
       own: async (posted, back) => {
-        if (String(posted.get("intent") ?? "") !== "password") {
+        if (formText(posted, "intent") !== "password") {
           return null;
         }
 
@@ -708,7 +708,7 @@ export const sharedPagePost = (
           db,
           request,
           token,
-          { password: String(posted.get("password") ?? "") },
+          { password: formText(posted, "password") },
           at
         );
 

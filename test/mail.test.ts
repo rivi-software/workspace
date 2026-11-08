@@ -16,7 +16,14 @@ import { sendMail } from "~/lib/mail/send.server";
 import { saveSignature } from "~/lib/mail/signatures.server";
 import { applyThreadAction } from "~/lib/mail/threads.server";
 
-import { db, defined, mail, mailbox, recordingEmail } from "./fixtures";
+import {
+  db,
+  defined,
+  mail,
+  mailbox,
+  parseJson,
+  recordingEmail,
+} from "./fixtures";
 
 const domain = env.MAIL_DOMAIN;
 
@@ -298,7 +305,7 @@ describe("Mail for the Assistant", () => {
       subject: "The offsite",
     });
     expect({
-      parse: JSON.parse(row.ccJson),
+      parse: parseJson(row.ccJson),
       html: row.html,
       writeDraft: await writeDraft(db, max, {
         to: ["not an address"],

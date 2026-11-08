@@ -28,7 +28,7 @@ const stripUrls = (
 
   const out: Properties = {};
 
-  for (const [key, value] of Object.entries(properties)) {
+  for (const [key, value] of Object.entries<unknown>(properties)) {
     out[key] =
       // oxlint-disable-next-line anti-slop/no-runtime-typeof -- a property of a captured event can hold any JSON value: only a string that is a web address is stripped
       typeof value === "string" && /^https?:\/\//u.test(value)

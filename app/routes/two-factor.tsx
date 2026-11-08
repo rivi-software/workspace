@@ -6,6 +6,7 @@ import { z } from "zod";
 
 import { AuthShell, authCardClass } from "~/components/auth-shell";
 import { Button, Field, Notice, inputClass } from "~/components/ui";
+import { stringOrNull } from "~/lib/guards";
 import { secondFactorSignIn } from "~/lib/sign-in.server";
 
 const searchSchema = z.object({
@@ -106,10 +107,11 @@ export const Route = createFileRoute("/two-factor")({
         const form = await request.formData();
 
         return secondFactorSignIn(request, env, {
-          code: String(form.get("code") ?? ""),
-          backup: String(form.get("backup") ?? "") === "1",
-          trust: String(form.get("trust") ?? "") === "1",
-          next: String(form.get("next") ?? "/mail"),
+          // A field posted as a file counts as missing.
+          code: stringOrNull(form.get("code")) ?? "",
+          backup: form.get("backup") === "1",
+          trust: form.get("trust") === "1",
+          next: stringOrNull(form.get("next")) ?? "/mail",
         });
       },
     },

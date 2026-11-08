@@ -7,7 +7,8 @@ import { AuthShell, authCardClass } from "~/components/auth-shell";
 import { Notice } from "~/components/ui";
 import { createDb } from "~/db";
 import { useAction } from "~/lib/action";
-import { field, formData, formPost } from "~/lib/forms";
+import { formData, formPost } from "~/lib/forms";
+import { field } from "~/lib/guards";
 import { useLinkToken } from "~/lib/link-token";
 import { confirmRecoveryAddress } from "~/lib/recovery.server";
 

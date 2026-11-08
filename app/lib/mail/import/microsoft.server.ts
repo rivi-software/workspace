@@ -294,7 +294,7 @@ export const graphMailSource = (
     const res = await call(path);
 
     // SAFETY: `T` is the shape the caller expects Graph to answer for this path; Graph's answers are not validated.
-    return res.status === 404 ? null : ((await res.json()) as T);
+    return res.status === 404 ? null : await res.json<T>();
   };
 
   return {
@@ -431,7 +431,10 @@ export const graphMailSource = (
 
       const chunks: Uint8Array[] = [];
       let size = 0;
-      const reader = res.body.getReader();
+
+      // SAFETY: a response's body is its bytes; the Workers types leave the stream's chunks untyped.
+      const reader =
+        res.body.getReader() as ReadableStreamDefaultReader<Uint8Array>;
 
       for (;;) {
         // oxlint-disable-next-line eslint/no-await-in-loop -- the source pages by cursor and answers in order: each request follows the one before

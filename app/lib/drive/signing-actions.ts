@@ -5,8 +5,8 @@
  */
 import { createServerFn } from "@tanstack/react-start";
 
-import { field, formData, formPost } from "~/lib/forms";
-import { stringOrNull } from "~/lib/guards";
+import { formData, formPost } from "~/lib/forms";
+import { field, stringOrNull } from "~/lib/guards";
 import { appContext } from "~/lib/request.server";
 
 import { originOf } from "./signing-events.server";
@@ -32,6 +32,7 @@ export const sendSigningRequest = createServerFn({ method: "POST" })
     customerName: stringOrNull(d?.customerName) ?? "",
     customerEmail: stringOrNull(d?.customerEmail) ?? "",
     signerId: stringOrNull(d?.signerId) ?? "",
+    // oxlint-disable-next-line typescript/no-unnecessary-boolean-literal-compare -- the client posts what it likes, whatever the type says: only a literal true signs for the workspace
     autoSign: d?.autoSign === true,
     message: stringOrNull(d?.message) ?? "",
     fields: d?.fields,

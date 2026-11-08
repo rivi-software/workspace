@@ -1,5 +1,5 @@
-// The Worker the tests run (`SELF`): the production one (`workers/worker.ts`), with a stand-in for TanStack Start,
-// which needs the Vite build.
+// The Worker the tests reach as `exports.default` (`cloudflare:workers`): the production one (`workers/worker.ts`),
+// with a stand-in for TanStack Start, which needs the Vite build.
 import { createWorker } from "../workers/worker";
 
 export default createWorker(

@@ -30,6 +30,7 @@ import { useEffect, useRef, useState } from "react";
 import type { ReactNode, Ref } from "react";
 
 import { withCleanup } from "~/lib/cleanup";
+import { errorMessage } from "~/lib/guards";
 import { folderAction, quickLabel, unscheduleAction } from "~/lib/mail/actions";
 import { FOLDER_LABEL } from "~/lib/mail/folders";
 import type { Folder, LabelRef } from "~/lib/mail/folders";
@@ -108,7 +109,16 @@ const ScheduledRow = ({ draft: d }: { draft: DraftRow }) => {
 
     await withCleanup(
       async () => {
-        const { ok } = await unschedule({ data: { draftId: d.id } });
+        let ok: boolean;
+
+        try {
+          ({ ok } = await unschedule({ data: { draftId: d.id } }));
+        } catch (error) {
+          toast.show({ message: errorMessage(error), tone: "error" });
+
+          return;
+        }
+
         await router.invalidate();
 
         if (!ok) {
@@ -123,7 +133,7 @@ const ScheduledRow = ({ draft: d }: { draft: DraftRow }) => {
         toast.show({
           message: "Send cancelled. The message is a draft again.",
         });
-        navigate({ to: "/mail/compose", search: { draft: d.id } });
+        void navigate({ to: "/mail/compose", search: { draft: d.id } });
       },
       () => setBusy(false)
     );
@@ -156,7 +166,7 @@ const ScheduledRow = ({ draft: d }: { draft: DraftRow }) => {
         variant="ghost"
         loading={busy}
         onClick={() => {
-          cancel();
+          void cancel();
         }}
       >
         Cancel send
@@ -309,7 +319,11 @@ const BulkToolbar = ({
         }
         onCreate={onCreateLabel}
         open={labelOpen || undefined}
-        onOpenChange={(o) => !o && setLabelOpen(false)}
+        onOpenChange={(o) => {
+          if (!o) {
+            setLabelOpen(false);
+          }
+        }}
         renderTrigger={({ open, toggle }) => (
           <LabelTriggerButton open={open} toggle={toggle} />
         )}
@@ -1154,7 +1168,7 @@ export const MailList = ({
       return;
     }
 
-    run(idsToUse, action, { after: () => selection.clear() });
+    void run(idsToUse, action, { after: () => selection.clear() });
   };
 
   useShortcuts([
@@ -1207,12 +1221,34 @@ export const MailList = ({
     { keys: "I", run: () => act({ intent: "read" }) },
     { keys: "U", run: () => act({ intent: "unread" }) },
     { keys: "m", run: () => act({ intent: "mute" }) },
-    { keys: "b", run: () => targets().length && setSnoozeOpen(true) },
-    { keys: "l", run: () => targets().length && setLabelOpen(true) },
+    {
+      keys: "b",
+      run: () => {
+        if (targets().length > 0) {
+          setSnoozeOpen(true);
+        }
+      },
+    },
+    {
+      keys: "l",
+      run: () => {
+        if (targets().length > 0) {
+          setLabelOpen(true);
+        }
+      },
+    },
   ]);
 
   const onCreateLabel = async (name: string): Promise<LabelRef | null> => {
-    const result = await makeLabel({ data: { name } });
+    let result: Awaited<ReturnType<typeof makeLabel>>;
+
+    try {
+      result = await makeLabel({ data: { name } });
+    } catch (error) {
+      toast.show({ message: errorMessage(error), tone: "error" });
+
+      return null;
+    }
 
     if (!result.ok) {
       toast.show({ message: result.error, tone: "error" });
@@ -1238,11 +1274,15 @@ export const MailList = ({
       fd.set("label", label.id);
     }
 
-    const r = await folderFn({ data: fd });
-    await router.invalidate();
-    toast.show({
-      message: r.count ? `${r.count} marked as read.` : "Nothing was unread.",
-    });
+    try {
+      const r = await folderFn({ data: fd });
+      await router.invalidate();
+      toast.show({
+        message: r.count ? `${r.count} marked as read.` : "Nothing was unread.",
+      });
+    } catch (error) {
+      toast.show({ message: errorMessage(error), tone: "error" });
+    }
   };
 
   const empty = async () => {
@@ -1265,11 +1305,15 @@ export const MailList = ({
     const show = leaving.hide(ids);
 
     await withCleanup(async () => {
-      const r = await folderFn({ data: fd });
-      await router.invalidate({ sync: true });
-      toast.show({
-        message: `${r.count} ${r.count === 1 ? "conversation" : "conversations"} deleted forever.`,
-      });
+      try {
+        const r = await folderFn({ data: fd });
+        await router.invalidate({ sync: true });
+        toast.show({
+          message: `${r.count} ${r.count === 1 ? "conversation" : "conversations"} deleted forever.`,
+        });
+      } catch (error) {
+        toast.show({ message: errorMessage(error), tone: "error" });
+      }
     }, show);
   };
 
@@ -1310,10 +1354,10 @@ export const MailList = ({
         onAction={(a) => act(a, chosen)}
         onCreateLabel={onCreateLabel}
         onReadAll={() => {
-          readAll();
+          void readAll();
         }}
         onEmpty={() => {
-          empty();
+          void empty();
         }}
       />
       {inJunk && threads.length > 0 && (
@@ -1332,7 +1376,7 @@ export const MailList = ({
         onPick={(id, on, range) => pick(id, on, range)}
         onAction={(id, a) => act(a, [id])}
         onOpen={(id) => {
-          navigate({
+          void navigate({
             to: "/mail/t/$threadId",
             params: { threadId: id },
             search: listParams(data),

@@ -19,6 +19,7 @@ import { useState } from "react";
 import { PdfPages } from "~/components/drive/pdf-pages";
 import { SignatureDialog } from "~/components/drive/signature-pad";
 import { FillLayer } from "~/components/drive/signing-fields";
+import { useToast } from "~/components/toast";
 import {
   Button,
   IconButton,
@@ -204,6 +205,17 @@ const RequestHistory = ({
 
 const RequestDetails = ({ r }: { r: SigningRequestView }) => {
   const [copied, setCopied] = useState(false);
+  const toast = useToast();
+
+  // "Copied" only once the browser took it; it can refuse (no permission, a page not in focus).
+  const copyLink = async () => {
+    try {
+      await navigator.clipboard.writeText(defined(r.url, "the url"));
+      setCopied(true);
+    } catch {
+      toast.show({ message: "The link could not be copied.", tone: "error" });
+    }
+  };
 
   return (
     <aside
@@ -237,8 +249,7 @@ const RequestDetails = ({ r }: { r: SigningRequestView }) => {
               type="button"
               className="text-accent inline-flex items-center gap-1 hover:underline"
               onClick={() => {
-                navigator.clipboard.writeText(defined(r.url, "the url"));
-                setCopied(true);
+                void copyLink();
               }}
             >
               <Copy className="h-3 w-3" />
@@ -325,7 +336,7 @@ const RequestView = ({ r }: { r: SigningRequestView }) => {
           <IconButton
             label="Back to signatures"
             onClick={() => {
-              navigate({ to: "/drive/sign" });
+              void navigate({ to: "/drive/sign" });
             }}
           >
             <ArrowLeft className="h-4 w-4" />
@@ -336,7 +347,7 @@ const RequestView = ({ r }: { r: SigningRequestView }) => {
           r={r}
           busy={busy}
           onIntent={(intent) => {
-            act.submit({ intent });
+            void act.submit({ intent });
           }}
         />
       </ViewHeader>
@@ -352,7 +363,9 @@ const RequestView = ({ r }: { r: SigningRequestView }) => {
               <OurTurn
                 r={r}
                 busy={busy}
-                onSignSaved={() => sign(null)}
+                onSignSaved={() => {
+                  void sign(null);
+                }}
                 onDraw={() => setPad(true)}
               />
             )}

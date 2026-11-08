@@ -5,6 +5,9 @@ allowBuilds:
   sharp: true
   "@tailwindcss/oxide": true
   "@typescript/native-preview": true
+  # lefthook's postinstall runs `lefthook install`, which writes the pre-commit hook of lefthook.yml into .git/hooks
+  # (it skips that where CI is set).
+  lefthook: true
   # core-js only prints a funding message.
   core-js: false
   core-js-pure: false

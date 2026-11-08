@@ -1,6 +1,6 @@
 import { ExternalLink, Trash2, Unlink } from "lucide-react";
 import { useState } from "react";
-import type { FormEvent } from "react";
+import type { SubmitEvent } from "react";
 
 import { addDays } from "~/lib/calendar/calendar";
 import type { DayKey } from "~/lib/calendar/calendar";
@@ -86,7 +86,7 @@ export const TaskDialog = ({
   const set = <K extends keyof Form>(key: K, value: Form[K]) =>
     setForm((f) => ({ ...f, [key]: value }));
 
-  const submit = async (e: FormEvent) => {
+  const submit = async (e: SubmitEvent) => {
     e.preventDefault();
 
     if (!form.title.trim()) {
@@ -215,7 +215,7 @@ export const TaskDialog = ({
         size="sm"
         variant="ghost"
         onClick={() => {
-          link("");
+          void link("");
         }}
         disabled={busy}
         className="ml-auto"
@@ -246,7 +246,7 @@ export const TaskDialog = ({
         {task && (
           <Button
             onClick={() => {
-              link(form.issue);
+              void link(form.issue);
             }}
             disabled={busy || !form.issue.trim()}
           >
@@ -265,7 +265,7 @@ export const TaskDialog = ({
     >
       <form
         onSubmit={(e) => {
-          submit(e);
+          void submit(e);
         }}
         className="space-y-3"
       >
@@ -346,7 +346,7 @@ export const TaskDialog = ({
             <Button
               variant="ghost"
               onClick={() => {
-                remove();
+                void remove();
               }}
               disabled={busy}
               className="text-red"

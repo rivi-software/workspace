@@ -380,7 +380,9 @@ describe(sanitizeHtml, () => {
     expect({
       html,
       without: withoutStyles(html),
-      slow: slowToRead(["<style-x>", "<style "], withoutStyles),
+      slow: slowToRead(["<style-x>", "<style "], (input) => {
+        withoutStyles(input);
+      }),
     }).toStrictEqual({
       html: "<style>p{}</style><style-x>a</style-x><p>b</p>",
       without: "<style-x>a</style-x><p>b</p>",

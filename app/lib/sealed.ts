@@ -68,10 +68,10 @@ const mac = async (
   return base64UrlEncode(await crypto.subtle.sign("HMAC", key, data));
 };
 
-export const seal = async <T extends { issuedAt: number }>(
+export const seal = async (
   secret: string,
   purpose: string,
-  value: T
+  value: { issuedAt: number }
 ): Promise<string> => {
   const payload = base64UrlEncode(JSON.stringify(value));
 

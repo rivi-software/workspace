@@ -9,7 +9,8 @@ import { and, eq } from "drizzle-orm";
 import type { Database } from "~/db";
 import { messages } from "~/db/schema";
 import type { Address } from "~/db/schema";
-import { field, formData, formPost } from "~/lib/forms";
+import { formData, formPost } from "~/lib/forms";
+import { field } from "~/lib/guards";
 import { appContext } from "~/lib/request.server";
 
 import { parseAddressList } from "./addresses";
@@ -79,7 +80,7 @@ const readIds = (data: FormData): string[] => {
 
   if (raw) {
     try {
-      const parsed = JSON.parse(raw);
+      const parsed: unknown = JSON.parse(raw);
 
       if (Array.isArray(parsed)) {
         return parsed.filter((x): x is string => typeof x === "string");

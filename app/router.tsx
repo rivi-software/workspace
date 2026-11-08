@@ -20,7 +20,8 @@ import { routeTree } from "./routeTree.gen";
 
 /** Reports a route error, unless it was a chunk a deploy removed and the page is reloading onto the new build. */
 const reportUnlessReloading = async (cause: unknown) => {
-  const reloading = await recoverFromChunkError(cause);
+  // A check that fails reports the error all the same, rather than losing it to an unhandled rejection.
+  const reloading = await recoverFromChunkError(cause).catch(() => false);
 
   if (!reloading) {
     captureClientException(cause);
@@ -48,7 +49,7 @@ export const getRouter = () => {
     // Render and loader errors caught by a route's error boundary (the root ErrorPage). A chunk a deploy
     // removed is no fault: the page reloads onto the new build instead (CORE-1169).
     defaultOnCatch: (error) => {
-      reportUnlessReloading(error);
+      void reportUnlessReloading(error);
     },
   });
 

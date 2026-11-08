@@ -1,8 +1,7 @@
-import { SELF } from "cloudflare:test";
 // Who is signed in, on Better Auth (`app/lib/auth.server.ts`, `app/lib/sign-in.server.ts`): the password form, the
 // session cookie it answers, what ends a session (a revocation, a new password, a deactivation, a sign-out, one browser
 // signed out from Settings), what voids a reset link mailed before, and the session token as the API's bearer token.
-import { env } from "cloudflare:workers";
+import { env, exports } from "cloudflare:workers";
 import { describe, expect, it } from "vitest";
 
 import type { User } from "~/db/schema";
@@ -353,16 +352,22 @@ describe("a session", () => {
     const user = await mailbox("worker-session", "Worker Session");
     const cookie = await sessionFor(user);
 
-    const session = await SELF.fetch(`${env.APP_URL}/api/auth/get-session`, {
-      headers: { cookie },
-    });
+    const session = await exports.default.fetch(
+      `${env.APP_URL}/api/auth/get-session`,
+      {
+        headers: { cookie },
+      }
+    );
 
     const body: Json = await session.json();
 
-    const signedOut = await SELF.fetch(`${env.APP_URL}/api/auth/sign-out`, {
-      method: "POST",
-      headers: { cookie, origin },
-    });
+    const signedOut = await exports.default.fetch(
+      `${env.APP_URL}/api/auth/sign-out`,
+      {
+        method: "POST",
+        headers: { cookie, origin },
+      }
+    );
 
     const signedOutBody: Json = await signedOut.json();
 
@@ -370,9 +375,12 @@ describe("a session", () => {
       .getSetCookie()
       .find((c) => c.startsWith(`${SESSION_COOKIE}=`));
 
-    const none = await SELF.fetch(`${env.APP_URL}/api/auth/get-session`, {
-      headers: { cookie },
-    });
+    const none = await exports.default.fetch(
+      `${env.APP_URL}/api/auth/get-session`,
+      {
+        headers: { cookie },
+      }
+    );
 
     const noneBody: Json = await none.json();
 
@@ -395,7 +403,7 @@ describe("a session", () => {
     const user = await mailbox("bearer", "Bearer");
     const cookie = await sessionFor(user);
 
-    const me = await SELF.fetch(`${env.APP_URL}/api/v1/me`, {
+    const me = await exports.default.fetch(`${env.APP_URL}/api/v1/me`, {
       headers: { authorization: `Bearer ${tokenOf(cookie)}` },
     });
 
@@ -447,7 +455,7 @@ describe("a reset link mailed before", () => {
 
     // As a browser on this site would post it, so only the closed path stands in the way.
     const post = (auth: Record<string, string>) =>
-      SELF.fetch(`${env.APP_URL}/api/auth/change-password`, {
+      exports.default.fetch(`${env.APP_URL}/api/auth/change-password`, {
         method: "POST",
         headers: {
           ...auth,

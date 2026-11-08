@@ -265,7 +265,7 @@ Optional. With `POSTHOG_PROJECT_TOKEN` and `POSTHOG_HOST` set in `wrangler.jsonc
 | `pnpm run build:check` | `wrangler deploy --dry-run` of the build, then `workers-bundle-check`: no source map the assets would serve, no value shaped like a secret, no forbidden marker in the Worker (`workers-bundle-check.config.ts`). |
 | `pnpm run preview` | The build, served by `vite preview`. |
 | `pnpm run check` | `wrangler types`, then the TypeScript project build (`tsc -b`). |
-| `pnpm run lint`, `pnpm run fix` | Oxlint; the autofixes. |
+| `pnpm run lint`, `pnpm run fix` | `wrangler types`, then Oxlint with the rules that read the types; the autofixes and Oxfmt, which the pre-commit hook runs over the staged files. |
 | `pnpm run format`, `pnpm run format:check` | Oxfmt; the check CI runs. |
 | `pnpm run contracts:check` | Fails when `migrations/` does not match `app/db/schema.ts`, or a recorded migration no longer matches its hash in `migrations/JOURNAL.json`. |
 | `pnpm run verify:static` | `check`, `lint`, `contracts:check` and `format:check`. |

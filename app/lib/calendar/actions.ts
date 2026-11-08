@@ -4,7 +4,8 @@
  */
 import { createServerFn } from "@tanstack/react-start";
 
-import { field, formData, formPost } from "~/lib/forms";
+import { formData, formPost } from "~/lib/forms";
+import { field } from "~/lib/guards";
 import { appContext } from "~/lib/request.server";
 
 import {
@@ -29,7 +30,7 @@ const readAttendees = (data: FormData): string[] => {
   }
 
   try {
-    const parsed = JSON.parse(raw);
+    const parsed: unknown = JSON.parse(raw);
 
     if (Array.isArray(parsed)) {
       return parsed.filter((x): x is string => typeof x === "string");

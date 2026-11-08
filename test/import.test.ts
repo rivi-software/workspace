@@ -74,7 +74,17 @@ const FOLDERS: SourceFolder[] = [
   folder("f-projects", "Projects", { total: 1 }),
 ];
 
-type Fake = SourceMessage & { raw: string | "gone" | "too-large" | Error };
+/** What the source answers for a message in place of its bytes: gone since it was listed, or larger than asked. */
+class Missing {
+  readonly answer: "gone" | "too-large";
+
+  constructor(answer: "gone" | "too-large") {
+    this.answer = answer;
+  }
+}
+
+/** A listed message, with its MIME text, what the source answers instead, or the error fetching it fails with. */
+type Fake = SourceMessage & { raw: string | Missing | Error };
 
 const message = (
   id: string,
@@ -121,8 +131,8 @@ const fakeSource = (list: Fake[], account = "rik@rivi.media") => {
         return Promise.reject(m.raw);
       }
 
-      if (m.raw === "gone" || m.raw === "too-large") {
-        return Promise.resolve(m.raw);
+      if (m.raw instanceof Missing) {
+        return Promise.resolve(m.raw.answer);
       }
 
       return Promise.resolve(new TextEncoder().encode(m.raw).buffer);
@@ -289,9 +299,15 @@ describe("importing a Microsoft 365 mailbox", () => {
           draft: true,
         }
       ),
-      message("m6", "f-archive", "2024-02-04T08:00:00Z", "too-large", {
-        subject: "Huge scan",
-      }),
+      message(
+        "m6",
+        "f-archive",
+        "2024-02-04T08:00:00Z",
+        new Missing("too-large"),
+        {
+          subject: "Huge scan",
+        }
+      ),
       message(
         "m7",
         "f-archive",
@@ -301,7 +317,7 @@ describe("importing a Microsoft 365 mailbox", () => {
           internetMessageId: "<known@acme.com>",
         }
       ),
-      message("m8", "f-projects", "2024-02-06T08:00:00Z", "gone"),
+      message("m8", "f-projects", "2024-02-06T08:00:00Z", new Missing("gone")),
     ]);
 
     const started = await startImport(env, db, user, tokens, source);
@@ -619,7 +635,7 @@ const fakeGraph = (answers: Record<string, () => Response>) => {
   const asked: { url: string; auth: string | null }[] = [];
 
   const fetcher: typeof fetch = (input, init) => {
-    const url = String(input);
+    const url = input instanceof Request ? input.url : String(input);
     asked.push({
       url,
       auth: new Headers(init?.headers).get("authorization"),
@@ -879,7 +895,12 @@ describe("connecting a Microsoft 365 mailbox", () => {
     const tokenCalls: URLSearchParams[] = [];
 
     const fetcher: typeof fetch = (_url, init) => {
-      tokenCalls.push(new URLSearchParams(String(init?.body)));
+      // The token request is a form, posted as URLSearchParams.
+      tokenCalls.push(
+        new URLSearchParams(
+          init?.body instanceof URLSearchParams ? init.body : undefined
+        )
+      );
 
       return Promise.resolve(
         Response.json({

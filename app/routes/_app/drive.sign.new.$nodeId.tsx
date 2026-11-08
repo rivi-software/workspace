@@ -268,7 +268,7 @@ const Editor = ({ data }: { data: SigningEditor }) => {
             return;
           }
 
-          navigate({
+          void navigate({
             to: "/drive/sign/r/$requestId",
             params: { requestId: defined(result.id, "the id") },
           });
@@ -284,15 +284,26 @@ const Editor = ({ data }: { data: SigningEditor }) => {
     const form = new FormData();
     form.set("intent", "save-signature");
     form.set("signature", png);
-    const result = await act({ data: form });
+    let result: Awaited<ReturnType<typeof act>>;
+
+    // A call that fails outright is shown as a refusal is: nothing else catches it.
+    try {
+      result = await act({ data: form });
+    } catch (saveError) {
+      setError(errorMessage(saveError));
+
+      return;
+    }
 
     if (!result.ok) {
-      return setError(result.error);
+      setError(result.error);
+
+      return;
     }
 
     setSaved(png);
     setPadOpen(false);
-    router.invalidate();
+    void router.invalidate();
   };
 
   return (
@@ -305,7 +316,7 @@ const Editor = ({ data }: { data: SigningEditor }) => {
           <IconButton
             label="Back to the file"
             onClick={() => {
-              navigate({
+              void navigate({
                 to: "/drive/d/$nodeId",
                 params: { nodeId: data.node.id },
               });
@@ -320,7 +331,7 @@ const Editor = ({ data }: { data: SigningEditor }) => {
           loading={busy}
           disabled={!!data.blocked}
           onClick={() => {
-            submit();
+            void submit();
           }}
         >
           <Send className="h-3.5 w-3.5" />

@@ -8,7 +8,7 @@
  * UTC midnights it is stored as.
  */
 
-import { defined } from "~/lib/guards";
+import { defined, unreachable } from "~/lib/guards";
 
 export const CALENDAR_VIEWS = ["week", "month"] as const;
 
@@ -327,8 +327,11 @@ export interface Occurrence {
   end: string;
 }
 
+/** How an event that repeats steps: `none` is answered before anything is stepped. */
+type Step = Exclude<Repeat, "none">;
+
 /** A day `n` repeats on from `day`. */
-const stepDay = (day: DayKey, repeat: Repeat, n: number): DayKey => {
+const stepDay = (day: DayKey, repeat: Step, n: number): DayKey => {
   switch (repeat) {
     case "daily": {
       return addDays(day, n);
@@ -342,14 +345,18 @@ const stepDay = (day: DayKey, repeat: Repeat, n: number): DayKey => {
       return addMonths(day, n);
     }
 
-    default: {
+    case "yearly": {
       return addMonths(day, 12 * n);
+    }
+
+    default: {
+      return unreachable(repeat, "repeat");
     }
   }
 };
 
 /** The parts stepped `n` repeats on from the first occurrence's, at the same wall-clock time. */
-const stepped = (first: ZonedParts, repeat: Repeat, n: number): ZonedParts => {
+const stepped = (first: ZonedParts, repeat: Step, n: number): ZonedParts => {
   const day = dayKey(first.y, first.m, first.d);
 
   const next = stepDay(day, repeat, n);
@@ -360,7 +367,7 @@ const stepped = (first: ZonedParts, repeat: Repeat, n: number): ZonedParts => {
 };
 
 /** How many repeats a span of days (and of months) holds, rounded down. */
-const repeatsIn = (repeat: Repeat, days: number, months: number): number => {
+const repeatsIn = (repeat: Step, days: number, months: number): number => {
   switch (repeat) {
     case "daily": {
       return days;
@@ -374,14 +381,18 @@ const repeatsIn = (repeat: Repeat, days: number, months: number): number => {
       return months;
     }
 
-    default: {
+    case "yearly": {
       return Math.floor(months / 12);
+    }
+
+    default: {
+      return unreachable(repeat, "repeat");
     }
   }
 };
 
 /** Roughly how many repeats lie between the first occurrence and a day, one short so none is skipped. */
-const jumpTo = (first: ZonedParts, repeat: Repeat, day: DayKey): number => {
+const jumpTo = (first: ZonedParts, repeat: Step, day: DayKey): number => {
   const start = dayKey(first.y, first.m, first.d);
   const days = daysBetween(start, day);
 

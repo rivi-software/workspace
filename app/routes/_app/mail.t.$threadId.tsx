@@ -58,7 +58,7 @@ import {
   cx,
 } from "~/components/ui";
 import { useThreadActions } from "~/components/use-thread-actions";
-import { defined } from "~/lib/guards";
+import { defined, errorMessage } from "~/lib/guards";
 import { keepShown } from "~/lib/keep-shown";
 import {
   composePrefill,
@@ -177,7 +177,8 @@ const useReading = (messages: MessageData[], last: MessageData | undefined) => {
       )
   );
 
-  const [printing, setPrinting] = useState<string | "all" | null>(null);
+  // What is being printed: a message's id, or "all" for the whole conversation.
+  const [printing, setPrinting] = useState<string | null>(null);
 
   // A message that arrives or is sent while the conversation is open shows itself.
   const [seenLast, setSeenLast] = useState(last);
@@ -214,7 +215,8 @@ const useReading = (messages: MessageData[], last: MessageData | undefined) => {
     });
   };
 
-  const print = (what: string | "all") => {
+  /** Prints one message (its id) or the whole conversation ("all"). */
+  const print = (what: string) => {
     setPrinting(what);
 
     if (what === "all") {
@@ -239,18 +241,27 @@ const useReplyBox = (
   draftCompose: ComposeData | null,
   last: MessageData | undefined
 ) => {
+  const toast = useToast();
   const prefill = useServerFn(composePrefill);
   const [compose, setCompose] = useState<ComposeData | null>(draftCompose);
   const replyBox = useRef<HTMLDivElement>(null);
 
-  const composeWith = async (mode: ComposeMode, messageId?: string) => {
+  const begin = async (mode: ComposeMode, messageId?: string) => {
     const target = messageId ?? last?.id;
 
     if (!target) {
       return;
     }
 
-    const data = await prefill({ data: { reply: target, mode } });
+    let data: Awaited<ReturnType<typeof prefill>>;
+
+    try {
+      data = await prefill({ data: { reply: target, mode } });
+    } catch (error) {
+      toast.show({ message: errorMessage(error), tone: "error" });
+
+      return;
+    }
 
     if (!data) {
       return;
@@ -260,6 +271,11 @@ const useReplyBox = (
     requestAnimationFrame(() =>
       replyBox.current?.scrollIntoView({ block: "nearest", behavior: "smooth" })
     );
+  };
+
+  // `begin` reports its own failure, so a button or a key starts it and moves on.
+  const composeWith = (mode: ComposeMode, messageId?: string) => {
+    void begin(mode, messageId);
   };
 
   return { compose, setCompose, replyBox, composeWith };
@@ -287,7 +303,16 @@ const useSenderActions = (threadId: string, back: () => void) => {
     if (ways.oneClick || (ways.mailto && !ways.http)) {
       const fd = new FormData();
       fd.set("messageId", m.id);
-      const result = await unsubscribe({ data: fd });
+      let result: Awaited<ReturnType<typeof unsubscribe>>;
+
+      try {
+        result = await unsubscribe({ data: fd });
+      } catch (error) {
+        toast.show({ message: errorMessage(error), tone: "error" });
+
+        return;
+      }
+
       toast.show({
         message: result.ok ? result.message : result.error,
         tone: result.ok ? "neutral" : "error",
@@ -311,7 +336,16 @@ const useSenderActions = (threadId: string, back: () => void) => {
     fd.set("intent", intent);
     fd.set("sender", sender);
     fd.set("threadId", threadId);
-    const result = await senders({ data: fd });
+    let result: Awaited<ReturnType<typeof senders>>;
+
+    try {
+      result = await senders({ data: fd });
+    } catch (error) {
+      toast.show({ message: errorMessage(error), tone: "error" });
+
+      return;
+    }
+
     toast.show({
       message: result.ok ? result.message : result.error,
       tone: result.ok ? "neutral" : "error",
@@ -329,7 +363,7 @@ const useSenderActions = (threadId: string, back: () => void) => {
       // oxlint-disable-next-line eslint/no-alert -- destructive action requires user confirmation
       confirm(`Block ${m.from.email}? Their mail goes to Spam from now on.`)
     ) {
-      onSender("block", m.from.email);
+      void onSender("block", m.from.email);
     }
   };
 
@@ -344,8 +378,17 @@ const useCreateLabel = () => {
   const toast = useToast();
   const makeLabel = useServerFn(quickLabel);
 
+  // A failure answers null, as a refusal does: the picker then stops waiting and keeps what was typed.
   const create = async (name: string): Promise<LabelRef | null> => {
-    const result = await makeLabel({ data: { name } });
+    let result: Awaited<ReturnType<typeof makeLabel>>;
+
+    try {
+      result = await makeLabel({ data: { name } });
+    } catch (error) {
+      toast.show({ message: errorMessage(error), tone: "error" });
+
+      return null;
+    }
 
     if (!result.ok) {
       toast.show({ message: result.error, tone: "error" });
@@ -395,43 +438,43 @@ const useThreadShortcuts = (
     {
       keys: "e",
       run: own(() => {
-        act({ intent: isJunk(thread.folder) ? "inbox" : "archive" }, true);
+        void act({ intent: isJunk(thread.folder) ? "inbox" : "archive" }, true);
       }),
     },
     {
       keys: "#",
       run: own(() => {
-        act({ intent: "trash" }, true);
+        void act({ intent: "trash" }, true);
       }),
     },
     {
       keys: "!",
       run: own(() => {
-        act({ intent: thread.folder === "spam" ? "inbox" : "spam" }, true);
+        void act({ intent: thread.folder === "spam" ? "inbox" : "spam" }, true);
       }),
     },
     {
       keys: "s",
       run: own(() => {
-        act({ intent: thread.starred ? "unstar" : "star" });
+        void act({ intent: thread.starred ? "unstar" : "star" });
       }),
     },
     {
       keys: "m",
       run: own(() => {
-        act({ intent: thread.muted ? "unmute" : "mute" }, !thread.muted);
+        void act({ intent: thread.muted ? "unmute" : "mute" }, !thread.muted);
       }),
     },
     {
       keys: "I",
       run: own(() => {
-        act({ intent: "read" });
+        void act({ intent: "read" });
       }),
     },
     {
       keys: "U",
       run: own(() => {
-        act({ intent: "unread" }, true);
+        void act({ intent: "unread" }, true);
       }),
     },
     { keys: "b", run: own(openSnooze) },
@@ -484,7 +527,7 @@ const MoveButtons = ({
       <IconButton
         label="Move to inbox (e)"
         onClick={() => {
-          act({ intent: "inbox" }, true);
+          void act({ intent: "inbox" }, true);
         }}
       >
         <ArchiveRestore className="h-4 w-4" />
@@ -493,7 +536,7 @@ const MoveButtons = ({
       <IconButton
         label="Archive (e)"
         onClick={() => {
-          act({ intent: "archive" }, true);
+          void act({ intent: "archive" }, true);
         }}
       >
         <Archive className="h-4 w-4" />
@@ -503,7 +546,7 @@ const MoveButtons = ({
       <IconButton
         label="Not spam (!)"
         onClick={() => {
-          act({ intent: "inbox" }, true);
+          void act({ intent: "inbox" }, true);
         }}
         className="max-sm:hidden"
       >
@@ -513,7 +556,7 @@ const MoveButtons = ({
       <IconButton
         label="Mark as spam (!)"
         onClick={() => {
-          act({ intent: "spam" }, true);
+          void act({ intent: "spam" }, true);
         }}
         className="max-sm:hidden"
       >
@@ -524,7 +567,7 @@ const MoveButtons = ({
       <IconButton
         label="Move to trash (#)"
         onClick={() => {
-          act({ intent: "trash" }, true);
+          void act({ intent: "trash" }, true);
         }}
         className="max-sm:hidden"
       >
@@ -538,7 +581,7 @@ const StarButton = ({ starred, act }: { starred: boolean; act: Act }) => (
   <IconButton
     label={starred ? "Unstar (s)" : "Star (s)"}
     onClick={() => {
-      act({ intent: starred ? "unstar" : "star" });
+      void act({ intent: starred ? "unstar" : "star" });
     }}
     className={cx("max-sm:hidden", starred && "text-star hover:text-star")}
   >
@@ -552,7 +595,7 @@ const PhoneMenuItems = ({ thread, act }: { thread: ThreadInfo; act: Act }) => (
     <MenuItem
       icon={<Star className="h-3.5 w-3.5" />}
       onClick={() => {
-        act({ intent: thread.starred ? "unstar" : "star" });
+        void act({ intent: thread.starred ? "unstar" : "star" });
       }}
       className="sm:hidden"
     >
@@ -562,7 +605,7 @@ const PhoneMenuItems = ({ thread, act }: { thread: ThreadInfo; act: Act }) => (
       <MenuItem
         icon={<ShieldCheck className="h-3.5 w-3.5" />}
         onClick={() => {
-          act({ intent: "inbox" }, true);
+          void act({ intent: "inbox" }, true);
         }}
         className="sm:hidden"
       >
@@ -572,7 +615,7 @@ const PhoneMenuItems = ({ thread, act }: { thread: ThreadInfo; act: Act }) => (
       <MenuItem
         icon={<ShieldAlert className="h-3.5 w-3.5" />}
         onClick={() => {
-          act({ intent: "spam" }, true);
+          void act({ intent: "spam" }, true);
         }}
         className="sm:hidden"
       >
@@ -583,7 +626,7 @@ const PhoneMenuItems = ({ thread, act }: { thread: ThreadInfo; act: Act }) => (
       <MenuItem
         icon={<Trash2 className="h-3.5 w-3.5" />}
         onClick={() => {
-          act({ intent: "trash" }, true);
+          void act({ intent: "trash" }, true);
         }}
         className="sm:hidden"
       >
@@ -599,7 +642,7 @@ const StateMenuItems = ({ thread, act }: { thread: ThreadInfo; act: Act }) => (
     <MenuItem
       icon={<MailOpen className="h-3.5 w-3.5" />}
       onClick={() => {
-        act({ intent: "unread" }, true);
+        void act({ intent: "unread" }, true);
       }}
     >
       Mark as unread
@@ -613,7 +656,7 @@ const StateMenuItems = ({ thread, act }: { thread: ThreadInfo; act: Act }) => (
         )
       }
       onClick={() => {
-        act({ intent: thread.muted ? "unmute" : "mute" }, !thread.muted);
+        void act({ intent: thread.muted ? "unmute" : "mute" }, !thread.muted);
       }}
     >
       {thread.muted ? "Unmute" : "Mute"}
@@ -622,7 +665,7 @@ const StateMenuItems = ({ thread, act }: { thread: ThreadInfo; act: Act }) => (
       <MenuItem
         icon={<Clock className="h-3.5 w-3.5" />}
         onClick={() => {
-          act({ intent: "unsnooze" });
+          void act({ intent: "unsnooze" });
         }}
       >
         Unsnooze
@@ -712,7 +755,7 @@ const ThreadMenu = ({
                   "Delete this conversation forever? Its messages and files cannot be recovered."
                 )
               ) {
-                act({ intent: "delete" }, true);
+                void act({ intent: "delete" }, true);
               }
             }}
           >
@@ -736,7 +779,7 @@ const SnoozePicker = ({
 }) => (
   <SnoozeMenu
     onPick={(until) => {
-      act({ intent: "snooze", until }, true);
+      void act({ intent: "snooze", until }, true);
     }}
     renderTrigger={({ open: o, toggle }) => (
       <SnoozeTriggerButton
@@ -775,7 +818,7 @@ const ThreadLabelPicker = ({
       labels={labels}
       state={state}
       onToggle={(l, on) => {
-        act({ intent: on ? "label" : "unlabel", labelId: l.id });
+        void act({ intent: on ? "label" : "unlabel", labelId: l.id });
       }}
       onCreate={onCreate}
       open={forced || undefined}
@@ -893,7 +936,7 @@ const ThreadChips = ({
           key={l.id}
           label={l}
           onRemove={() => {
-            act({ intent: "unlabel", labelId: l.id });
+            void act({ intent: "unlabel", labelId: l.id });
           }}
         />
       ))}
@@ -1008,7 +1051,7 @@ const ThreadMessage = ({
           composeWith(mode, id);
         }}
         onUnsubscribe={(msg) => {
-          onUnsubscribe(msg);
+          void onUnsubscribe(msg);
         }}
         onPrint={print}
         onBlock={onBlock}
@@ -1016,11 +1059,11 @@ const ThreadMessage = ({
           folder === "spam"
             ? undefined
             : (msg) => {
-                onSender("images", msg.from.email);
+                void onSender("images", msg.from.email);
               }
         }
         onUnblock={(senderEmail) => {
-          onSender("unblock", senderEmail);
+          void onSender("unblock", senderEmail);
         }}
       />
     </div>
@@ -1145,12 +1188,12 @@ const ThreadView = () => {
     invalidatedFor.current = thread.id;
 
     if (wasUnread) {
-      router.invalidate();
+      void router.invalidate();
     }
   }, [thread.id, wasUnread, router]);
 
   const back = () => {
-    navigate({ to: "/mail", search: listSearch });
+    void navigate({ to: "/mail", search: listSearch });
   };
 
   // An action that leaves the conversation goes back to the list first: the row is gone from it already, and the
@@ -1169,9 +1212,7 @@ const ThreadView = () => {
   useThreadShortcuts(thread, {
     act,
     back,
-    composeWith: (mode) => {
-      composeWith(mode);
-    },
+    composeWith,
     toggleAll: reading.toggleAll,
     openSnooze: () => {
       setSnoozeOpen(true);

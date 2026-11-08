@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 
+import { unreachable } from "~/lib/guards";
 import { recheckPgpAction } from "~/lib/mail/pgp/actions";
 import {
   groupedFingerprint,
@@ -104,8 +105,13 @@ const signatureWords = (m: MessageData, pgp: PgpStatus): string | null => {
       return `Signed with a key that names other addresses than ${m.from.email}.`;
     }
 
-    default: {
+    case "unknown-key": {
       return `Signed with the key ${shortKeyId(sig.keyId)}, which no key at hand for ${m.from.email} can check.`;
+    }
+
+    // Every state has its case above, so a new one fails the typecheck here until it has its sentence.
+    default: {
+      return unreachable(sig.state, "signature state");
     }
   }
 };
@@ -186,6 +192,22 @@ export const PgpNotice = ({ message: m }: { message: MessageData }) => {
       state === "unknown-key" ||
       state === "other-address");
 
+  const checkAgain = async () => {
+    setChecking(true);
+    let same = false;
+
+    try {
+      const result = await recheck({ data: { messageId: m.id } });
+      same = JSON.stringify(result.pgp) === JSON.stringify(pgp);
+      await router.invalidate({ sync: true });
+    } catch {
+      // The look failed: the notice stays as it was, and the button can be pressed again.
+    }
+
+    setUnchanged(same);
+    setChecking(false);
+  };
+
   return (
     <div className="border-line bg-sidebar text-muted print-hidden mb-3 flex flex-wrap items-center gap-x-2 gap-y-1 rounded-md border px-3 py-1.5 text-sm">
       <NoticeIcon pgp={pgp} />
@@ -204,20 +226,8 @@ export const PgpNotice = ({ message: m }: { message: MessageData }) => {
         <Button
           size="sm"
           loading={checking}
-          onClick={async () => {
-            setChecking(true);
-            let same = false;
-
-            try {
-              const result = await recheck({ data: { messageId: m.id } });
-              same = JSON.stringify(result.pgp) === JSON.stringify(pgp);
-              await router.invalidate({ sync: true });
-            } catch {
-              // The look failed: the notice stays as it was, and the button can be pressed again.
-            }
-
-            setUnchanged(same);
-            setChecking(false);
+          onClick={() => {
+            void checkAgain();
           }}
         >
           Check again

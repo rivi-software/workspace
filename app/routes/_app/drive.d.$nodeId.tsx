@@ -498,7 +498,7 @@ const FileView = ({ data }: { data: FileData }) => {
   const parent = crumbs.at(-1) ?? null;
 
   const requestSignatures = () => {
-    navigate({
+    void navigate({
       to: "/drive/sign/new/$nodeId",
       params: { nodeId: node.id },
     });
@@ -506,13 +506,13 @@ const FileView = ({ data }: { data: FileData }) => {
 
   const back = () => {
     if (parent) {
-      navigate({
+      void navigate({
         to: "/drive/f/$folderId",
         params: { folderId: parent.id },
         search: {},
       });
     } else {
-      navigate({
+      void navigate({
         to: "/drive",
         search: inTrash ? { view: "trash" } : homeSearch(role),
       });
@@ -520,15 +520,19 @@ const FileView = ({ data }: { data: FileData }) => {
   };
 
   const star = () => {
-    run({ intent: starred ? "unstar" : "star", id: node.id }, { quiet: true });
+    // useDriveAction reports a failure in a toast itself.
+    void run(
+      { intent: starred ? "unstar" : "star", id: node.id },
+      { quiet: true }
+    );
   };
 
   const trash = () => {
-    run({ intent: "trash", id: node.id }, { after: back });
+    void run({ intent: "trash", id: node.id }, { after: back });
   };
 
   const restore = () => {
-    run({ intent: "restore", id: node.id });
+    void run({ intent: "restore", id: node.id });
   };
 
   const deleteForever = () => {
@@ -537,16 +541,46 @@ const FileView = ({ data }: { data: FileData }) => {
       return;
     }
 
-    run({ intent: "delete", id: node.id }, { after: back });
+    void run({ intent: "delete", id: node.id }, { after: back });
   };
 
   useShortcuts([
     { keys: "u", run: back },
     { keys: "Backspace", run: back },
-    { keys: "s", run: () => !inTrash && star() },
-    { keys: "r", run: () => !inTrash && editable && setDialog("rename") },
-    { keys: "m", run: () => !inTrash && editable && setDialog("move") },
-    { keys: "#", run: () => (inTrash ? deleteForever() : editable && trash()) },
+    {
+      keys: "s",
+      run: () => {
+        if (!inTrash) {
+          star();
+        }
+      },
+    },
+    {
+      keys: "r",
+      run: () => {
+        if (!inTrash && editable) {
+          setDialog("rename");
+        }
+      },
+    },
+    {
+      keys: "m",
+      run: () => {
+        if (!inTrash && editable) {
+          setDialog("move");
+        }
+      },
+    },
+    {
+      keys: "#",
+      run: () => {
+        if (inTrash) {
+          deleteForever();
+        } else if (editable) {
+          trash();
+        }
+      },
+    },
   ]);
 
   return (

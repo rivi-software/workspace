@@ -36,7 +36,13 @@ export const SectionError = ({
         title={title}
         action={
           // A loader's error resets once the router loads again.
-          <Button onClick={() => router.invalidate()}>Try again</Button>
+          <Button
+            onClick={() => {
+              void router.invalidate();
+            }}
+          >
+            Try again
+          </Button>
         }
       >
         {import.meta.env.DEV ? (

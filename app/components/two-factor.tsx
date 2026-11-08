@@ -15,19 +15,15 @@ import { Button, Field, Notice, Section, inputClass } from "./ui";
 
 /** What to say for a Better Auth error here, by its code; the server's own words otherwise. */
 const problemOf = (error: { code?: string; message?: string }): string => {
-  switch (error.code) {
-    case "INVALID_PASSWORD": {
-      return "The current password is not right.";
-    }
-
-    case "INVALID_CODE": {
-      return "That code is not right. Try the next one.";
-    }
-
-    default: {
-      return error.message ?? "That did not go through. Try again.";
-    }
+  if (error.code === "INVALID_PASSWORD") {
+    return "The current password is not right.";
   }
+
+  if (error.code === "INVALID_CODE") {
+    return "That code is not right. Try the next one.";
+  }
+
+  return error.message ?? "That did not go through. Try again.";
 };
 
 /** The dark modules of a QR code as one path: a unit square at each. */

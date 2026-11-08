@@ -124,7 +124,15 @@ const readImage = (file: File): Promise<{ src: string; width: number }> =>
       reject(new Error("The image could not be read."))
     );
     reader.addEventListener("load", () => {
-      const src = String(reader.result);
+      const src = reader.result;
+
+      // A data URL is text; the other kinds of result come only from the other ways to read.
+      if (src === null || src instanceof ArrayBuffer) {
+        reject(new Error("The image could not be read."));
+
+        return;
+      }
+
       const img = new Image();
       img.addEventListener("load", () =>
         resolve({
@@ -140,6 +148,19 @@ const readImage = (file: File): Promise<{ src: string; width: number }> =>
 
     reader.readAsDataURL(file);
   });
+
+/**
+ * One of the browser's editing commands on the focused contentEditable area. `execCommand` is deprecated with nothing
+ * to take its place: it is still the one way to change the text that the browser's own undo (Cmd+Z) takes back.
+ */
+const command = (name: string, value?: string): boolean =>
+  // oxlint-disable-next-line typescript/no-deprecated -- no API replaces contentEditable's commands, and only they keep the browser's undo history
+  document.execCommand(name, false, value);
+
+/** Whether the selection is bold, a list, and so on, as the commands above see it. */
+const commandState = (name: string): boolean =>
+  // oxlint-disable-next-line typescript/no-deprecated -- the state of the commands above, which have no replacement either
+  document.queryCommandState(name);
 
 /**
  * The rich composer's text: a contentEditable area with a small toolbar (bold, italic, underline, strikethrough,
@@ -271,7 +292,7 @@ export const RichEditor = ({
         "insertOrderedList",
       ]) {
         try {
-          states[cmd] = document.queryCommandState(cmd);
+          states[cmd] = commandState(cmd);
         } catch {
           states[cmd] = false;
         }
@@ -285,9 +306,9 @@ export const RichEditor = ({
     return () => document.removeEventListener("selectionchange", read);
   }, []);
 
-  const exec = (command: string, value?: string) => {
+  const exec = (cmd: string, value?: string) => {
     area.current?.focus();
-    document.execCommand(command, false, value);
+    command(cmd, value);
     sync();
   };
 
@@ -321,16 +342,15 @@ export const RichEditor = ({
       const href = /^(?:https?:|mailto:)/iu.test(url) ? url : `https://${url}`;
 
       if (sel && !sel.isCollapsed) {
-        document.execCommand("createLink", false, href);
+        command("createLink", href);
       } else {
-        document.execCommand(
+        command(
           "insertHTML",
-          false,
           `<a href="${escapeHtml(href)}">${escapeHtml(href)}</a>&nbsp;`
         );
       }
     } else {
-      document.execCommand("unlink");
+      command("unlink");
     }
 
     sync();
@@ -371,11 +391,7 @@ export const RichEditor = ({
         .replace(/\.[a-z0-9]+$/iu, "")
         .replaceAll(/[<>"&]/gu, "");
 
-      document.execCommand(
-        "insertHTML",
-        false,
-        `<img src="${src}" alt="${alt}" width="${width}">`
-      );
+      command("insertHTML", `<img src="${src}" alt="${alt}" width="${width}">`);
       sync();
     } catch (error) {
       onImageError?.(error instanceof Error ? error.message : String(error));
@@ -467,9 +483,9 @@ export const RichEditor = ({
             e.preventDefault();
 
             if (html) {
-              document.execCommand("insertHTML", false, cleanPastedHtml(html));
+              command("insertHTML", cleanPastedHtml(html));
             } else {
-              document.execCommand("insertText", false, text);
+              command("insertText", text);
             }
 
             sync();

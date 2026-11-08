@@ -218,7 +218,7 @@ const threadingHeaders = (original: Prepared["original"]) => {
 
   if (original) {
     headers["In-Reply-To"] = original.messageId;
-    headers["References"] = references.join(" ");
+    headers.References = references.join(" ");
   }
 
   return { headers, references };

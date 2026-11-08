@@ -8,7 +8,7 @@ import {
   SquareCheckBig,
 } from "lucide-react";
 import { useState } from "react";
-import type { FormEvent, ReactNode } from "react";
+import type { SubmitEvent, ReactNode } from "react";
 
 import { todayKey } from "~/lib/calendar/calendar";
 import type { DayKey } from "~/lib/calendar/calendar";
@@ -77,7 +77,7 @@ const TaskLine = ({
       <Checkbox
         checked={done}
         onChange={() => {
-          toggle();
+          void toggle();
         }}
         disabled={busy}
         aria-label={done ? `Reopen ${task.title}` : `Mark ${task.title} done`}
@@ -133,7 +133,7 @@ const TaskLine = ({
           size="sm"
           variant="ghost"
           onClick={() => {
-            toggle();
+            void toggle();
           }}
           disabled={busy}
           title="Reopen"
@@ -229,7 +229,7 @@ const GitHubSection = ({
                 <Button
                   size="sm"
                   onClick={() => {
-                    add(issue);
+                    void add(issue);
                   }}
                   loading={busy === label}
                 >
@@ -336,7 +336,7 @@ export const TasksPage = ({ data }: { data: TasksData }) => {
 
   useShortcuts([{ keys: "n", run: () => setDialog({ task: null }) }]);
 
-  const quickAdd = async (e: FormEvent) => {
+  const quickAdd = async (e: SubmitEvent) => {
     e.preventDefault();
 
     if (!quick.trim()) {
@@ -403,7 +403,7 @@ export const TasksPage = ({ data }: { data: TasksData }) => {
           {view === "open" && (
             <form
               onSubmit={(e) => {
-                quickAdd(e);
+                void quickAdd(e);
               }}
               className="flex gap-2"
             >

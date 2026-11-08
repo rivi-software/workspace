@@ -1,6 +1,6 @@
 import { MapPin, Repeat, Trash2, Users } from "lucide-react";
 import { useId, useState } from "react";
-import type { FormEvent } from "react";
+import type { SubmitEvent } from "react";
 
 import {
   ATTENDEE_STATUS_LABEL,
@@ -317,7 +317,7 @@ export const EventDialog = ({
       return next;
     });
 
-  const submit = async (e: FormEvent) => {
+  const submit = async (e: SubmitEvent) => {
     e.preventDefault();
     const moments = momentsOf(form);
 
@@ -414,7 +414,9 @@ export const EventDialog = ({
         open={open}
         event={event}
         onClose={onClose}
-        onRespond={respond}
+        onRespond={(status) => {
+          void respond(status);
+        }}
         busy={busy}
       />
     );
@@ -429,7 +431,7 @@ export const EventDialog = ({
     >
       <form
         onSubmit={(e) => {
-          submit(e);
+          void submit(e);
         }}
         className="space-y-3"
       >
@@ -605,7 +607,7 @@ export const EventDialog = ({
             <Button
               variant="ghost"
               onClick={() => {
-                remove();
+                void remove();
               }}
               disabled={busy}
               className="text-red"

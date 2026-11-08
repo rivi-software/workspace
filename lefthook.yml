@@ -1,0 +1,9 @@
+# Installed into .git/hooks by lefthook's postinstall on `pnpm install`. Before a commit, `pnpm run fix` (Ultracite:
+# Oxlint's fixes, then Oxfmt) runs over the staged files of the kinds the two check, and what it changed is staged
+# again; a problem it cannot fix stops the commit. `LEFTHOOK=0 git commit` skips it.
+pre-commit:
+  jobs:
+    - run: pnpm run --silent fix {staged_files}
+      glob:
+        - "*.{js,mjs,ts,tsx,css,yml,yaml}"
+      stage_fixed: true

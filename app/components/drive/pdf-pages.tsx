@@ -113,7 +113,7 @@ export const PdfPages = ({
     // Aborted when the file changes or the page goes: the drawing stops and pdf.js lets go of the document.
     const drawing = new AbortController();
     const { signal } = drawing;
-    (async () => {
+    void (async () => {
       try {
         const lib = await loadPdfJs();
 
@@ -125,7 +125,7 @@ export const PdfPages = ({
         signal.addEventListener(
           "abort",
           () => {
-            task.destroy();
+            void task.destroy();
           },
           { once: true }
         );

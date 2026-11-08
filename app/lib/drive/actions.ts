@@ -6,8 +6,8 @@
  */
 import { createServerFn } from "@tanstack/react-start";
 
-import { field, formData, formPost } from "~/lib/forms";
-import { stringList, stringOrNull } from "~/lib/guards";
+import { formData, formPost } from "~/lib/forms";
+import { field, stringList, stringOrNull } from "~/lib/guards";
 import type { AppContext } from "~/lib/request.server";
 import { appContext } from "~/lib/request.server";
 import { setExternalSharing } from "~/lib/workspace-settings.server";
@@ -44,7 +44,7 @@ const readIds = (data: FormData): string[] => {
 
   if (raw) {
     try {
-      const parsed = JSON.parse(raw);
+      const parsed: unknown = JSON.parse(raw);
 
       if (Array.isArray(parsed)) {
         return parsed.filter((x): x is string => typeof x === "string");

@@ -15,7 +15,7 @@ import { saveDraft } from "~/lib/mail/send.server";
 import { setSenderRule } from "~/lib/mail/spam.server";
 import { applyThreadAction, markThreadRead } from "~/lib/mail/threads.server";
 
-import { db, defined, mail, mailbox } from "./fixtures";
+import { anyString, db, defined, mail, mailbox } from "./fixtures";
 
 const minutes = (n: number, from = new Date()) =>
   new Date(from.getTime() + n * 60_000);
@@ -209,13 +209,13 @@ describe("a page of a list", () => {
           {
             id: a,
             subject: "Quarterly figures",
-            snippet: expect.any(String),
+            snippet: anyString(),
             people: "Jane Doe",
             count: 1,
             unread: true,
             starred: false,
             hasAttachments: false,
-            lastMessageAt: expect.any(String),
+            lastMessageAt: anyString(),
             folder: "archive",
             snoozedUntil: null,
             muted: false,
@@ -291,7 +291,7 @@ describe("a page of a list", () => {
             to: "Ada",
             subject: "Plans",
             snippet: `Hello there, ${"word ".repeat(40)}`.slice(0, 120),
-            updatedAt: expect.any(String),
+            updatedAt: anyString(),
             scheduledAt: null,
             sendError: null,
           },

@@ -12,13 +12,6 @@ export const formData = (input: unknown): FormData => {
   return input;
 };
 
-/** `String(form.get(name))` with a fallback for missing or empty values. */
-export const field = (form: FormData, name: string, fallback = ""): string => {
-  const v = form.get(name);
-
-  return v === null || v === "" ? fallback : String(v);
-};
-
 /**
  * Keeps forms working without JavaScript. `useAction` renders `<form action={fn.url}>`, so when the
  * browser posts the form itself (no client script ran) the server function still executes; this
