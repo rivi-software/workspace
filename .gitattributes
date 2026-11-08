@@ -1,0 +1,8 @@
+# Every text file is checked out with LF endings, as .editorconfig writes them, so `oxfmt --check` and the migration
+# hashes in migrations/JOURNAL.json read the same bytes on Windows as on CI.
+* text=auto eol=lf
+
+# Written by tools, not people: GitHub collapses them in a pull request's diff and leaves them out of the language
+# statistics. Review the change to their source instead (the routes, app/db/schema.ts).
+app/routeTree.gen.ts linguist-generated=true
+migrations/meta/*.json linguist-generated=true
