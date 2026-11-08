@@ -126,6 +126,7 @@ export const LabelPicker = ({
   /** For each label id, whether every target has it ("all"), some do ("some"), or none. */
   state: Map<string, "all" | "some">;
   onToggle: (label: LabelRef, on: boolean) => void;
+  /** Makes the label; answers null when it could not, having said why, and never throws (the menu waits on it). */
   onCreate: (name: string) => Promise<LabelRef | null>;
   renderTrigger: (props: { open: boolean; toggle: () => void }) => ReactNode;
   align?: "start" | "end";
@@ -189,7 +190,7 @@ export const LabelPicker = ({
                   const [first] = shown;
                   onToggle(first, state.get(first.id) !== "all");
                 } else if (needle) {
-                  create();
+                  void create();
                 }
               }
             }}
@@ -230,7 +231,7 @@ export const LabelPicker = ({
             <button
               type="button"
               onClick={() => {
-                create();
+                void create();
               }}
               disabled={busy}
               className="text-fg hover:bg-hover mt-1 flex h-7 w-full items-center gap-2 rounded-md px-2 text-left text-base disabled:opacity-50"

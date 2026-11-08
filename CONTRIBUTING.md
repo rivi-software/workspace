@@ -15,7 +15,7 @@ pnpm run dev                     # http://localhost:5174, admin@example.com / pa
 
 ## Checks
 
-`pnpm run verify` is the gate a pull request has to pass: the typecheck, Oxlint, the check that `migrations/` matches `app/db/schema.ts`, Oxfmt, the Vitest suite (inside workerd), the production build, a dry-run deploy and the bundle check (`workers-bundle-check.config.ts`). `pnpm run format` fixes formatting and `pnpm run fix` applies the lint autofixes. CI runs the same checks, then the smoke test against the build. Semgrep comments new findings on the pull request, and RIVI Bot reviews it once a maintainer adds the `rivi-bot:review` label.
+`pnpm run verify` is the gate a pull request has to pass: the typecheck, Oxlint, the check that `migrations/` matches `app/db/schema.ts`, Oxfmt, the Vitest suite (inside workerd), the production build, a dry-run deploy and the bundle check (`workers-bundle-check.config.ts`). `pnpm run format` fixes formatting and `pnpm run fix` applies the lint autofixes; `pnpm install` sets up a pre-commit hook (`lefthook.yml`) that runs `pnpm run fix` over the staged files (`LEFTHOOK=0 git commit` skips it), and `.vscode/` recommends the Oxc extension, which formats and fixes on save. CI runs the same checks, then the smoke test against the build. Semgrep comments new findings on the pull request, and RIVI Bot reviews it once a maintainer adds the `rivi-bot:review` label.
 
 ## Pull requests
 

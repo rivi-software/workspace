@@ -849,7 +849,9 @@ export const sanitizeHtml = (
   // Style blocks are kept (inline styles are allowed by the CSP), the rest of the head goes.
   const html = liftStyles(
     input.length > MAX_HTML ? input.slice(0, MAX_HTML) : input,
-    (css) => styles.push(sanitizeCss(css))
+    (css) => {
+      styles.push(sanitizeCss(css));
+    }
   );
 
   const state: SanitizeState = {

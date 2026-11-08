@@ -32,6 +32,7 @@ export const sendSigningRequest = createServerFn({ method: "POST" })
     customerName: stringOrNull(d?.customerName) ?? "",
     customerEmail: stringOrNull(d?.customerEmail) ?? "",
     signerId: stringOrNull(d?.signerId) ?? "",
+    // oxlint-disable-next-line typescript/no-unnecessary-boolean-literal-compare -- the client posts what it likes, whatever the type says: only a literal true signs for the workspace
     autoSign: d?.autoSign === true,
     message: stringOrNull(d?.message) ?? "",
     fields: d?.fields,

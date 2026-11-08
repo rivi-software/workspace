@@ -34,7 +34,7 @@ const parseHex = (hex: string): Rgba | null => {
     return null;
   }
 
-  const full = hex.length <= 4 ? [...hex].map((c) => c + c).join("") : hex;
+  const full = hex.length <= 4 ? Array.from(hex, (c) => c + c).join("") : hex;
   const at = (i: number) => Number.parseInt(full.slice(i, i + 2), 16) / 255;
 
   return { r: at(0), g: at(2), b: at(4), a: full.length === 8 ? at(6) : 1 };

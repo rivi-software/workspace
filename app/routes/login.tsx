@@ -15,6 +15,7 @@ import {
   passkeysSupported,
 } from "~/lib/auth-client";
 import { getSessionUser } from "~/lib/auth.server";
+import { stringOrNull } from "~/lib/guards";
 import { passwordSignIn, safeNext } from "~/lib/sign-in.server";
 
 const searchSchema = z.object({
@@ -212,9 +213,10 @@ export const Route = createFileRoute("/login")({
         const form = await request.formData();
 
         return passwordSignIn(request, env, createDb(env.DB), {
-          email: String(form.get("email") ?? ""),
-          password: String(form.get("password") ?? ""),
-          next: String(form.get("next") ?? "/mail"),
+          // A field posted as a file counts as missing.
+          email: stringOrNull(form.get("email")) ?? "",
+          password: stringOrNull(form.get("password")) ?? "",
+          next: stringOrNull(form.get("next")) ?? "/mail",
         });
       },
     },

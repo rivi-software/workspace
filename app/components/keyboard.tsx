@@ -106,7 +106,9 @@ export const useShortcuts = (shortcuts: Shortcut[]) => {
 
       if (ref.current.some((s) => s.keys.startsWith(`${key} `))) {
         pending.current = key;
-        timer.current = setTimeout(() => (pending.current = null), 800);
+        timer.current = setTimeout(() => {
+          pending.current = null;
+        }, 800);
 
         return;
       }

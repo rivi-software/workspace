@@ -95,8 +95,15 @@ const toolOutput = (output: ToolResultOutput): string => {
       return output.reason ? `[denied] ${bounded(output.reason)}` : "[denied]";
     }
 
-    default: {
+    case "json":
+    case "error-json":
+    case "content": {
       return boundedJson(output.value);
+    }
+
+    default: {
+      // A kind a later AI SDK adds is shown as it came: telemetry never fails a turn.
+      return boundedJson(output);
     }
   }
 };
@@ -112,16 +119,14 @@ const userContent = (content: UserContent): string => {
       .join("\n");
   }
 
-  // SAFETY: the AI SDK types a user message's content as its parts or a string, and it is not an array here.
-  return bounded(content as string);
+  return bounded(content);
 };
 
 type AssistantContent = Extract<ModelMessage, { role: "assistant" }>["content"];
 
 const assistantMessages = (content: AssistantContent): ChatMessage[] => {
   if (!Array.isArray(content)) {
-    // SAFETY: the AI SDK types an assistant message's content as its parts or a string, and it is not an array here.
-    return [{ role: "assistant", content: bounded(content as string) }];
+    return [{ role: "assistant", content: bounded(content) }];
   }
 
   const words: string[] = [];

@@ -202,7 +202,11 @@ export const AddressField = ({
                 setSuggestions([]);
               }
             }}
-            onFocus={() => suggestions.length && setOpen(true)}
+            onFocus={() => {
+              if (suggestions.length > 0) {
+                setOpen(true);
+              }
+            }}
             onBlur={() => {
               setOpen(false);
 

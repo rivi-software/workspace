@@ -23,6 +23,7 @@ import {
   mailbox,
   recordingEmail,
   rejection,
+  stringMatching,
 } from "./fixtures";
 
 // A 1×1 PNG, as the editor puts an uploaded logo in the markup.
@@ -467,7 +468,7 @@ describe("HTML signatures", () => {
         attachments: [
           expect.objectContaining({
             disposition: "inline",
-            contentId: expect.stringMatching(/^sig1\./u),
+            contentId: stringMatching(/^sig1\./u),
             type: "image/png",
             content: PNG,
           }),

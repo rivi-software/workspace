@@ -14,9 +14,11 @@ export default defineConfig({
 
       // The plugin lays a developer's `.dev.vars` over these `vars` (a localhost APP_URL); pinning them keeps the
       // tests on the values of `wrangler.jsonc`, as in CI, which has no `.dev.vars`.
+      // SAFETY: wrangler's declarations name types it does not ship, so its config reads as `any`; the `vars` of
+      // `wrangler.jsonc` are strings.
       const { vars } = unstable_readConfig({
         config: path.join(import.meta.dirname, "wrangler.jsonc"),
-      });
+      }) as { vars: Record<string, string> };
 
       return {
         main: "./test/worker-entry.ts",

@@ -3,6 +3,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { useCallback } from "react";
 
 import { withCleanup } from "~/lib/cleanup";
+import { unreachable } from "~/lib/guards";
 import { threadsAction, undoAction } from "~/lib/mail/actions";
 import type { ThreadsResult } from "~/lib/mail/actions";
 import { snoozeLabel } from "~/lib/mail/snooze";
@@ -52,8 +53,19 @@ const describe = (action: ThreadAction, count: number): string | null => {
       return `${what} deleted forever.`;
     }
 
-    default: {
+    // What the row itself shows (its star, its weight, its labels) needs no toast.
+    case "star":
+    case "unstar":
+    case "read":
+    case "unread":
+    case "label":
+    case "unlabel": {
       return null;
+    }
+
+    // Every intent has its case above, so a new one fails the typecheck here until it says what its toast reads.
+    default: {
+      return unreachable(action.intent, "intent");
     }
   }
 };
@@ -70,14 +82,26 @@ export const useThreadActions = () => {
   const act = useServerFn(threadsAction);
   const undo = useServerFn(undoAction);
 
+  // The toast that offered the undo is gone once it is pressed, so a failure gets a toast of its own.
   const revert = useCallback(
     async (token: string) => {
       const fd = new FormData();
       fd.set("undo", token);
-      await undo({ data: fd });
+
+      try {
+        await undo({ data: fd });
+      } catch (error) {
+        toast.show({
+          message: error instanceof Error ? error.message : String(error),
+          tone: "error",
+        });
+
+        return;
+      }
+
       await router.invalidate();
     },
-    [undo, router]
+    [undo, router, toast]
   );
 
   return useCallback(
@@ -141,7 +165,7 @@ export const useThreadActions = () => {
               ? {
                   label: "Undo",
                   onClick: () => {
-                    revert(token);
+                    void revert(token);
                   },
                 }
               : undefined,

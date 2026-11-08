@@ -20,9 +20,10 @@ import {
 } from "~/lib/assistant/chat.server";
 import { parseMarkdown, safeHref } from "~/lib/assistant/markdown";
 import { finishUpload, startUpload } from "~/lib/drive/drive.server";
+import { stringOrNull } from "~/lib/guards";
 import { ingestInboundEmail } from "~/lib/mail/ingest.server";
 
-import { db, defined, mail, mailbox } from "./fixtures";
+import { db, defined, mail, mailbox, stringContaining } from "./fixtures";
 import { renderMarkdown } from "./markdown";
 
 /** A question to the assistant, its answer read to the end (the stream), and the stored turn waited for. */
@@ -60,7 +61,7 @@ const toolPart = (parts: StoredPart[], name: string) => {
   const part = parts.find((p) => p.type === `tool-${name}`);
 
   if (!part || !isToolPart(part)) {
-    return;
+    return null;
   }
 
   const { input, output } = part;
@@ -200,7 +201,7 @@ describe("the assistant", () => {
       messages: [
         {
           text: "Shall we have lunch on Friday?",
-          from: expect.stringContaining("jane@acme.com"),
+          from: stringContaining("jane@acme.com"),
         },
       ],
       view: {
@@ -220,7 +221,10 @@ describe("the assistant", () => {
 
     const row = defined(
       await db.query.drafts.findFirst({
-        where: eq(drafts.id, String(draftStep.output.draftId)),
+        where: eq(
+          drafts.id,
+          defined(stringOrNull(draftStep.output.draftId), "draft id")
+        ),
       })
     );
 
@@ -259,7 +263,10 @@ describe("the assistant", () => {
 
     const row = defined(
       await db.query.drafts.findFirst({
-        where: eq(drafts.id, String(step.output.draftId)),
+        where: eq(
+          drafts.id,
+          defined(stringOrNull(step.output.draftId), "draft id")
+        ),
       })
     );
 

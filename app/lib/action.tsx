@@ -35,10 +35,8 @@ const createForm = <R,>(ctx: { current: ActionContext<R> }, url: string) =>
           const form = e.currentTarget;
           const fd = new FormData(form);
 
-          // SAFETY: nativeEvent on form onSubmit is SubmitEvent
-          const submitEvent = e.nativeEvent as SubmitEvent;
           // SAFETY: submitter is an HTMLButtonElement or null
-          const submitter = submitEvent.submitter as HTMLButtonElement | null;
+          const submitter = e.nativeEvent.submitter as HTMLButtonElement | null;
 
           if (submitter?.name) {
             fd.set(submitter.name, submitter.value);
@@ -117,6 +115,8 @@ export const useAction = <R,>(
           callError instanceof Error ? callError.message : String(callError)
         );
         setState("idle");
+
+        return undefined;
       }
     },
     [call, router, ctx]

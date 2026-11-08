@@ -4,6 +4,7 @@ import { useCallback } from "react";
 
 import { driveAction } from "~/lib/drive/actions";
 import type { DriveResult } from "~/lib/drive/actions";
+import { errorMessage } from "~/lib/guards";
 
 import { useToast } from "../toast";
 
@@ -45,6 +46,26 @@ export const useDriveAction = () => {
   const router = useRouter();
   const toast = useToast();
   const act = useServerFn(driveAction);
+
+  // The toast that offered the undo is gone once it is pressed, so a failure gets a toast of its own.
+  const revert = useCallback(
+    async (undo: { intent: string; ids: string[] }) => {
+      const back = new FormData();
+      back.set("intent", undo.intent);
+      back.set("ids", JSON.stringify(undo.ids));
+
+      try {
+        await act({ data: back });
+      } catch (error) {
+        toast.show({ message: errorMessage(error), tone: "error" });
+
+        return;
+      }
+
+      await router.invalidate();
+    },
+    [act, router, toast]
+  );
 
   return useCallback(
     async (
@@ -94,10 +115,7 @@ export const useDriveAction = () => {
             ? {
                 label: "Undo",
                 onClick: () => {
-                  const back = new FormData();
-                  back.set("intent", undo.intent);
-                  back.set("ids", JSON.stringify(undo.ids));
-                  void act({ data: back }).then(() => router.invalidate());
+                  void revert(undo);
                 },
               }
             : undefined,
@@ -106,6 +124,6 @@ export const useDriveAction = () => {
 
       return result;
     },
-    [act, router, toast]
+    [act, router, toast, revert]
   );
 };

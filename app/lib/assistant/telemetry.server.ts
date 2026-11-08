@@ -13,9 +13,6 @@ import type { AiRunContext } from "~/lib/ai-telemetry";
 export const assistantTelemetry = (context: AiRunContext) =>
   aiCallOptions("assistant", context);
 
-/** The properties PostHog's client takes for an event: its own type, not a dictionary of our own. */
-type EventProperties = Parameters<typeof captureServerEvent>[2];
-
 /** Whether the events carry what was asked and answered (`AI_TEXT_ANALYTICS`), as the last env read said. */
 let text = false;
 
@@ -29,13 +26,7 @@ let text = false;
  */
 const telemetry = createAiTelemetry({
   capture: ({ event, distinctId, properties, anonymousId }) =>
-    captureServerEvent(
-      event,
-      distinctId,
-      // SAFETY: the package's properties are JSON values, which PostHog's client sends as they are.
-      properties as EventProperties,
-      anonymousId
-    ),
+    captureServerEvent(event, distinctId, properties, anonymousId),
   text: () => text,
 });
 

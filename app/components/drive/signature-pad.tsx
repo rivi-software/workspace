@@ -294,10 +294,26 @@ export const SignatureDialog = ({
   submitLabel?: string;
   note?: string;
   onClose: () => void;
+  /** Takes the signature; says its own failure, since the dialog only waits on it. */
   onAdopt: (png: string) => void | Promise<void>;
 }) => {
   const [png, setPng] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+
+  const adopt = async () => {
+    if (!png) {
+      return;
+    }
+
+    setBusy(true);
+
+    await withCleanup(
+      async () => {
+        await onAdopt(png);
+      },
+      () => setBusy(false)
+    );
+  };
 
   return (
     <Dialog
@@ -316,19 +332,8 @@ export const SignatureDialog = ({
               variant="primary"
               disabled={!png}
               loading={busy}
-              onClick={async () => {
-                if (!png) {
-                  return;
-                }
-
-                setBusy(true);
-
-                await withCleanup(
-                  async () => {
-                    await onAdopt(png);
-                  },
-                  () => setBusy(false)
-                );
+              onClick={() => {
+                void adopt();
               }}
             >
               {submitLabel}

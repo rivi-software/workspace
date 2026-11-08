@@ -231,5 +231,5 @@ data: [DONE]
 ## In this repository
 
 - `app/lib/api/api.server.ts` is the entry: the bearer token (`getSessionUser`), the person, the routes, the JSON answers and the problems; one module per section beside it (`me`, `mail`, `drive`, `calendar`, `tasks`, `assistant`), each a list of routes over the server modules the console's loaders call.
-- `test/api.test.ts` signs in as a client does (`POST /api/auth/sign-in/email`, the token from `set-auth-token`) and calls every section through `SELF.fetch` with it as a bearer token; `test/sessions.test.ts` covers what ends a session.
+- `test/api.test.ts` signs in as a client does (`POST /api/auth/sign-in/email`, the token from `set-auth-token`) and calls every section through `exports.default.fetch` with it as a bearer token; `test/sessions.test.ts` covers what ends a session.
 - A new endpoint: a route in its section's module, a row above, and a test.

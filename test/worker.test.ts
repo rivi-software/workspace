@@ -1,10 +1,9 @@
 import { installPostHogForTests } from "@rivi-software/posthog-tanstack-start/server";
 // The Worker's own request handling (`workers/worker.ts`, CORE-1287): what it serves before TanStack Start (Better
 // Auth and the API), the security headers every answer carries, earlier builds' assets, and errors reported on their
-// way out. `SELF` is the same Worker with a stand-in for Start (`test/worker-entry.ts`); the cases that need Start to
-// answer something mount the Worker here with a Start of their own.
-import { SELF } from "cloudflare:test";
-import { env } from "cloudflare:workers";
+// way out. `exports.default` is the same Worker with a stand-in for Start (`test/worker-entry.ts`); the cases that
+// need Start to answer something mount the Worker here with a Start of their own.
+import { env, exports } from "cloudflare:workers";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { createWorker } from "../workers/worker";
@@ -56,8 +55,10 @@ describe("the Worker", () => {
     }).toStrictEqual({ page: "from Start", started: 1 });
   });
 
-  it("puts the baseline security headers on what the tests reach through SELF", async () => {
-    const res = await SELF.fetch(`${env.APP_URL}/api/auth/get-session`);
+  it("puts the baseline security headers on what the tests reach through exports.default", async () => {
+    const res = await exports.default.fetch(
+      `${env.APP_URL}/api/auth/get-session`
+    );
 
     expect({
       status: res.status,

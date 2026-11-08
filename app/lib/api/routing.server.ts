@@ -43,8 +43,9 @@ export class ApiRequestError extends Error {
 
 const NO_STORE = { "Cache-Control": "no-store" };
 
-export const json = <T extends object>(
-  data: T,
+export const json = (
+  // oxlint-disable-next-line anti-slop/no-object-parameters -- each endpoint's own answer, typed where it is built: `Response.json` serialises any object
+  data: object,
   status = 200,
   headers: Record<string, string> = {}
 ): Response =>

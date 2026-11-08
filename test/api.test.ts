@@ -1,9 +1,8 @@
-import { SELF } from "cloudflare:test";
 // The Workspace API for native clients (#3569, docs/API.md): the app on a phone signs in with the person's password
 // through Better Auth (`POST /api/auth/sign-in/email`), keeps the session token it answers, and reads and changes
 // the person's mail, files, calendar, tasks and conversations with the Assistant over `/api/v1` with it as a bearer
 // token.
-import { env } from "cloudflare:workers";
+import { env, exports } from "cloudflare:workers";
 import { beforeAll, describe, expect, it } from "vitest";
 
 import type { User } from "~/db/schema";
@@ -20,6 +19,7 @@ import {
   defined,
   mail,
   mailbox,
+  parseJson,
   recordingEmail,
 } from "./fixtures";
 import type { Json } from "./fixtures";
@@ -42,7 +42,7 @@ const str = (value: Json | undefined): string => stringOrNull(value) ?? "";
  * session token in the `set-auth-token` header (the `bearer` plugin), which every call then carries.
  */
 const signInAsApp = async (user: User): Promise<string> => {
-  const res = await SELF.fetch(`${issuer}/api/auth/sign-in/email`, {
+  const res = await exports.default.fetch(`${issuer}/api/auth/sign-in/email`, {
     method: "POST",
     headers: {
       origin: new URL(env.APP_URL).origin,
@@ -64,7 +64,7 @@ const call = async (
   method: string,
   path: string,
   body?: Json,
-  fetchFn: typeof fetch = (input, init) => SELF.fetch(input, init)
+  fetchFn: typeof fetch = (input, init) => exports.default.fetch(input, init)
 ) => {
   const headers: Record<string, string> = bearer(token);
 
@@ -133,7 +133,7 @@ describe("the Workspace API", () => {
       ],
     });
 
-    const none = await SELF.fetch(`${api}/me`);
+    const none = await exports.default.fetch(`${api}/me`);
     const bad = await call("wsa_nothing", "GET", "/me");
     const missing = await call(token, "GET", "/nowhere");
     const method = await call(token, "DELETE", "/me");
@@ -222,14 +222,14 @@ describe("the Workspace API", () => {
       unreadAfter: 0,
     });
 
-    const document = await SELF.fetch(
+    const document = await exports.default.fetch(
       `${api}/mail/messages/${str(message.id)}/document?appearance=dark`,
       { headers: bearer(token) }
     );
 
     const html = await document.text();
 
-    const noDocument = await SELF.fetch(
+    const noDocument = await exports.default.fetch(
       `${api}/mail/messages/nothing/document`,
       { headers: bearer(token) }
     );
@@ -278,7 +278,7 @@ describe("the Workspace API", () => {
       intent: "star",
     });
 
-    const notJson = await SELF.fetch(`${api}/mail/undo`, {
+    const notJson = await exports.default.fetch(`${api}/mail/undo`, {
       method: "POST",
       headers: bearer(token),
       body: "undo=x",
@@ -383,7 +383,7 @@ describe("the Workspace API", () => {
     const after = await call(readerToken, "GET", path);
     const message = obj(list(after.data.messages)[0]);
 
-    const document = await SELF.fetch(
+    const document = await exports.default.fetch(
       `${api}/mail/messages/${str(message.id)}/document`,
       { headers: bearer(readerToken) }
     );
@@ -622,15 +622,18 @@ describe("the Workspace API", () => {
   });
 
   it("browses, uploads, changes and serves files in Drive", async () => {
-    const uploaded = await SELF.fetch(`${api}/drive/upload?name=notes.txt`, {
-      method: "PUT",
-      headers: {
-        ...bearer(token),
-        "content-type": "text/plain",
-        "content-length": "11",
-      },
-      body: "hello drive",
-    });
+    const uploaded = await exports.default.fetch(
+      `${api}/drive/upload?name=notes.txt`,
+      {
+        method: "PUT",
+        headers: {
+          ...bearer(token),
+          "content-type": "text/plain",
+          "content-length": "11",
+        },
+        body: "hello drive",
+      }
+    );
 
     const uploadedData: Json = await uploaded.json();
     const fileId = str(obj(obj(uploadedData).node).id);
@@ -729,11 +732,11 @@ describe("the Workspace API", () => {
       starredView: ["minutes.txt"],
     });
 
-    const bytes = await SELF.fetch(`${api}/drive/files/${fileId}`, {
+    const bytes = await exports.default.fetch(`${api}/drive/files/${fileId}`, {
       headers: bearer(token),
     });
 
-    const download = await SELF.fetch(
+    const download = await exports.default.fetch(
       `${api}/drive/files/${fileId}?download=1`,
       {
         headers: bearer(token),
@@ -768,9 +771,12 @@ describe("the Workspace API", () => {
       ids: [fileId],
     });
 
-    const goneFile = await SELF.fetch(`${api}/drive/files/${fileId}`, {
-      headers: bearer(token),
-    });
+    const goneFile = await exports.default.fetch(
+      `${api}/drive/files/${fileId}`,
+      {
+        headers: bearer(token),
+      }
+    );
 
     const noFolder = await call(token, "GET", "/drive?folder=nothing");
 
@@ -1006,7 +1012,7 @@ describe("the Workspace API", () => {
   });
 
   it("answers the Assistant as a stream and keeps the conversation", async () => {
-    const chat = await SELF.fetch(`${api}/assistant/chat`, {
+    const chat = await exports.default.fetch(`${api}/assistant/chat`, {
       method: "POST",
       headers: { ...bearer(token), "content-type": "application/json" },
       body: JSON.stringify({
@@ -1025,7 +1031,7 @@ describe("the Workspace API", () => {
       .filter((line) => line.startsWith("data: "))
       .map((line) => line.slice(6));
 
-    const start = obj(JSON.parse(events[0] ?? "null"));
+    const start = obj(parseJson(events[0] ?? "null"));
     const conversationId = str(obj(start.messageMetadata).conversationId);
 
     // The stored answer takes a moment after the stream ends.

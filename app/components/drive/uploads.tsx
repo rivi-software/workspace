@@ -18,7 +18,12 @@ import {
   UPLOAD_PART_SIZE,
   formatSize,
 } from "~/lib/drive/drive";
-import { defined, errorMessage, isJsonObject } from "~/lib/guards";
+import {
+  defined,
+  errorMessage,
+  isJsonObject,
+  stringOrNull,
+} from "~/lib/guards";
 
 import { IconButton, cx } from "../ui";
 import { KindIcon } from "./icons";
@@ -164,7 +169,7 @@ const post = async (body: UploadRequest): Promise<StartedUpload> => {
 
   if (!res.ok || !answer?.ok) {
     throw new Error(
-      String(answer?.error ?? `The upload failed (${res.status}).`)
+      stringOrNull(answer?.error) ?? `The upload failed (${res.status}).`
     );
   }
 
@@ -317,7 +322,7 @@ export const UploadProvider = ({ children }: { children: ReactNode }) => {
     }
 
     refresh.current = setTimeout(() => {
-      router.invalidate();
+      void router.invalidate();
     }, 300);
   }, [router]);
 
@@ -386,7 +391,7 @@ export const UploadProvider = ({ children }: { children: ReactNode }) => {
         }
 
         running.current += 1;
-        run(item);
+        void run(item);
       }
 
       return list;

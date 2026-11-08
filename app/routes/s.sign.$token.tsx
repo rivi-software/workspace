@@ -125,6 +125,13 @@ const DeclineDialog = ({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // `post` answers what went wrong rather than throwing.
+  const decline = async () => {
+    setBusy(true);
+    setError(await post(token, { intent: "decline", reason }));
+    setBusy(false);
+  };
+
   return (
     <Dialog open={open} onClose={onClose} title="Decline to sign">
       <div className="space-y-3">
@@ -147,10 +154,8 @@ const DeclineDialog = ({
           <Button
             variant="danger"
             loading={busy}
-            onClick={async () => {
-              setBusy(true);
-              setError(await post(token, { intent: "decline", reason }));
-              setBusy(false);
+            onClick={() => {
+              void decline();
             }}
           >
             Decline
@@ -329,7 +334,7 @@ const SignView = ({
               disabled={!agree}
               loading={busy}
               onClick={() => {
-                send({ intent: "sign", values, signature, agree });
+                void send({ intent: "sign", values, signature, agree });
               }}
             >
               Sign

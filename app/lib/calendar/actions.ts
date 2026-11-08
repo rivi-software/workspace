@@ -29,7 +29,7 @@ const readAttendees = (data: FormData): string[] => {
   }
 
   try {
-    const parsed = JSON.parse(raw);
+    const parsed: unknown = JSON.parse(raw);
 
     if (Array.isArray(parsed)) {
       return parsed.filter((x): x is string => typeof x === "string");

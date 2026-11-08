@@ -5,6 +5,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import type { User } from "~/db/schema";
 import type { Json } from "~/lib/assistant/assistant";
 import { answerChat } from "~/lib/assistant/chat.server";
+import { stringOrNull } from "~/lib/guards";
 import { ingestInboundEmail } from "~/lib/mail/ingest.server";
 
 import { db, mail, mailbox } from "./fixtures";
@@ -132,7 +133,10 @@ describe("the Assistant in PostHog AI observability", () => {
     ]);
     expect(
       new Set(
-        sent.map((e) => [e.distinctId, e.properties.$ai_session_id].join(","))
+        sent.map(
+          (e) =>
+            `${e.distinctId ?? ""},${stringOrNull(e.properties.$ai_session_id) ?? ""}`
+        )
       )
     ).toStrictEqual(new Set([`${ann.id},${conversationId}`]));
   });

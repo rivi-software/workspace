@@ -8,6 +8,7 @@ import { z } from "zod";
 import { AuthShell, authCardClass } from "~/components/auth-shell";
 import { Button, Field, Notice, inputClass } from "~/components/ui";
 import { createDb } from "~/db";
+import { stringOrNull } from "~/lib/guards";
 import { requestPasswordReset } from "~/lib/recovery.server";
 
 const searchSchema = z.object({ sent: z.coerce.string().optional() });
@@ -109,7 +110,10 @@ export const Route = createFileRoute("/forgot-password")({
       // time it takes says whether the address has an account.
       POST: async ({ request }) => {
         const form = await request.formData();
-        waitUntil(sendResetLink(request, String(form.get("email") ?? "")));
+        // A field posted as a file counts as missing.
+        waitUntil(
+          sendResetLink(request, stringOrNull(form.get("email")) ?? "")
+        );
 
         return new Response(null, {
           status: 303,

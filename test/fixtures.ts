@@ -1,5 +1,6 @@
 import { env } from "cloudflare:workers";
 import { eq } from "drizzle-orm";
+import { expect } from "vitest";
 
 import { createDb } from "~/db";
 import { aliases, users } from "~/db/schema";
@@ -352,6 +353,47 @@ export type Json =
   | null
   | Json[]
   | { [key: string]: Json };
+
+/** `JSON.parse`, typed as what it answers rather than `any`. */
+export const parseJson = (text: string): Json =>
+  // SAFETY: JSON.parse answers only what JSON holds: strings, numbers, booleans, null, and arrays and objects of them.
+  JSON.parse(text) as Json;
+
+// Vitest's asymmetric matchers, typed as the value each stands for (Vitest types them `any`), so an expected object
+// keeps the type of the value it is compared with.
+
+/** `expect.any(String)`: any string. */
+// SAFETY: the matcher stands in for a string; `toStrictEqual` and `toMatchObject` compare by its own rule.
+export const anyString = (): string => expect.any(String) as string;
+
+/** `expect.stringContaining(text)`: a string with `text` in it. */
+export const stringContaining = (text: string): string =>
+  // SAFETY: the matcher stands in for a string; `toStrictEqual` and `toMatchObject` compare by its own rule.
+  expect.stringContaining(text) as string;
+
+/** `expect.stringMatching(pattern)`: a string `pattern` matches. */
+export const stringMatching = (pattern: RegExp): string =>
+  // SAFETY: the matcher stands in for a string; `toStrictEqual` and `toMatchObject` compare by its own rule.
+  expect.stringMatching(pattern) as string;
+
+/** `expect.arrayContaining(items)`: a list of strings with each of `items` in it. */
+export const stringsContaining = (items: string[]): string[] =>
+  // SAFETY: the matcher stands in for a list of strings; `toStrictEqual` and `toMatchObject` compare by its own rule.
+  expect.arrayContaining(items) as string[];
+
+type Recipients = EmailMessageBuilder["to"];
+
+/** Whether a recipient of a sent message is named as an address with a name rather than as text. */
+const isEmailAddress = (
+  recipient: string | EmailAddress
+): recipient is EmailAddress => typeof recipient !== "string";
+
+/** The addresses of a sent message's `to`, `cc` or `bcc`, comma-separated, whichever way the code under test named them. */
+export const addressText = (recipients: Recipients): string =>
+  [recipients ?? []]
+    .flat()
+    .map((r) => (isEmailAddress(r) ? r.email : r))
+    .join(",");
 
 /** The query string for the params that are set; an `undefined` one leaves its key out. */
 export const queryOf = (

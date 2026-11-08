@@ -6,6 +6,6 @@
  * SAFETY: test-only. A stub that lacks a method the code under test calls fails the test with a TypeError, and a
  * binding or var the caller leaves out reads as undefined, as an unset one does in a Worker.
  */
-export const stubEnv = <const Bindings extends { [K in keyof Env]?: unknown }>(
-  bindings: Bindings
-): Env => bindings as Env;
+// oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- a stub's values have no contract the compiler can check, by design (SAFETY above)
+export const stubEnv = (bindings: { [K in keyof Env]?: unknown }): Env =>
+  bindings as Env;

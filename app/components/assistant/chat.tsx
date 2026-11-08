@@ -13,7 +13,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import type { FormEvent } from "react";
+import type { SubmitEvent } from "react";
 
 import { useAction } from "~/lib/action";
 import { deleteConversationAction } from "~/lib/assistant/actions";
@@ -144,7 +144,7 @@ const Step = ({ part }: { part: ToolPart }) => {
             }
 
             e.preventDefault();
-            router.navigate({ href: defined(view.link, "the link") });
+            void router.navigate({ href: defined(view.link, "the link") });
           }}
         >
           Open
@@ -285,7 +285,7 @@ const Composer = ({
     }
   }, [autoFocus]);
 
-  const submit = (e?: FormEvent) => {
+  const submit = (e?: SubmitEvent) => {
     e?.preventDefault();
 
     if (busy || !value.trim()) {
@@ -397,9 +397,9 @@ const AssistantChat = ({
       // A new conversation has a page of its own once its first answer is stored (the stream ends after that),
       // and the sidebar learns of it; an existing one only moves up the sidebar.
       if (!conversation && id && !isAbort) {
-        openConversation(id);
+        void openConversation(id);
       } else {
-        router.invalidate();
+        void router.invalidate();
       }
     },
   });
@@ -450,7 +450,7 @@ const AssistantChat = ({
     }
 
     stuck.current = true;
-    chat.sendMessage({ text: trimmed });
+    void chat.sendMessage({ text: trimmed });
   };
 
   const last = messages.at(-1);
@@ -506,7 +506,7 @@ const AssistantChat = ({
                 <Button
                   size="sm"
                   onClick={() => {
-                    chat.regenerate();
+                    void chat.regenerate();
                   }}
                 >
                   Try again
@@ -521,7 +521,7 @@ const AssistantChat = ({
         busy={busy}
         onSend={send}
         onStop={() => {
-          chat.stop();
+          void chat.stop();
         }}
         autoFocus={!messages.length || !!prompt}
       />
@@ -570,7 +570,7 @@ export const AssistantPage = ({
     }
 
     toast.show({ message: "Conversation deleted." });
-    navigate({ to: "/assistant", search: {} });
+    void navigate({ to: "/assistant", search: {} });
   };
 
   return (
@@ -604,7 +604,7 @@ export const AssistantPage = ({
               danger
               icon={<Trash2 className="h-3.5 w-3.5" />}
               onClick={() => {
-                remove();
+                void remove();
               }}
             >
               Delete conversation

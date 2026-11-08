@@ -132,7 +132,7 @@ export const parseJsonAddresses = (
   }
 
   try {
-    const parsed = JSON.parse(json);
+    const parsed: unknown = JSON.parse(json);
 
     // SAFETY: the column is written by `JSON.stringify` of an `Address[]`, and an array is all this checks.
     return Array.isArray(parsed) ? (parsed as Address[]) : [];

@@ -14,7 +14,8 @@ import {
   uploadPart,
 } from "./drive.server";
 
-const answer = <T extends object>(data: T, status = 200) =>
+// oxlint-disable-next-line anti-slop/no-object-parameters -- the JSON answer of each route below, each its own shape: `Response.json` serialises any object
+const answer = (data: object, status = 200) =>
   Response.json(data, { status, headers: { "Cache-Control": "no-store" } });
 
 /** The JSON object a request carries, or null when the body is no JSON or no object. */

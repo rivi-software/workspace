@@ -11,7 +11,7 @@ import {
   chatOutput,
   latestQuestion,
 } from "./text";
-import type { AnswerPart, ChatMessage, Instructions } from "./text";
+import type { AnswerPart, ChatMessage } from "./text";
 
 /**
  * What a run passes so PostHog can group its events: `conversationId` becomes the AI session (`$ai_session_id`) and
@@ -334,9 +334,8 @@ export const createAiTelemetry = (options: AiTelemetryOptions) => {
         model: event.modelId,
         // SAFETY: the tool definitions the AI SDK hands over are JSON: names, descriptions and JSON schemas.
         tools: event.tools as AiValue,
-        // SAFETY: the AI SDK hands the instructions over as a string or system messages, which `Instructions` names.
         input: run.text
-          ? chatInput(event.instructions as Instructions, event.messages)
+          ? chatInput(event.instructions, event.messages)
           : undefined,
       };
     },

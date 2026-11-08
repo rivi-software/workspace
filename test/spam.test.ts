@@ -52,6 +52,7 @@ import {
   forwardable,
   mail,
   mailbox,
+  parseJson,
   rawMail,
   recordingEmail,
   rejection,
@@ -490,7 +491,7 @@ describe("the spam filter on delivery", () => {
     });
     expect({
       trashedAt: Boolean(r.thread.trashedAt),
-      parse: JSON.parse(defined(r.message.spamJson)),
+      parse: parseJson(defined(r.message.spamJson)),
     }).toStrictEqual({
       trashedAt: true,
       parse: {

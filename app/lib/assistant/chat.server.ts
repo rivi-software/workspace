@@ -1,5 +1,11 @@
 import { captureServerException } from "@rivi-software/posthog-tanstack-start/server";
-import { convertToModelMessages, stepCountIs, streamText } from "ai";
+import {
+  convertToModelMessages,
+  createUIMessageStreamResponse,
+  stepCountIs,
+  streamText,
+  toUIMessageStream,
+} from "ai";
 import type { UIMessage } from "ai";
 import { and, desc, eq, sql } from "drizzle-orm";
 
@@ -192,12 +198,12 @@ const questionOf = (message: unknown): string => {
     throw new AssistantError("Expected a message from the person.");
   }
 
-  const text = message.parts
-    .filter(
-      (p): p is { type: "text"; text: string } =>
-        p.type === "text" && stringOrNull(p.text) !== null
+  const parts: unknown[] = message.parts;
+
+  const text = parts
+    .flatMap((p) =>
+      isJsonObject(p) && p.type === "text" ? (stringOrNull(p.text) ?? []) : []
     )
-    .map((p) => p.text)
     .join("\n")
     .trim();
 
@@ -300,12 +306,13 @@ export const answerChat = async (
   const { model, modelId, provider } = assistantModel(env);
   const originalMessages = [...history, question];
   let usage: TokenUsage = {};
+  const tools = assistantTools(env, db, user);
 
   const result = streamText({
     model,
-    system: systemPrompt(user, provider),
+    instructions: systemPrompt(user, provider),
     messages: await convertToModelMessages(originalMessages),
-    tools: assistantTools(env, db, user),
+    tools,
     stopWhen: stepCountIs(8),
     abortSignal: signal,
     // A trace per turn in PostHog AI observability, under the conversation and the person.
@@ -313,10 +320,11 @@ export const answerChat = async (
       conversationId: conversation.id,
       distinctId: user.id,
     }),
-    onFinish: ({ totalUsage }) => {
+    // Every step's tokens together, kept for the answer's row.
+    onEnd: (end) => {
       usage = {
-        inputTokens: totalUsage.inputTokens,
-        outputTokens: totalUsage.outputTokens,
+        inputTokens: end.usage.inputTokens,
+        outputTokens: end.usage.outputTokens,
       };
     },
     onError: ({ error }) => {
@@ -335,9 +343,13 @@ export const answerChat = async (
   const { promise: done, resolve: settle } = Promise.withResolvers<void>();
 
   // A page that went away ends the stream without its finish; give the store a moment, then let the Worker go.
-  signal?.addEventListener("abort", () => setTimeout(settle, 3000), {
-    once: true,
-  });
+  signal?.addEventListener(
+    "abort",
+    () => {
+      setTimeout(settle, 3000);
+    },
+    { once: true }
+  );
 
   const store = async (message: UIMessage | undefined) => {
     if (!message?.parts.length) {
@@ -365,12 +377,15 @@ export const answerChat = async (
       .where(eq(assistantConversations.id, conversation.id));
   };
 
-  const response = result.toUIMessageStreamResponse<AssistantMessage>({
+  const stream = toUIMessageStream<typeof tools, AssistantMessage>({
+    stream: result.stream,
+    tools,
     originalMessages,
     generateMessageId: () => newId("am"),
     messageMetadata: ({ part }) =>
       part.type === "start" ? { conversationId: conversation.id } : undefined,
-    onFinish: async ({ responseMessage }) => {
+    // Awaited before the stream closes, so the answer is stored before the Worker may go (`done`).
+    onEnd: async ({ responseMessage }) => {
       try {
         await store(responseMessage);
       } catch (error) {
@@ -395,6 +410,8 @@ export const answerChat = async (
       return "The assistant could not answer. Try again in a moment.";
     },
   });
+
+  const response = createUIMessageStreamResponse({ stream });
 
   return { response, conversationId: conversation.id, done };
 };

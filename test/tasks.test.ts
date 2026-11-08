@@ -4,6 +4,7 @@ import { beforeAll, describe, expect, it } from "vitest";
 
 import { githubConnections } from "~/db/schema";
 import type { User } from "~/db/schema";
+import { isJsonObject, stringOrNull } from "~/lib/guards";
 import {
   GitHubError,
   assignedIssues,
@@ -29,7 +30,14 @@ import {
   updateTask,
 } from "~/lib/tasks/tasks.server";
 
-import { db, defined, mailbox, rejection, rejectionIncludes } from "./fixtures";
+import {
+  db,
+  defined,
+  mailbox,
+  parseJson,
+  rejection,
+  rejectionIncludes,
+} from "./fixtures";
 
 const TOKEN = "github_pat_11AAAAAAA0abcdefghijklmnopqrstuvwxyz";
 
@@ -81,7 +89,9 @@ const fakeGitHub = (
     const url = new URL(input instanceof Request ? input.url : input);
 
     const method = init?.method ?? "GET";
-    const body = init?.body ? JSON.parse(String(init.body)) : undefined;
+    // The client posts JSON text (`JSON.stringify` in github.server.ts).
+    const text = stringOrNull(init?.body);
+    const body = text === null ? undefined : parseJson(text);
     calls.push({ method, path: url.pathname + url.search, body });
     const auth = new Headers(init?.headers).get("authorization");
 
@@ -126,7 +136,11 @@ const fakeGitHub = (
       }
 
       if (method === "PATCH") {
-        issue.state = body.state;
+        const state = isJsonObject(body) ? body.state : undefined;
+
+        if (state === "open" || state === "closed") {
+          issue.state = state;
+        }
       }
 
       return json(200, restIssue(issue));

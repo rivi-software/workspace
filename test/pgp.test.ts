@@ -1,5 +1,4 @@
-import { SELF } from "cloudflare:test";
-import { env } from "cloudflare:workers";
+import { env, exports } from "cloudflare:workers";
 import { eq } from "drizzle-orm";
 import * as openpgp from "openpgp";
 import type { PrivateKey, PublicKey } from "openpgp";
@@ -37,6 +36,8 @@ import {
   recordingEmail,
   rejection,
   rejectionIncludes,
+  stringContaining,
+  stringMatching,
 } from "./fixtures";
 import { stubEnv } from "./stub-env";
 
@@ -704,7 +705,7 @@ describe("mail that arrives with OpenPGP", () => {
       pgp: {
         encrypted: true,
         decrypted: false,
-        error: expect.stringContaining("no OpenPGP key"),
+        error: stringContaining("no OpenPGP key"),
       },
       readable: false,
     });
@@ -851,7 +852,7 @@ describe("sending signed and encrypted mail", () => {
       recipients: [fay.email, "max@acme.com"].toSorted(),
       bcc: false,
       autocrypt: true,
-      type: expect.stringMatching(
+      type: stringMatching(
         /^multipart\/signed; boundary="[^"]+"; micalg=pgp-sha512; protocol="application\/pgp-signature"$/u
       ),
       keyAttached: true,
@@ -1102,7 +1103,7 @@ describe("sending signed and encrypted mail", () => {
 
 /** A request to the Worker's Web Key Directory. */
 const at = (path: string) =>
-  SELF.fetch(`${env.APP_URL}/.well-known/openpgpkey/${path}`);
+  exports.default.fetch(`${env.APP_URL}/.well-known/openpgpkey/${path}`);
 
 describe("the Web Key Directory", () => {
   it("names a local part as the draft's example does", async () => {

@@ -12,10 +12,22 @@ export const defined = <T>(value: T | null | undefined, what: string): T => {
   return value;
 };
 
+/** The `default` of a switch that names every case: the types say no value reaches it, so one that does throws, naming it. */
+export const unreachable = (value: never, what: string): never => {
+  throw new Error(`Unexpected ${what}: ${JSON.stringify(value)}`);
+};
+
+/** A posted form's text field as it came, or "" when it is missing or a file (a file is never text to read). */
+export const formText = (form: FormData, name: string): string => {
+  const value = form.get(name);
+
+  return value === null || value instanceof File ? "" : value;
+};
+
 /** The object a stored JSON text holds, or `{}` for text that is unreadable or holds no object. Its values stay `unknown` until a reader checks each one. */
 export const parseJsonObject = (json: string | null | undefined) => {
   try {
-    const parsed = json ? JSON.parse(json) : {};
+    const parsed: unknown = json ? JSON.parse(json) : {};
     // oxlint-disable-next-line anti-slop/no-runtime-typeof -- stored JSON is untrusted: only an object is read, key by key
     const isObject = Boolean(parsed) && typeof parsed === "object";
 

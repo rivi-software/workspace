@@ -41,6 +41,7 @@ type Failure = Error | Response | NotFoundError;
 
 // A call that fails at once: the keeper awaits it inside its `try`, as it does Start's.
 const failing = (failure: Failure) => (): Promise<List> => {
+  // oxlint-disable-next-line typescript/only-throw-error -- each kind of Failure may be thrown on its own (oxlint.config.ts allows Response and TanStack's NotFoundError); the rule does not read a union of them
   throw failure;
 };
 
@@ -50,7 +51,9 @@ const page = (...matches: ShownMatch[]) => {
 
   const options: KeepShownOptions = {
     matches: () => Promise.resolve(matches),
-    report: (error) => reported.push(error),
+    report: (error) => {
+      reported.push(error);
+    },
   };
 
   return { reported, options };

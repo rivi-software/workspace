@@ -41,11 +41,13 @@ import { confirmCode, sendCode } from "~/lib/drive/visitor.server";
 import { setExternalSharing } from "~/lib/workspace-settings.server";
 
 import {
+  addressText,
   db,
   defined,
   mailbox,
   recordingEmail,
   rejectionIncludes,
+  stringsContaining,
 } from "./fixtures";
 import {
   FIELDS,
@@ -95,8 +97,11 @@ const bucketRefusing = (
       // lacks reads as `undefined`, which `unknown` holds and the next line passes through.
       const value: unknown = target[prop as keyof R2Bucket];
 
-      // oxlint-disable-next-line anti-slop/no-runtime-typeof -- the trap meets every member of the real R2 binding, and only its methods need binding to it; there is no input contract to parse
-      return typeof value === "function" ? value.bind(target) : value;
+      const member: unknown =
+        // oxlint-disable-next-line anti-slop/no-runtime-typeof -- the trap meets every member of the real R2 binding, and only its methods need binding to it; there is no input contract to parse
+        typeof value === "function" ? value.bind(target) : value;
+
+      return member;
     },
   });
 
@@ -378,9 +383,10 @@ describe("the customer's side", () => {
       signature: "nope",
       agree: true,
     });
-    // SAFETY: the signing page's post answers JSON with a boolean `ok` on every path (`answer` in
+    // The signing page's post answers JSON with a boolean `ok` on every path (`answer` in
     // app/lib/drive/signing.server.ts).
-    observed.push(Boolean(((await res.json()) as { ok: boolean }).ok));
+    const refused = await res.json<{ ok: boolean }>();
+    observed.push(Boolean(refused.ok));
     const before = mail.sent.length;
     res = await postJson(mail.env, token, cookie, {
       intent: "sign",
@@ -399,7 +405,7 @@ describe("the customer's side", () => {
     observed.push(
       res.status,
       // The signer is told it is their turn.
-      mail.sent.slice(before).map((m) => String(m.to))
+      mail.sent.slice(before).map((m) => addressText(m.to))
     );
     observedSubsets.push(
       await customerPage(
@@ -468,7 +474,7 @@ describe("the customer's side", () => {
     observed.push({
       String: String(last.subject),
       stringify: JSON.stringify(last.from).includes(asker.email),
-      String2: String(last.to).includes("cas@example.org"),
+      String2: addressText(last.to).includes("cas@example.org"),
       stringify2: JSON.stringify(last).includes("Contract (signed).pdf"),
     });
 
@@ -544,13 +550,13 @@ describe("the customer's side", () => {
         ok: false,
         error: 'Fill in "Full name".',
       },
-      // Boolean(((await res.json()) as { ok: boolean }).ok)
+      // Boolean(refused.ok)
       false,
       // res.json()
       { ok: true },
       // res.status
       409,
-      // mail.sent.slice(before).map((m) => String(m.to))
+      // mail.sent.slice(before).map((m) => addressText(m.to))
       [colleague.email],
       // (await rejection(signForRivi(mail.env, db, asker, request.id, SIGNATURE, origin)))?.mes...
       true,
@@ -676,7 +682,7 @@ describe("the customer's side", () => {
     }).toStrictEqual({
       state: "awaiting-rivi",
       myTurn: true,
-      eventsMap: expect.arrayContaining(["auto-signed", "complete-failed"]),
+      eventsMap: stringsContaining(["auto-signed", "complete-failed"]),
     });
     // Taken back before anything was filed: no signed copy in Drive.
     await expect(signedCopiesOf(asker.id)).resolves.toHaveLength(0);
@@ -745,7 +751,7 @@ describe("the customer's side", () => {
     });
 
     await expect(res.json()).resolves.toStrictEqual({ ok: true });
-    expect(String(defined(mail.sent.at(-1)).to)).toBe(asker.email);
+    expect(addressText(defined(mail.sent.at(-1)).to)).toBe(asker.email);
     expect(String(defined(mail.sent.at(-1)).text)).toContain("Wrong amount.");
 
     const view = defined(

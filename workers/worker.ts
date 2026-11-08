@@ -59,7 +59,7 @@ const withSecurityHeaders = (res: Response, url: URL): Response => {
 /**
  * The Web Key Directory (`/.well-known/openpgpkey/*`), Better Auth (`/api/auth/*`: the password sign-in, passkeys,
  * the second factor, sessions), the API for other clients (`/api/v1/*`, docs/API.md), then Start. Served here rather than by route files, so the tests reach them
- * through `SELF.fetch` without the Vite build.
+ * through `exports.default.fetch` (`cloudflare:workers`) without the Vite build.
  */
 const route = async (
   request: Request,

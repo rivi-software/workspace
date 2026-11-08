@@ -135,7 +135,7 @@ const useRefresh = () => {
   useEffect(() => {
     const tick = () => {
       if (document.visibilityState === "visible" && !router.state.isLoading) {
-        router.invalidate();
+        void router.invalidate();
       }
     };
 
@@ -189,7 +189,7 @@ const useNewMailNotice = (
 
     n.addEventListener("click", () => {
       window.focus();
-      navigate({
+      void navigate({
         to: "/mail/t/$threadId",
         params: { threadId: newest.id },
         search: {},
@@ -304,8 +304,10 @@ const MODULES: {
 ];
 
 /** A string search param of the address (`folder`, `label`), which the router keeps as the string it is. */
-const searchParam = <T extends object>(search: T, key: string): string | null =>
-  isJsonObject(search) ? stringOrNull(search[key]) : null;
+const searchParam = (
+  search: ReturnType<typeof useLocation>["search"],
+  key: string
+): string | null => (isJsonObject(search) ? stringOrNull(search[key]) : null);
 
 const isNarrow = () => matchMedia("(max-width: 1023px)").matches;
 
@@ -430,7 +432,7 @@ const useShellShortcuts = ({
     {
       keys: "c",
       run: () => {
-        navigate({ to: "/mail/compose", search: {} });
+        void navigate({ to: "/mail/compose", search: {} });
       },
     },
     {
@@ -439,14 +441,19 @@ const useShellShortcuts = ({
         document.querySelector<HTMLInputElement>("input[name=q]")?.focus(),
     },
     { keys: "?", run: showHelp },
-    { keys: "z", run: () => toast.undo() },
+    {
+      keys: "z",
+      run: () => {
+        toast.undo();
+      },
+    },
     ...folders.flatMap((f) =>
       f.key
         ? [
             {
               keys: f.key,
               run: () => {
-                navigate({
+                void navigate({
                   to: "/mail",
                   search: f.folder === "inbox" ? {} : { folder: f.folder },
                 });
@@ -458,37 +465,37 @@ const useShellShortcuts = ({
     {
       keys: "g ,",
       run: () => {
-        navigate({ to: "/settings", search: {} });
+        void navigate({ to: "/settings", search: {} });
       },
     },
     {
       keys: "g f",
       run: () => {
-        navigate({ to: "/drive", search: {} });
+        void navigate({ to: "/drive", search: {} });
       },
     },
     {
       keys: "g c",
       run: () => {
-        navigate({ to: "/calendar", search: {} });
+        void navigate({ to: "/calendar", search: {} });
       },
     },
     {
       keys: "g k",
       run: () => {
-        navigate({ to: "/tasks", search: {} });
+        void navigate({ to: "/tasks", search: {} });
       },
     },
     {
       keys: "g h",
       run: () => {
-        navigate({ to: "/assistant", search: {} });
+        void navigate({ to: "/assistant", search: {} });
       },
     },
     {
       keys: "mod+j",
       run: () => {
-        navigate({ to: "/assistant", search: {} });
+        void navigate({ to: "/assistant", search: {} });
       },
       allowInInput: true,
     },
@@ -549,7 +556,8 @@ const AccountMenu = ({
           )
         }
         onClick={() => {
-          onToggleNotify();
+          // It asks the browser and says what came of it in a toast; asking does not fail.
+          void onToggleNotify();
         }}
       >
         <span className="flex items-center justify-between">

@@ -10,6 +10,8 @@ import {
   maskCredentials,
 } from "~/lib/ai-telemetry/text";
 
+import { stringMatching } from "./fixtures";
+
 // Fake credentials, put together here so no scanner reads a whole key in the source.
 const ANTHROPIC_KEY = [
   "sk",
@@ -109,7 +111,7 @@ describe("bounds", () => {
     expect(input[0]).toStrictEqual({ role: "system", content: "Be brief." });
     expect(input[1]).toMatchObject({
       role: "system",
-      content: expect.stringMatching(/^\[\d+ earlier messages left out\]$/u),
+      content: stringMatching(/^\[\d+ earlier messages left out\]$/u),
     });
     expect(input.at(-1)).toStrictEqual({ role: "user", content: "And now?" });
   });

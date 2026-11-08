@@ -494,7 +494,7 @@ export const CalendarPage = ({ data }: { data: CalendarData }) => {
   // Without a day in the address the server took UTC's today; the reader's own day decides the week.
   useEffect(() => {
     if (hydrated && !data.date) {
-      navigate({
+      void navigate({
         to: "/calendar",
         search: { view: view === "week" ? undefined : view, date: todayKey() },
         replace: true,
@@ -503,7 +503,7 @@ export const CalendarPage = ({ data }: { data: CalendarData }) => {
   }, [hydrated, data.date, view, navigate]);
 
   const go = (day: DayKey, to: CalendarView = view) => {
-    navigate({
+    void navigate({
       to: "/calendar",
       search: { view: to === "week" ? undefined : to, date: day },
     });
@@ -517,20 +517,33 @@ export const CalendarPage = ({ data }: { data: CalendarData }) => {
         setDialog({ event, draft: null });
       }
     } else if (item.href) {
-      navigate({ href: item.href });
+      void navigate({ href: item.href });
     }
   };
 
   const newAt = (start: Date, allDay = false) =>
     setDialog({ event: null, draft: draftAt(start, allDay) });
 
+  // A move from the shown day waits for there to be one: until hydrated there may be none.
+  const step = (by: -1 | 1) => {
+    if (anchor) {
+      go(stepView(view, anchor, by));
+    }
+  };
+
+  const showAs = (to: CalendarView) => {
+    if (anchor) {
+      go(anchor, to);
+    }
+  };
+
   useShortcuts([
     { keys: "n", run: () => newAt(new Date()) },
     { keys: "t", run: () => go(todayKey()) },
-    { keys: "[", run: () => anchor && go(stepView(view, anchor, -1)) },
-    { keys: "]", run: () => anchor && go(stepView(view, anchor, 1)) },
-    { keys: "w", run: () => anchor && go(anchor, "week") },
-    { keys: "m", run: () => anchor && go(anchor, "month") },
+    { keys: "[", run: () => step(-1) },
+    { keys: "]", run: () => step(1) },
+    { keys: "w", run: () => showAs("week") },
+    { keys: "m", run: () => showAs("month") },
   ]);
 
   let grid: React.ReactNode = <div className="flex-1" aria-busy />;
@@ -556,18 +569,10 @@ export const CalendarPage = ({ data }: { data: CalendarData }) => {
         title={anchor ? viewTitle(view, anchor) : "Calendar"}
         left={
           <div className="flex items-center gap-0.5">
-            <IconButton
-              label="Previous"
-              size="sm"
-              onClick={() => anchor && go(stepView(view, anchor, -1))}
-            >
+            <IconButton label="Previous" size="sm" onClick={() => step(-1)}>
               <ChevronLeft className="h-4 w-4" />
             </IconButton>
-            <IconButton
-              label="Next"
-              size="sm"
-              onClick={() => anchor && go(stepView(view, anchor, 1))}
-            >
+            <IconButton label="Next" size="sm" onClick={() => step(1)}>
               <ChevronRight className="h-4 w-4" />
             </IconButton>
             <Button size="sm" onClick={() => go(todayKey())} title="Today (t)">

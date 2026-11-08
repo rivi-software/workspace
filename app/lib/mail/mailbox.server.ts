@@ -26,7 +26,7 @@ import {
   threads,
 } from "~/db/schema";
 import type { Address, Message, Thread } from "~/db/schema";
-import { defined } from "~/lib/guards";
+import { defined, unreachable } from "~/lib/guards";
 
 import { parseJsonAddresses } from "./addresses";
 import { signFileUrl } from "./files.server";
@@ -243,9 +243,13 @@ const termWhere = (userId: string, t: QueryTerm): SQL | null => {
       break;
     }
 
-    default: {
+    case "in": {
       // `in:` sets the scope (`searchScope`) and says nothing about the thread.
       break;
+    }
+
+    default: {
+      return unreachable(t.field, "search field");
     }
   }
 

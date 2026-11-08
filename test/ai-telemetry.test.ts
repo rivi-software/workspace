@@ -6,6 +6,9 @@ import { z } from "zod";
 
 import { aiCallOptions, createAiTelemetry } from "~/lib/ai-telemetry/telemetry";
 import type { AiEvent, AiProperties } from "~/lib/ai-telemetry/telemetry";
+import { stringOrNull } from "~/lib/guards";
+
+import { stringContaining } from "./fixtures";
 
 // What a customer writes, and a credential pasted into it.
 const PROBLEM = "invoice INV-77341 was charged twice";
@@ -33,7 +36,9 @@ const sent: AiEvent[] = [];
 let text = false;
 
 const telemetry = createAiTelemetry({
-  capture: (event) => sent.push(event),
+  capture: (event) => {
+    sent.push(event);
+  },
   text: () => text,
 });
 
@@ -149,6 +154,10 @@ const holding = (needle: string) =>
     )
   );
 
+/** A property's value as text: a string as it is, anything else as JSON. */
+const textOf = (value: AiProperties[string] | undefined): string =>
+  stringOrNull(value) ?? JSON.stringify(value ?? null);
+
 /** The tree of the events: each one's kind, name and the event it hangs under, by its place in `sent`. */
 const tree = () => {
   const ids = new Map<unknown, string>();
@@ -159,11 +168,11 @@ const tree = () => {
         ? e.properties.$ai_trace_id
         : e.properties.$ai_span_id;
 
-    ids.set(id, `${e.event}:${e.properties.$ai_span_name}`);
+    ids.set(id, `${e.event}:${textOf(e.properties.$ai_span_name)}`);
   }
 
   return sent.map((e) => [
-    `${e.event}:${e.properties.$ai_span_name}`,
+    `${e.event}:${textOf(e.properties.$ai_span_name)}`,
     ids.get(e.properties.$ai_parent_id) ?? null,
   ]);
 };
@@ -188,7 +197,7 @@ const turn = () =>
 
       const r = await generateText({
         model: toolCallingModel(),
-        system: "You answer customers of RIVI.",
+        instructions: "You answer customers of RIVI.",
         prompt: `${EMAIL}: my ${PROBLEM}. My key is ${API_KEY}`,
         tools: { lookup },
         stopWhen: stepCountIs(2),
@@ -306,8 +315,9 @@ describe("PostHog AI telemetry", () => {
       // Every event names the request's trace, so an event read on its own names its trace too.
       expect(
         new Set(
-          sent.map((e) =>
-            [e.properties.$ai_session_id, e.properties.$ai_trace_name].join(",")
+          sent.map(
+            (e) =>
+              `${textOf(e.properties.$ai_session_id)},${textOf(e.properties.$ai_trace_name)}`
           )
         )
       ).toStrictEqual(new Set(["cv_4,agent_turn"]));
@@ -419,7 +429,7 @@ describe("PostHog AI telemetry", () => {
       expect([asked.$ai_input, asked.$ai_output_choices]).toMatchObject([
         [
           { role: "system", content: "You answer customers of RIVI." },
-          { role: "user", content: expect.stringContaining(PROBLEM) },
+          { role: "user", content: stringContaining(PROBLEM) },
         ],
         [
           {

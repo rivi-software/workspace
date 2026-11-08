@@ -14,7 +14,7 @@ import {
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { withCleanup } from "~/lib/cleanup";
-import { defined } from "~/lib/guards";
+import { defined, errorMessage, formText } from "~/lib/guards";
 import {
   draftAction,
   scheduleAction,
@@ -102,6 +102,10 @@ const oneWay = () => {
   };
 };
 
+/** Everyone a posted form sends to, To, Cc and Bcc run together: empty when it names nobody. */
+const recipientsIn = (fd: FormData): string =>
+  `${formText(fd, "to")}${formText(fd, "cc")}${formText(fd, "bcc")}`.trim();
+
 /**
  * The composer's OpenPGP switches: Sign with the owner's key, Encrypt to every recipient's. They post as `pgpSign` and
  * `pgpEncrypt`; while Encrypt is on, the recipients are checked for keys a moment after they change, so the composer
@@ -146,7 +150,9 @@ const PgpSwitches = ({
       }
     };
 
-    const timer = setTimeout(check, 400);
+    const timer = setTimeout(() => {
+      void check();
+    }, 400);
 
     return () => clearTimeout(timer);
   }, [encrypt, to, cc, bcc, checkKeys]);
@@ -428,7 +434,7 @@ export const Composer = ({
     }
 
     const timer = setTimeout(() => {
-      saveDraft();
+      void saveDraft();
     }, AUTOSAVE_MS);
 
     return () => clearTimeout(timer);
@@ -514,10 +520,17 @@ export const Composer = ({
     setFiles((prev) => prev.filter((f) => f.id !== file.id));
     const fd = formData("remove-file");
     fd.set("fileId", file.id);
-    const result = await draft({ data: fd });
 
-    if (result.ok) {
-      setFiles(result.files);
+    try {
+      const result = await draft({ data: fd });
+
+      if (result.ok) {
+        setFiles(result.files);
+      }
+    } catch (removeError) {
+      // The file is still on the draft: it comes back to the list, and the reason is said.
+      setFiles((prev) => [...prev, file]);
+      setError(errorMessage(removeError));
     }
   };
 
@@ -531,13 +544,13 @@ export const Composer = ({
     }
 
     if (threadId) {
-      navigate({
+      void navigate({
         to: "/mail/t/$threadId",
         params: { threadId },
         search: keepList,
       });
     } else {
-      navigate({
+      void navigate({
         to: "/mail",
         search: keepList,
       });
@@ -554,7 +567,7 @@ export const Composer = ({
           action: {
             label: "View",
             onClick: () => {
-              navigate({
+              void navigate({
                 to: "/mail/t/$threadId",
                 params: { threadId: result.threadId },
                 search: keepList,
@@ -565,7 +578,7 @@ export const Composer = ({
         await router.invalidate();
         onSent?.(result.threadId);
       } else {
-        const id = fd.get("draftId");
+        const id = formText(fd, "draftId");
         toast.show({
           message: result.error,
           tone: "error",
@@ -574,9 +587,9 @@ export const Composer = ({
             ? {
                 label: "Open draft",
                 onClick: () => {
-                  navigate({
+                  void navigate({
                     to: "/mail/compose",
-                    search: { draft: String(id) },
+                    search: { draft: id },
                   });
                 },
               }
@@ -600,8 +613,7 @@ export const Composer = ({
 
     const fd = formData("send");
 
-    const to =
-      `${fd.get("to") ?? ""}${fd.get("cc") ?? ""}${fd.get("bcc") ?? ""}`.trim();
+    const to = recipientsIn(fd);
 
     if (!to) {
       setError("Add at least one recipient.");
@@ -631,13 +643,13 @@ export const Composer = ({
               label: "Undo",
               onClick: () => {
                 if (settled.take()) {
-                  navigate({ to: "/mail/compose", search: { draft: id } });
+                  void navigate({ to: "/mail/compose", search: { draft: id } });
                 }
               },
             },
             onExpire: () => {
               if (settled.take()) {
-                deliver(fd);
+                void deliver(fd);
               }
             },
             beacon: () =>
@@ -653,6 +665,24 @@ export const Composer = ({
     );
   };
 
+  // The toast that offered it is gone once it is pressed, so a failure gets a toast of its own.
+  const cancelScheduled = async (id: string) => {
+    try {
+      await unschedule({ data: { draftId: id } });
+    } catch (cancelError) {
+      toast.show({
+        message: errorMessage(cancelError),
+        tone: "error",
+        duration: 0,
+      });
+
+      return;
+    }
+
+    await router.invalidate();
+    void navigate({ to: "/mail/compose", search: { draft: id } });
+  };
+
   /** "Send later": saved as the draft and handed to the cron for `iso`; the toast can take it back. */
   const sendLater = async (iso: string) => {
     if (busy || gone.current) {
@@ -661,8 +691,7 @@ export const Composer = ({
 
     const fd = formData("schedule");
 
-    const to =
-      `${fd.get("to") ?? ""}${fd.get("cc") ?? ""}${fd.get("bcc") ?? ""}`.trim();
+    const to = recipientsIn(fd);
 
     if (!to) {
       setError("Add at least one recipient.");
@@ -691,10 +720,8 @@ export const Composer = ({
             message: `Scheduled for ${snoozeLabel(result.scheduledAt)}.`,
             action: {
               label: "Cancel send",
-              onClick: async () => {
-                await unschedule({ data: { draftId: id } });
-                await router.invalidate();
-                navigate({ to: "/mail/compose", search: { draft: id } });
+              onClick: () => {
+                void cancelScheduled(id);
               },
             },
           });
@@ -714,7 +741,13 @@ export const Composer = ({
 
   const discard = async () => {
     if (draftRef.current) {
-      await draft({ data: formData("discard") });
+      try {
+        await draft({ data: formData("discard") });
+      } catch (discardError) {
+        setError(errorMessage(discardError));
+
+        return;
+      }
     }
 
     toast.show({ message: "Draft discarded." });
@@ -725,7 +758,16 @@ export const Composer = ({
     const id = await saveDraft();
     gone.current = true;
     onClose?.();
-    navigate({ to: "/mail/compose", search: { draft: id ?? undefined } });
+    void navigate({ to: "/mail/compose", search: { draft: id ?? undefined } });
+  };
+
+  // Closing keeps what was written: the inline composer saves only a change, the full one saves on the way out.
+  const close = async () => {
+    if (dirty || variant !== "inline") {
+      await saveDraft();
+    }
+
+    leave();
   };
 
   const inline = variant === "inline";
@@ -740,7 +782,7 @@ export const Composer = ({
       encType="multipart/form-data"
       onSubmit={(e) => {
         e.preventDefault();
-        sendNow();
+        void sendNow();
       }}
       onDragOver={(e) => {
         if (e.dataTransfer.types.includes("Files")) {
@@ -756,12 +798,12 @@ export const Composer = ({
 
         e.preventDefault();
         setDragging(false);
-        uploadFiles([...e.dataTransfer.files]);
+        void uploadFiles([...e.dataTransfer.files]);
       }}
       onKeyDown={(e) => {
         if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
           e.preventDefault();
-          sendNow();
+          void sendNow();
         }
       }}
       className={cx(
@@ -787,7 +829,7 @@ export const Composer = ({
               size="sm"
               label="Open in the full composer"
               onClick={() => {
-                popOut();
+                void popOut();
               }}
             >
               <ExternalLink className="h-3.5 w-3.5" />
@@ -795,12 +837,8 @@ export const Composer = ({
             <IconButton
               size="sm"
               label="Close"
-              onClick={async () => {
-                if (dirty) {
-                  await saveDraft();
-                }
-
-                leave();
+              onClick={() => {
+                void close();
               }}
             >
               <X className="h-3.5 w-3.5" />
@@ -887,7 +925,7 @@ export const Composer = ({
         autoFocus={!!prefill.to || inline}
         onChange={() => touch()}
         onSubmit={() => {
-          sendNow();
+          void sendNow();
         }}
         handle={editor}
         className={inline ? "min-h-36" : ""}
@@ -897,7 +935,7 @@ export const Composer = ({
         files={files}
         uploading={uploading}
         onRemove={(file) => {
-          removeFile(file);
+          void removeFile(file);
         }}
       />
       <div className="border-line flex flex-wrap items-center gap-2 border-t pt-3">
@@ -918,7 +956,7 @@ export const Composer = ({
           presets={sendLaterPresets}
           width="w-80"
           onPick={(iso) => {
-            sendLater(iso);
+            void sendLater(iso);
           }}
           renderTrigger={({ open, toggle }) => (
             <IconButton
@@ -944,7 +982,7 @@ export const Composer = ({
             onChange={(e) => {
               const chosen = [...(e.currentTarget.files ?? [])];
               e.currentTarget.value = "";
-              uploadFiles(chosen);
+              void uploadFiles(chosen);
             }}
           />
         </label>
@@ -986,9 +1024,8 @@ export const Composer = ({
             <Button
               variant="ghost"
               size="sm"
-              onClick={async () => {
-                await saveDraft();
-                leave();
+              onClick={() => {
+                void close();
               }}
             >
               Close
@@ -997,7 +1034,7 @@ export const Composer = ({
           <IconButton
             label="Discard draft"
             onClick={() => {
-              discard();
+              void discard();
             }}
             className="text-red hover:text-red"
           >

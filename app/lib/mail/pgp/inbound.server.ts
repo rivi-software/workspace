@@ -5,7 +5,7 @@
  * a signature is checked against the sender's key (`lookup.server.ts`), never against a key the message brings.
  * Nothing here throws for a message it cannot open: the message is kept as it came, its status saying why.
  */
-import type { PrivateKey, VerifyMessageResult } from "openpgp";
+import type { Message, PrivateKey, VerifyMessageResult } from "openpgp";
 
 import type { Database } from "~/db";
 import type { User } from "~/db/schema";
@@ -67,6 +67,12 @@ interface Context {
 }
 
 type VerificationResult = VerifyMessageResult["signatures"][number];
+
+/**
+ * A message read whole, armored or binary. Typed as one, so `decrypt` with `format: "binary"` answers bytes: OpenPGP.js
+ * has an overload for each kind and none for the two together.
+ */
+type ReadMessage = Message<string | Uint8Array>;
 
 /** A signature's verdict: the first one the sender's key made, else the first there is, which no key at hand made. */
 const judge = async (
@@ -301,7 +307,7 @@ const openEncrypted = async (
   let decrypted: { data: Uint8Array; signatures: VerificationResult[] };
 
   try {
-    const message = body.includes("-----BEGIN PGP MESSAGE-----")
+    const message: ReadMessage = body.includes("-----BEGIN PGP MESSAGE-----")
       ? await openpgp.readMessage({ armoredMessage: body, config: PGP_CONFIG })
       : await openpgp.readMessage({
           binaryMessage: stringBytes(body),
@@ -495,7 +501,7 @@ const openInline = async (ctx: Context, input: OpenInput): Promise<Opened> => {
   };
 
   const decrypt = async (
-    message: Awaited<ReturnType<typeof openpgp.readMessage>>,
+    message: ReadMessage,
     piece: "block" | "file"
   ): Promise<Uint8Array | null> => {
     state.encrypted = true;

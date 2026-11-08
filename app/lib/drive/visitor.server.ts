@@ -22,7 +22,13 @@ import { and, eq, sql } from "drizzle-orm";
 import type { Database } from "~/db";
 import { driveLinks, signingRequests } from "~/db/schema";
 import { sha256Hex } from "~/lib/crypto";
-import { defined, numberOr, parseJsonObject, stringOrNull } from "~/lib/guards";
+import {
+  defined,
+  formText,
+  numberOr,
+  parseJsonObject,
+  stringOrNull,
+} from "~/lib/guards";
 
 import { isSecure, sameOriginPost } from "../auth.server";
 import { openSecret, sealSecret } from "../secret-box.server";
@@ -433,7 +439,7 @@ export const visitorPost = async <Row extends ProofRow>(
   }
 
   const fields = await form();
-  const intent = String(fields.get("intent") ?? "");
+  const intent = formText(fields, "intent");
 
   if (intent === "send-code") {
     return (await sendCode(env, db, visits, row, request, at))
@@ -443,14 +449,7 @@ export const visitorPost = async <Row extends ProofRow>(
 
   if (intent === "code") {
     if (
-      await confirmCode(
-        db,
-        visits,
-        row,
-        String(fields.get("code") ?? ""),
-        request,
-        at
-      )
+      await confirmCode(db, visits, row, formText(fields, "code"), request, at)
     ) {
       return back({}, await passCookie(request, env, visits, row, at));
     }

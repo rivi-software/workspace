@@ -53,7 +53,11 @@ const unreadable = (response: Response): string | null => {
 
 const requestOf = (input: RequestInfo | URL, init?: RequestInit) => {
   const request = input instanceof Request ? input : null;
-  const url = new URL(request?.url ?? String(input), "http://localhost");
+
+  const url = new URL(
+    input instanceof Request ? input.url : input,
+    "http://localhost"
+  );
 
   return {
     call: `${init?.method ?? request?.method ?? "GET"} ${url.pathname}`,
