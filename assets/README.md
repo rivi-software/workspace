@@ -10,3 +10,9 @@ The RIVI Software identity the README shows, each file for light grounds and `-o
 The mark's geometry and colours are RIVI Software's, as [rivi.software](https://rivi.software) draws them; the mark files are copies of the ones in [`rivi-software/tools`](https://github.com/rivi-software/tools/tree/main/assets), and `RiviMark` in `app/components/brand.tsx` draws the same mark in the app. The lockup is laid out as the `RIVI tools` lockup there is: Bricolage Grotesque ([SIL OFL 1.1](https://github.com/ateliertriay/bricolage)) at weight 600, optical size 20, width 100 and tracked -0.02em, set at 20 px beside a 36 px mark, 10 px apart. The name is drawn as outlines, so the files load no font. To draw a new name, shape it with those settings (HarfBuzz and fontTools, as `rivi-software/rivi-monorepo`'s `packages/brand/scripts/wordmark.py` does) and check that the same settings redraw `RIVI tools` exactly.
 
 These files are for the repository's documents only. The app's icons are under `public/`.
+
+## Screenshots
+
+`screenshots/` holds the README's pictures of the console, each in a light and a dark version that the README picks by the reader's colour scheme: `mail` (the inbox beside an open conversation), `drive` (My Drive), `calendar` (a week with tasks due) and `assistant` (a new conversation).
+
+They were taken from `pnpm run dev` on a fresh database (`pnpm run db:reset`) filled with made-up mail, files, events and tasks through the Workspace API and `/cdn-cgi/local/email`: every person and company in them is fictional, and their addresses are on `example.com` or the reserved `.example` domain. Each is 1280 × 800 at twice the pixel density, in Europe/Amsterdam time and British English dates, saved as lossless WebP. Take a new one the same way when a page it shows changes, and never from a real mailbox.

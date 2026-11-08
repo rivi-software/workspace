@@ -34,6 +34,8 @@
   ·
   <a href="GLOSSARY.md">Glossary</a>
   ·
+  <a href="CONTRIBUTING.md">Contributing</a>
+  ·
   <a href="AGENTS.md">AGENTS.md</a>
   ·
   <a href="https://rivi.software">rivi.software</a>
@@ -42,6 +44,11 @@
 <br>
 
 Workspace is an open-source workspace that runs on Cloudflare: **Mail** (receiving through Email Routing, sending through Email Sending or Amazon SES; the mailboxes in D1, the raw messages and files in R2), **Drive** (every person's folders and files in R2, shared with colleagues, or outside the workspace by link and invite, with PDFs sent for signatures), an **Assistant** (a chat over your own mail and files, on Workers AI through AI Gateway, or Anthropic), **Calendar** and **Tasks** (events with invited colleagues, to-dos linked with GitHub Issues). One Worker, one D1 database, two R2 buckets and two KV namespaces; a TanStack Start app built with the Cloudflare Vite plugin, sign-in on Better Auth.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="assets/screenshots/mail-dark.webp">
+  <img src="assets/screenshots/mail-light.webp" alt="Mail: the inbox with labels, stars and attachments, beside an open conversation of three messages">
+</picture>
 
 ## Mail
 
@@ -74,6 +81,11 @@ Workspace is an open-source workspace that runs on Cloudflare: **Mail** (receivi
 
 ## Drive
 
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="assets/screenshots/drive-dark.webp">
+  <img src="assets/screenshots/drive-light.webp" alt="Drive: My Drive with folders, PDFs, a spreadsheet, notes and pictures, each with its time and size, two of them starred">
+</picture>
+
 - **My Drive**: folders in folders, files in them, a list with each item's kind, owner, time and size, sorted by name, time or size, breadcrumbs above the open folder, and a search over every name you can see. The sidebar shows how much your files take.
 - **Upload**: files chosen or dropped on the list, several at once, or a whole folder with its folders made as they were; a file goes whole up to 32 MB and in parts above that, up to 5 GB, with a panel showing each one's progress and a cancel.
 - **Files**: a page per file with a preview where the browser can show one (images, audio and video that seek, PDFs, text and code), its details, **Download**, **Open in a new tab**, and the actions below.
@@ -94,11 +106,21 @@ Workspace is an open-source workspace that runs on Cloudflare: **Mail** (receivi
 
 ## Assistant
 
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="assets/screenshots/assistant-dark.webp">
+  <img src="assets/screenshots/assistant-light.webp" alt="The Assistant: a new conversation, with the questions it suggests and the box to ask it">
+</picture>
+
 - **A conversation** at `/assistant` (`⌘J`, or `g h`), the recent ones in the sidebar, each a document of your questions and the assistant's answers with the steps it took in between ("Searched mail for “the plan” · 3 conversations", with a link). Answers stream as they are written; **Stop** cuts one short; a conversation can be deleted for good.
 - **What it can do**: search mail in the search box's language over All mail or a folder, read a conversation, search Drive by name or list the recent files, read a text file (plain text, Markdown, CSV, JSON, code, up to 256 KB), and **prepare a draft**: a reply to a conversation or a new message, left in Drafts with a link to the composer. It never sends mail and changes nothing else. **Ask the assistant** in a conversation's menu in Mail opens it with a question about that conversation.
 - **The model**: `AI_PROVIDER` in `wrangler.jsonc` names it: `workers-ai` runs `AI_CHAT_MODEL` (Llama 3.3 70B by default) on Workers AI through AI Gateway, `anthropic` a Claude model through the gateway's provider-native endpoint (the gateway holds the key), `mock` a deterministic stand-in for the tests and local development. What the assistant reads to answer goes to that model; the gateway's log is off for every call.
 
 ## Calendar and Tasks
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="assets/screenshots/calendar-dark.webp">
+  <img src="assets/screenshots/calendar-light.webp" alt="Calendar: a week of meetings, with the tasks due each day and a two-day offsite along the top">
+</picture>
 
 - **Calendar** at `/calendar` (`g c`): a **week** of hours or a **month** of days, Monday first, moved by the arrows, `[` and `]`, **Today** (`t`) or the small month in the sidebar. An **event** has a title, a time or whole days, a place, a note, and repeats daily, weekly, monthly or yearly until a day (a weekly 10:00 stays 10:00 across the clock change). Press an empty slot or **New event** (`n`) to add one. **Invite colleagues**: they see the event on their own calendar and **Accept** or **Decline**, and the owner sees who answered what. The calendar also shows your **tasks** on their due day.
 - **Tasks** at `/tasks` (`g k`): the open tasks grouped as **Overdue**, **Today**, **Upcoming** and **No date**, a line at the top to add one quickly, and **Done** for what was ticked off in the last year, with **Reopen**. A task has a title, notes, a due day and a priority.
@@ -304,7 +326,7 @@ One Worker (`workers/app.ts`) with `fetch`, `email` and `scheduled` handlers: `c
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md): setup, `pnpm run verify`, conventional commits, pull requests with tests, and the migration rule. Security problems go through [SECURITY.md](SECURITY.md), never an issue.
+Bug reports, ideas and pull requests are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md): where to ask, what starts with an issue, setup, `pnpm run verify`, conventional commits, pull requests with tests, and the migration rule. Everyone who takes part follows the [code of conduct](CODE_OF_CONDUCT.md). Security problems go through [SECURITY.md](SECURITY.md), never an issue.
 
 ## License
 

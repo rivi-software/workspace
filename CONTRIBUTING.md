@@ -1,10 +1,26 @@
 # Contributing
 
-Thanks for helping. This page is the short version; [AGENTS.md](AGENTS.md) has the gotchas and [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) the design.
+Thanks for helping. Contributions are welcome from anyone: a bug report, a fix, a test, a clearer page of the docs, a feature. This page is the short version; [AGENTS.md](AGENTS.md) has the gotchas and [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) the design.
+
+Everyone who takes part follows the [code of conduct](CODE_OF_CONDUCT.md).
+
+## Questions, bugs and ideas
+
+[Open an issue](https://github.com/rivi-software/workspace/issues/new/choose), after a look through the [existing ones](https://github.com/rivi-software/workspace/issues?q=is%3Aissue).
+
+- **A bug.** The commit you run and where (`pnpm run dev`, or your own deploy, and the browser for a page), what you expected and what happened instead, and the steps from a fresh `pnpm run setup`. Leave out anything from a real mailbox: addresses, messages, files.
+- **An idea or a question.** What you are trying to do, and what gets in the way today.
+- **A vulnerability.** Never in a public issue: [SECURITY.md](SECURITY.md) says how to report one privately.
+
+## Before you start
+
+A typo, a broken link, a clearer sentence, or a bug fix with a test can go straight to a pull request. Anything bigger starts with an issue: a new feature, a change to a flow or to the Workspace API, a new table, a new dependency or a new binding. Wait for a maintainer to agree on the approach there before you write it.
+
+Issues labeled [`good first issue`](https://github.com/rivi-software/workspace/labels/good%20first%20issue) or [`help wanted`](https://github.com/rivi-software/workspace/labels/help%20wanted) are ready to take. Say in the issue that you are on it, so nobody else starts the same work.
 
 ## Setup
 
-Node 24 (`.node-version`) and pnpm 12 (`packageManager` in `package.json`; `corepack enable` installs it).
+Node 24 (`.node-version`) and pnpm 12 (`packageManager` in `package.json`; `corepack enable` installs it). Fork the repository and clone your fork, then:
 
 ```sh
 cp .dev.vars.local.example .dev.vars   # local settings: example.com mailboxes, the mock Assistant, no PostHog
@@ -31,3 +47,10 @@ A schema change goes through Drizzle, never by hand: edit `app/db/schema.ts`, ru
 ## Security
 
 Report a vulnerability privately, as [SECURITY.md](SECURITY.md) says, never in an issue.
+
+## For maintainers
+
+- **CI runs.** Read the diff before you approve a CI run for a first-time contributor. CI runs the pull request's own code: its install, tests, build and scripts. It gets a read-only token and no secrets, but nothing should run that nobody has read. Look hardest at `.github/`, `scripts/`, the `scripts` in `package.json`, and `allowBuilds` in `pnpm-workspace.yaml`.
+- **Secrets.** No workflow runs a fork's code with secrets. RIVI Bot's workflow runs on `pull_request_target` with them, from `main`, and runs nothing it checks out; Deploy runs only on a push to `main`. Keep it that way: a workflow that needs a secret never checks out a pull request and runs it.
+- **Reviews.** RIVI Bot reviews an outside pull request only once you add the `rivi-bot:review` label: read it first, since Claude reads everything in it. Its review is advice; a maintainer still approves and merges.
+- **Small fixes.** When a pull request lacks only a Conventional Commits title or a line of docs, fix it yourself rather than sending the contributor round again.

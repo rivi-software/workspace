@@ -3,6 +3,12 @@
   "private": true,
   "license": "MIT",
   "description": "RIVI Workspace, an open-source workspace on Cloudflare Workers: Mail on Email Routing and Email Sending, Drive on R2, an AI Assistant over both on Workers AI, Calendar and Tasks linked with GitHub Issues (TanStack Start on Vite, D1, R2, KV, Better Auth)",
+  "homepage": "https://github.com/rivi-software/workspace#readme",
+  "bugs": "https://github.com/rivi-software/workspace/issues",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/rivi-software/workspace.git"
+  },
   "type": "module",
   "packageManager": "pnpm@12.10.1",
   "scripts": {
