@@ -2,8 +2,6 @@ import { redirect } from "@tanstack/react-router";
 import { createMiddleware } from "@tanstack/react-start";
 import { getRequest } from "@tanstack/react-start/server";
 
-import { formText } from "./guards";
-
 /** Validator for server functions that take an HTML form submission. */
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- a server function's validator: it receives whatever the client posted and is the boundary that checks it
 export const formData = (input: unknown): FormData => {
@@ -13,10 +11,6 @@ export const formData = (input: unknown): FormData => {
 
   return input;
 };
-
-/** A form's text field, or the fallback when it is missing, empty or a file (`formText`). */
-export const field = (form: FormData, name: string, fallback = ""): string =>
-  formText(form, name) || fallback;
 
 /**
  * Keeps forms working without JavaScript. `useAction` renders `<form action={fn.url}>`, so when the

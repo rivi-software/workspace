@@ -24,6 +24,10 @@ export const formText = (form: FormData, name: string): string => {
   return value === null || value instanceof File ? "" : value;
 };
 
+/** A form's text field, or the fallback when it is missing, empty or a file (`formText`). */
+export const field = (form: FormData, name: string, fallback = ""): string =>
+  formText(form, name) || fallback;
+
 /** The object a stored JSON text holds, or `{}` for text that is unreadable or holds no object. Its values stay `unknown` until a reader checks each one. */
 export const parseJsonObject = (json: string | null | undefined) => {
   try {

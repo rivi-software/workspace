@@ -303,24 +303,34 @@ describe("the assistant", () => {
     ).toBe(1);
   });
 
-  it("refuses another person's conversation, an empty question, and deletes for the owner only", async () => {
-    const mine = await ask(ann, "Mine alone");
-    await expect(
-      answerChat(env, db, bo, {
-        conversationId: mine.conversationId,
-        message: { role: "user", parts: [{ type: "text", text: "Let me in" }] },
-      })
-    ).rejects.toThrow(AssistantError);
+  it("refuses an empty question, one with parts it cannot read, and one not from the person", async () => {
     await expect(
       answerChat(env, db, ann, {
         conversationId: null,
         message: { role: "user", parts: [{ type: "text", text: "   " }] },
       })
     ).rejects.toThrow("Write a question first.");
+    // Parts that are no object, or text that is no string, say the same, not a TypeError (a 500).
+    await expect(
+      answerChat(env, db, ann, {
+        conversationId: null,
+        message: { role: "user", parts: [null, 7, { type: "text", text: 5 }] },
+      })
+    ).rejects.toThrow("Write a question first.");
     await expect(
       answerChat(env, db, ann, {
         conversationId: null,
         message: { role: "assistant" },
+      })
+    ).rejects.toThrow(AssistantError);
+  });
+
+  it("refuses another person's conversation, and deletes for the owner only", async () => {
+    const mine = await ask(ann, "Mine alone");
+    await expect(
+      answerChat(env, db, bo, {
+        conversationId: mine.conversationId,
+        message: { role: "user", parts: [{ type: "text", text: "Let me in" }] },
       })
     ).rejects.toThrow(AssistantError);
 
