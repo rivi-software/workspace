@@ -1,7 +1,7 @@
 name: rivi-bot
 
-# RIVI Bot (https://github.com/rivi-software/tools/tree/main/rivi-bot#readme): Claude on this repository's pull requests
-# and issues, through the reusable workflow in rivi-software/tools. .github/rivi-bot.yml on main says what it does: it
+# RIVI Bot (https://github.com/rivi-software/tools/tree/main/rivi-bot#readme): AI on this repository's pull requests and
+# issues, through the reusable workflow in rivi-software/tools. .github/rivi-bot.yml on main says what it does: it
 # reviews a pull request by someone with write access when it opens and after every push, and any other once a
 # maintainer adds the `rivi-bot:review` label; someone with write access asks it for the rest with a comment that
 # speaks to @rivi-bot (`@rivi-bot fix the null check`, `@rivi-bot why does this retry?`).
@@ -10,8 +10,11 @@ name: rivi-bot
 # the secrets, and nothing from the pull request runs: the reusable workflow gates outside pull requests on the label
 # and requests on write access, and reads its configuration from main.
 #
-# Needs the secret ANTHROPIC_REVIEW_API_KEY (from a workspace with a spend limit), and for RIVI Bot's own name the
-# secret AUTOMATION_APP_PRIVATE_KEY, a private key of the RIVI Bot App (github.com/apps/rivi-bot): without it, it posts
+# The review runs on Workers AI, through this repository's own AI Gateway github-rivi-workspace ($25 a month, 300 calls
+# an hour), whose logs tell the calls apart by pull request and run but keep none of their text. It needs the variable
+# CLOUDFLARE_ACCOUNT_ID and the secret CLOUDFLARE_AI_API_TOKEN (Workers AI Read and AI Gateway Run). The rest (the fix,
+# the answers, the descriptions and the triage) runs on Claude, with the secret ANTHROPIC_REVIEW_API_KEY (from a
+# workspace with a spend limit). For RIVI Bot's own name it needs the secret AUTOMATION_APP_PRIVATE_KEY, a private key of the RIVI Bot App (github.com/apps/rivi-bot): without it, it posts
 # as github-actions, and CI does not run on the commits a fix pushes. The App's client ID is written below rather than
 # read from a variable: it is public, and a variable this repository cannot see left RIVI Bot posting as github-actions.
 on:
@@ -26,8 +29,8 @@ permissions: {}
 
 jobs:
   rivi-bot:
-    # A fork has neither the key nor the App; one that wants RIVI Bot names itself here, adds the key, and its own
-    # App's client ID with that App's private key.
+    # A fork has neither the keys nor the App; one that wants RIVI Bot names itself here, adds the keys and its own
+    # Cloudflare account and gateway, and its own App's client ID with that App's private key.
     if: github.repository == 'rivi-software/workspace'
     uses: rivi-software/tools/.github/workflows/rivi-bot.yml@main
     permissions:
@@ -36,6 +39,9 @@ jobs:
       pull-requests: write
     with:
       app-client-id: Iv23liRHyPMObYUqpcm3 # RIVI Bot
+      cloudflare-account-id: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+      ai-gateway: github-rivi-workspace
     secrets:
       anthropic-api-key: ${{ secrets.ANTHROPIC_REVIEW_API_KEY }}
       app-private-key: ${{ secrets.AUTOMATION_APP_PRIVATE_KEY }}
+      cloudflare-ai-api-token: ${{ secrets.CLOUDFLARE_AI_API_TOKEN }}
