@@ -72,7 +72,7 @@
   },
   "devDependencies": {
     "@cloudflare/vite-plugin": "1.67.0",
-    "@cloudflare/vitest-plugin": "1.5.1",
+    "@cloudflare/vitest-plugin": "1.6.0",
     "@openpgp/web-stream-tools": "0.3.1",
     "@rivi-software/d1-migrations": "0.1.1",
     "@rivi-software/workers-bundle-check": "0.1.1",
@@ -90,9 +90,9 @@
     "tsx": "4.23.15",
     "typescript": "7.0.2",
     "ultracite": "8.1.1",
-    "vite": "8.3.5",
+    "vite": "8.3.6",
     "vitest": "5.1.0",
-    "wrangler": "4.157.0"
+    "wrangler": "4.158.0"
   },
   "engines": {
     "node": ">=24.2",
