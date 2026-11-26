@@ -23,8 +23,9 @@ path = "src/main.rs"
 [build-dependencies]
 tauri-build = { version = "=2.7.4", features = [] }
 
-# Pinned exactly, each at least a week old when it was taken (the Dependabot cooldown in
-# .github/dependabot.yml): a Tauri crate update is a change to review, not a lockfile refresh.
+# Pinned exactly, each at least a week old when it was taken (the week pnpm-workspace.yaml's
+# minimumReleaseAge holds npm packages to; nothing updates crates by itself): a Tauri crate update
+# is a change to review, not a lockfile refresh.
 [dependencies]
 tauri = { version = "=2.12.5", features = [] }
 tauri-plugin-opener = "=2.7.2"

@@ -132,7 +132,7 @@ class Unreachable(private val wry: WebViewClient) : WebViewClient() {
   companion object {
     /**
      * The start page, src/index.html, as the app serves it in the Android System WebView
-     * (`ON_START_PAGE` in src-tauri/src/window.rs).
+     * (`is_start_page` in src-tauri/src/workspace.rs, `mobileAppStartPage` in app/lib/mobile-app.ts).
      */
     val START_PAGE: Uri = Uri.parse("http://tauri.localhost/index.html")
 

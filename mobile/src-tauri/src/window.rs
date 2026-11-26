@@ -81,8 +81,9 @@ pub fn open_main<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<WebviewWindow<
         .min_inner_size(320.0, 480.0)
         .user_agent(&with_app(BROWSER, &version));
     // On an iPhone a download lands in the app's Documents folder, which the Files app shows under
-    // On My iPhone › RIVI Workspace (gen/apple/Info.plist, `UIFileSharingEnabled`). Left to WebKit
-    // it would go to a Downloads folder the app's sandbox does not have.
+    // On My iPhone › Workspace (`UIFileSharingEnabled` in gen/apple/workspace-mobile_iOS/Info.plist
+    // and gen/apple/project.yml). Left to WebKit it would go to a Downloads folder the app's
+    // sandbox does not have.
     #[cfg(target_os = "ios")]
     let builder = builder.on_download(|webview, event| {
         if let DownloadEvent::Requested { destination, .. } = event

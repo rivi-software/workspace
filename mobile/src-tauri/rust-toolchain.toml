@@ -1,4 +1,4 @@
-# The Rust that builds the app, here and in CI (.github/workflows/workspace-mobile.yml); rustup
+# The Rust that builds the app, here and in CI (.github/workflows/mobile.yml at the root); rustup
 # installs it, with the iPhone, iOS Simulator and Android targets, on the first `cargo` run.
 [toolchain]
 channel = "1.98.0"
