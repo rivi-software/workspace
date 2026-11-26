@@ -282,6 +282,15 @@ A person imports their own Microsoft 365 mailbox through Microsoft Graph: OAuth 
 
 Settings → Mail → Import then shows **Connect Microsoft 365**.
 
+### Branding
+
+An admin gives the workspace its owner's look under **Settings → Branding**, with no fork and no redeploy:
+
+- **Accent colour**: buttons, links, the selection and the focus ring, as any CSS colour. The light theme uses it as it is, darkened only as far as links need to read on the page; the dark theme a bright reading of the same hue. Text on the accent turns white or black, whichever reads.
+- **Icon**: a square PNG (at least 512 × 512), SVG, WebP or JPEG of at most 1 MB, for the tab, the Home Screen, the installed app, mail notifications and the sidebar. The Home Screen on iPhone and iPad reads a PNG only, so an SVG leaves the default tile there.
+
+The colour is kept in D1 and the icon in the `DRIVE` bucket (`branding/icon`); the Worker serves both under `/brand/` (`app/lib/branding.server.ts`). Every page load asks for them again, so a change shows on the next page anyone opens. Safari keeps a tab's icon in a store of its own, so a new icon can take a while to show there.
+
 ### PostHog
 
 Optional. With `POSTHOG_PROJECT_TOKEN` and `POSTHOG_HOST` set in `wrangler.jsonc`, the browser reports errors only (no autocapture, pageviews, replay or heatmaps: a page here shows a person's mail), through [`@rivi-software/posthog-tanstack-start`](https://github.com/rivi-software/tools/tree/main/packages/posthog-tanstack-start#readme), with every address stripped of its query and fragment. The Worker reports server errors, and the Assistant's calls to PostHog AI observability (`app/lib/ai-telemetry/`): a turn is a trace on the person, each step a generation and each tool a span, with the prompts and answers only when `AI_TEXT_ANALYTICS` is `on`. Set `POSTHOG_PERSONAL_API_KEY` in the build's environment to upload source maps. An empty token keeps all of it off, as `.dev.vars.local.example` does for local development and CI.

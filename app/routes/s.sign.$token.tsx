@@ -8,7 +8,7 @@ import type { ReactNode } from "react";
 import { z } from "zod";
 
 import { AuthShell, authCardClass } from "~/components/auth-shell";
-import { RiviMark } from "~/components/brand";
+import { BrandMark } from "~/components/brand";
 import { PdfPages } from "~/components/drive/pdf-pages";
 import { SignatureDialog } from "~/components/drive/signature-pad";
 import { FillLayer } from "~/components/drive/signing-fields";
@@ -218,7 +218,7 @@ const SignView = ({
   return (
     <div className="bg-sidebar flex min-h-dvh flex-col">
       <header className="border-line bg-bg sticky top-0 z-10 flex h-12 shrink-0 items-center gap-2.5 border-b px-4">
-        <RiviMark className="text-[22px]" />
+        <BrandMark className="text-[22px]" />
         <span className="hidden text-base font-medium sm:inline">
           {appName}
         </span>

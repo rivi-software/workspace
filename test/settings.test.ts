@@ -34,7 +34,7 @@ describe("Settings' tabs", () => {
       admin: tabsFor("admin"),
     }).toStrictEqual({
       member: ["account", "mail", "tasks"],
-      admin: ["account", "mail", "tasks", "people", "drive"],
+      admin: ["account", "mail", "tasks", "people", "drive", "branding"],
     });
   });
 
@@ -73,6 +73,7 @@ describe("loading Settings", () => {
         ["tasks", ["me", "tab", "tasks"]],
         ["people", ["me", "people", "tab"]],
         ["drive", ["drive", "me", "tab"]],
+        ["branding", ["branding", "me", "tab"]],
       ].map(([tab, keys]) => ({
         tab,
         keys,

@@ -169,7 +169,7 @@ export const lightness = (c: Rgba): number => toOklab(c).L;
 const chroma = (lab: Lab): number => Math.hypot(lab.a, lab.b);
 
 /** The colour at another lightness, hue kept; the chroma shrinks until it fits in sRGB. */
-const withLightness = (c: Rgba, L: number, chromaScale = 1): Rgba => {
+export const withLightness = (c: Rgba, L: number, chromaScale = 1): Rgba => {
   const lab = toOklab(c);
 
   const fits = (k: number) =>

@@ -345,6 +345,16 @@ body {
   background-image: linear-gradient(var(--bg-hover), var(--bg-hover));
 }
 
+/* A deployment's own icon in place of the mark (`BrandMark`); `/brand/theme.css` shows it when there is one. */
+.brand-mark-icon {
+  display: none;
+  width: 1em;
+  height: 1em;
+  background-position: center;
+  background-size: contain;
+  background-repeat: no-repeat;
+}
+
 /* The rich composer: what the person writes, in the message's own grammar (lists, quotes, links). */
 .rich-editor {
   min-height: 10rem;
