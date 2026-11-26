@@ -51,7 +51,7 @@ import {
   canEdit,
   fileKind,
   formatSize,
-  servesInline,
+  opensInTab,
 } from "~/lib/drive/drive";
 import type { DriveCrumb, DriveRole } from "~/lib/drive/drive";
 import { listShares, nodeDetails } from "~/lib/drive/drive.server";
@@ -66,6 +66,7 @@ import {
 import { listSigningRequests } from "~/lib/drive/signing.server";
 import type { SigningRow } from "~/lib/drive/signing.server";
 import { keepShown } from "~/lib/keep-shown";
+import { useAndroidApp } from "~/lib/mobile-app";
 import { appContext } from "~/lib/request.server";
 import { serverFnFetch } from "~/lib/server-fn-fetch";
 
@@ -496,6 +497,7 @@ const FileView = ({ data }: { data: FileData }) => {
   const inTrash = !!node.trashedAt;
   const fileUrl = `/api/drive/files/${node.id}`;
   const parent = crumbs.at(-1) ?? null;
+  const androidApp = useAndroidApp();
 
   const requestSignatures = () => {
     void navigate({
@@ -597,7 +599,7 @@ const FileView = ({ data }: { data: FileData }) => {
           inTrash={inTrash}
           starred={starred}
           signable={signable}
-          inline={servesInline(node.contentType)}
+          inline={opensInTab(node.contentType, !androidApp)}
           editable={editable}
           fileUrl={fileUrl}
           restore={restore}

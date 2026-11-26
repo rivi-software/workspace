@@ -61,8 +61,10 @@ import {
   cx,
 } from "~/components/ui";
 import { listConversations } from "~/lib/assistant/chat.server";
+import { assistantReady } from "~/lib/assistant/provider.server";
 import { colleagues, storageUsed } from "~/lib/drive/drive.server";
 import { isJsonObject, stringOrNull } from "~/lib/guards";
+import { FAVICON_HREF } from "~/lib/icons";
 import { keepShown } from "~/lib/keep-shown";
 import type { Folder, LabelRef } from "~/lib/mail/folders";
 import { listLabels } from "~/lib/mail/labels.server";
@@ -106,6 +108,8 @@ const getLayout = createServerFn().handler(async () => {
       : null,
     preferences: parsePreferences(user.preferencesJson),
     appName: env.APP_NAME,
+    // Whether this Worker has a model, and so offers AI where a person reads and writes mail.
+    ai: assistantReady(env),
     driveUsed,
     conversations,
     colleagues: people,
@@ -161,6 +165,15 @@ const useNewMailNotice = (
   const navigate = useNavigate();
   const seen = useRef<{ id: string; at: string } | null>(null);
   const since = useRef<string | null>(null);
+  // A notification's click opens its thread while the console is mounted: every refresh reruns the effect below,
+  // so the listeners end with the console, not with the run that added them.
+  const clicks = useRef<AbortSignal | null>(null);
+  useEffect(() => {
+    const controller = new AbortController();
+    clicks.current = controller.signal;
+
+    return () => controller.abort();
+  }, []);
   useEffect(() => {
     // The tab's opening, which only mail that arrived after it is told of.
     const opened = since.current ?? new Date().toISOString();
@@ -184,18 +197,22 @@ const useNewMailNotice = (
     const n = new Notification(newest.people, {
       body: newest.subject,
       tag: `mail-${newest.id}`,
-      icon: "/favicon.svg",
+      icon: FAVICON_HREF,
     });
 
-    n.addEventListener("click", () => {
-      window.focus();
-      void navigate({
-        to: "/mail/t/$threadId",
-        params: { threadId: newest.id },
-        search: {},
-      });
-      n.close();
-    });
+    n.addEventListener(
+      "click",
+      () => {
+        window.focus();
+        void navigate({
+          to: "/mail/t/$threadId",
+          params: { threadId: newest.id },
+          search: {},
+        });
+        n.close();
+      },
+      { signal: clicks.current ?? undefined }
+    );
   }, [newest, navigate]);
 };
 

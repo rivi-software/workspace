@@ -10,6 +10,7 @@ import type { CSSProperties } from "react";
 
 import {
   CALENDAR_VIEWS,
+  SERVER_LOCALE,
   WORKDAY_START_HOUR,
   addDays,
   itemDays,
@@ -566,7 +567,11 @@ export const CalendarPage = ({ data }: { data: CalendarData }) => {
   return (
     <>
       <ViewHeader
-        title={anchor ? viewTitle(view, anchor) : "Calendar"}
+        title={
+          anchor
+            ? viewTitle(view, anchor, hydrated ? undefined : SERVER_LOCALE)
+            : "Calendar"
+        }
         left={
           <div className="flex items-center gap-0.5">
             <IconButton label="Previous" size="sm" onClick={() => step(-1)}>

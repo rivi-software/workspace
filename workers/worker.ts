@@ -132,9 +132,9 @@ export const createWorker = (start: StartHandler) =>
       }
     },
 
-    // Every minute: snoozed conversations that are due, scheduled messages that are due, and a batch of each running
-    // mailbox import.
-    async scheduled(_controller, env) {
-      await handleScheduled(env);
+    // Every minute, the cron's jobs, on the minute the run was scheduled for: a run that starts late still prunes the
+    // spam filter whose turn that minute was.
+    async scheduled(controller, env) {
+      await handleScheduled(env, new Date(controller.scheduledTime));
     },
   }) satisfies ExportedHandler<Env>;

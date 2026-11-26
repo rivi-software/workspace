@@ -12,6 +12,7 @@ import {
   monthGrid,
   occurrences,
   parseDay,
+  SERVER_LOCALE,
   startOfWeek,
   stepView,
   viewTitle,
@@ -112,6 +113,18 @@ describe("days and zones", () => {
       week3: true,
       week4: true,
       week5: true,
+    });
+  });
+
+  it("titles a view in the locale it is given, as the server renders it before hydration", () => {
+    expect({
+      server: viewTitle("month", "2026-11-15", SERVER_LOCALE),
+      dutch: viewTitle("month", "2026-11-15", "nl-NL"),
+      week: viewTitle("week", "2026-10-31", SERVER_LOCALE),
+    }).toStrictEqual({
+      server: "November 2026",
+      dutch: "november 2026",
+      week: "Oct 26 – Nov 1, 2026",
     });
   });
 

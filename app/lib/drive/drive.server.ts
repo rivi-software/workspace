@@ -8,10 +8,12 @@ import {
   and,
   asc,
   eq,
+  gte,
   inArray,
   isNotNull,
   isNull,
   lt,
+  lte,
   ne,
   or,
   sql,
@@ -20,6 +22,7 @@ import {
 import type { Database } from "~/db";
 import { driveNodes, driveShares, driveStars, users } from "~/db/schema";
 import type { DriveNode } from "~/db/schema";
+import { eachOf, throwFailures } from "~/lib/batch";
 import { defined } from "~/lib/guards";
 
 import { newId, nowIso } from "../ids";
@@ -998,58 +1001,71 @@ export const emptyTrash = async (
 };
 
 /**
- * Housekeeping for one person, a batch at a time: what has been in the trash for 30 days is deleted for good, and an
- * upload that never finished in a day is abandoned.
+ * What the cron prunes of everyone's Drive each minute (`pruneDrive`). The cron's D1 queries share one invocation's
+ * limit (1,000), and a trashed folder's subtree takes a few, so a batch stays small; the next minute takes the next.
+ */
+export const DRIVE_PRUNE_BATCH = 10;
+
+/**
+ * Housekeeping in every person's drive, from the cron, a batch at a time: what has been in the trash for 30 days is
+ * deleted for good, and an upload that never finished in a day is abandoned.
  */
 export const pruneDrive = async (
   env: Env,
   db: Database,
-  userId: string,
-  batch = 50
+  batch = DRIVE_PRUNE_BATCH
 ): Promise<{ deleted: number; abandoned: number }> => {
   const cutoff = new Date(
     Date.now() - DRIVE_EXPIRY_DAYS * 86_400_000
   ).toISOString();
 
-  const old = await db.query.driveNodes.findMany({
-    where: and(eq(driveNodes.userId, userId), lt(driveNodes.trashedAt, cutoff)),
-    limit: batch,
-  });
+  // Every owner named, so the search runs on `drive_nodes_user_trashed_idx`; without a `user_id` it scans the table.
+  const old = await db
+    .select()
+    .from(driveNodes)
+    .where(
+      and(
+        sql`${driveNodes.userId} in (select id from users)`,
+        lt(driveNodes.trashedAt, cutoff)
+      )
+    )
+    .limit(batch);
 
-  let deleted = 0;
-
-  for (const node of old) {
-    // oxlint-disable-next-line eslint/no-await-in-loop -- each step reads what the one before changed, so they run in order
+  const trash = await eachOf(old, async (node) => {
+    // A node under a folder deleted earlier in the batch went with it.
     if ((await getNode(db, node.id)) === null) {
-      continue;
+      return false;
     }
 
-    // oxlint-disable-next-line eslint/no-await-in-loop -- each step reads what the one before changed, so they run in order
     await deleteSubtree(env, db, node);
-    deleted += 1;
-  }
+
+    return true;
+  });
 
   const stale = new Date(
     Date.now() - UPLOAD_ABANDON_HOURS * 3_600_000
   ).toISOString();
 
+  // `drive_nodes_status_idx` (status, created_at) finds them across every drive.
   const abandoned = await db.query.driveNodes.findMany({
     where: and(
-      eq(driveNodes.userId, userId),
       eq(driveNodes.status, "uploading"),
       lt(driveNodes.createdAt, stale)
     ),
     limit: batch,
   });
 
-  for (const node of abandoned) {
-    // oxlint-disable-next-line eslint/no-await-in-loop -- each step reads what the one before changed, so they run in order
+  const uploads = await eachOf(abandoned, async (node) => {
     await dropObject(env, node);
-    // oxlint-disable-next-line eslint/no-await-in-loop -- each step reads what the one before changed, so they run in order
     await db.delete(driveNodes).where(eq(driveNodes.id, node.id));
-  }
 
-  return { deleted, abandoned: abandoned.length };
+    return true;
+  });
+
+  // A node that failed stays where it was and is tried again next minute; the cron reports the failure.
+  throwFailures("Drive's prune", [...trash.failures, ...uploads.failures]);
+
+  return { deleted: trash.done, abandoned: uploads.done };
 };
 
 /* ---------- sharing ---------- */
@@ -1262,4 +1278,73 @@ export const storageUsed = async (
     );
 
   return Number(row?.bytes ?? 0);
+};
+
+/* ---------- for the search by meaning ---------- */
+
+/**
+ * The files out of the trash and whole in the bucket whose last change is at or after `from` (soonest first), or at
+ * or before `until` (latest first): the two walks of the search index (`app/lib/search/indexer.server.ts`).
+ * Every owner is named, so the search runs on `drive_nodes_user_updated_idx`.
+ */
+export const changedFiles = async (
+  db: Database,
+  walk: { from: string; limit: number } | { until: string; limit: number }
+): Promise<DriveNode[]> => {
+  const forward = "from" in walk;
+
+  return await db.query.driveNodes.findMany({
+    where: and(
+      sql`${driveNodes.userId} in (select id from users)`,
+      eq(driveNodes.kind, "file"),
+      eq(driveNodes.status, "ready"),
+      isNull(driveNodes.trashedAt),
+      forward
+        ? gte(driveNodes.updatedAt, walk.from)
+        : lte(driveNodes.updatedAt, walk.until)
+    ),
+    orderBy: (n, order) => [
+      forward ? order.asc(n.updatedAt) : order.desc(n.updatedAt),
+      order.asc(n.id),
+    ],
+    limit: walk.limit,
+  });
+};
+
+/** Which of these nodes still exist, trashed or not: the rest are gone for good. */
+export const existingNodes = async (
+  db: Database,
+  ids: string[]
+): Promise<Set<string>> => {
+  // Slices of ids, for D1's bound-variable limit: a slice of the sweep is two of them at most.
+  const slices = await Promise.all(
+    chunks(ids).map((slice) =>
+      db
+        .select({ id: driveNodes.id })
+        .from(driveNodes)
+        .where(inArray(driveNodes.id, slice))
+    )
+  );
+
+  return new Set(slices.flat().map((row) => row.id));
+};
+
+/**
+ * The rows of the nodes among `ids` the person reaches outside the trash, in the order given: what a search by
+ * meaning found, read back through the gate, which is what decides that the person may see them.
+ */
+export const rowsByIds = async (
+  db: Database,
+  userId: string,
+  ids: string[]
+): Promise<DriveRow[]> => await rowsFor(db, userId, ids, "outside");
+
+/** The colleagues who share something with the person: whose files a search of theirs may look among. */
+export const sharingOwners = async (
+  db: Database,
+  userId: string
+): Promise<string[]> => {
+  const roots = await sharedRoots(db, userId);
+
+  return [...new Set(roots.map((n) => n.userId))];
 };

@@ -658,7 +658,7 @@ describe("trash", () => {
     });
 
     observed.push({
-      pruneDrive: await pruneDrive(env, db, di.id),
+      pruneDrive: await pruneDrive(env, db),
       getNode: await getNode(old.id),
     });
     const got6 = await getNode(fresh.id);
@@ -673,7 +673,7 @@ describe("trash", () => {
     observed.push(await getNode(running.id));
 
     expect(observed).toStrictEqual([
-      // { pruneDrive: await pruneDrive(env, db, di.id), getNode: await getNode(old.id), }
+      // { pruneDrive: await pruneDrive(env, db), getNode: await getNode(old.id), }
       {
         pruneDrive: {
           deleted: 1,

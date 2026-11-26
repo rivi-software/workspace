@@ -4,7 +4,11 @@
  * the console's mail routes and `app/lib/mail/actions.ts` call.
  */
 import type { Thread } from "~/db/schema";
-import { parseAddressList, parseJsonAddresses } from "~/lib/mail/addresses";
+import {
+  parseAddress,
+  parseAddressList,
+  parseJsonAddresses,
+} from "~/lib/mail/addresses";
 import { composeData } from "~/lib/mail/compose.server";
 import { searchContacts } from "~/lib/mail/contacts.server";
 import { createLabel } from "~/lib/mail/labels.server";
@@ -49,10 +53,10 @@ const threadView = (t: Thread) => ({
 });
 
 const list = async (context: ApiContext): Promise<Response> => {
-  const { db, env, user, query } = context;
+  const { db, user, query } = context;
 
   return json(
-    await listPage(db, env, user, {
+    await listPage(db, user, {
       folder: query.get("folder"),
       label: query.get("label"),
       q: query.get("q"),
@@ -253,6 +257,13 @@ const addressLists = (body: JsonBody) => ({
   bcc: parseAddressList(field(body, "bcc")),
 });
 
+/**
+ * The address a send or a draft goes from, lower-cased: the address alone or its typed form (`Ada <ada@acme.com>`),
+ * which is what a client's From picker may hold; the person's own address when there is none.
+ */
+const fromOf = (body: JsonBody, fallback: string): string =>
+  parseAddress(field(body, "from") || fallback).email;
+
 /** A draft's recipients, refused by name as a send refuses them when one is not an address. */
 const recipients = (body: JsonBody) => checkedRecipients(addressLists(body));
 
@@ -268,7 +279,7 @@ const send = async (context: ApiContext): Promise<Response> => {
   const body = await readBody(request);
 
   const sent = await sendComposed(env, db, user, {
-    from: (field(body, "from") || user.email).toLowerCase(),
+    from: fromOf(body, user.email),
     ...addressLists(body),
     subject: field(body, "subject"),
     text: field(body, "text"),
@@ -293,7 +304,7 @@ const saveDraftRoute = async (context: ApiContext): Promise<Response> => {
     threadId: fieldOrNull(body, "threadId"),
     inReplyToId: fieldOrNull(body, "inReplyToId"),
     mode: mode === "reply" || mode === "forward" ? mode : "new",
-    from: (field(body, "from") || user.email).toLowerCase(),
+    from: fromOf(body, user.email),
     to,
     cc,
     bcc,

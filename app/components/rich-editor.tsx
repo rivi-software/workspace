@@ -32,6 +32,11 @@ export interface RichEditorHandle {
   focus: () => void;
   /** The markup as it stands. */
   html: () => string;
+  /**
+   * Put a drafted body where the person writes: above the quote, under anything they have typed already, as if they
+   * had typed it there.
+   */
+  insertDraft: (html: string) => void;
 }
 
 const ALLOWED_PASTE = new Set(
@@ -266,6 +271,38 @@ export const RichEditor = ({
   useImperativeHandle(handle, () => ({
     focus: () => area.current?.focus(),
     html: () => area.current?.innerHTML ?? "",
+    insertDraft: (html) => {
+      const el = area.current;
+
+      if (!el) {
+        return;
+      }
+
+      // Through the same sanitiser as everything the editor starts from.
+      const markup = editorMarkup(html);
+      const quote = el.querySelector(":scope > .gmail_quote");
+      const before = document.createRange();
+      before.selectNodeContents(el);
+
+      if (quote) {
+        before.setEndBefore(quote);
+      }
+
+      const written = Boolean(
+        before.toString().trim() || before.cloneContents().querySelector("img")
+      );
+
+      if (!written) {
+        el.insertAdjacentHTML("afterbegin", markup);
+      } else if (quote) {
+        quote.insertAdjacentHTML("beforebegin", markup);
+      } else {
+        el.insertAdjacentHTML("beforeend", markup);
+      }
+
+      sync();
+      el.focus();
+    },
   }));
 
   // The toolbar's pressed states follow the selection.

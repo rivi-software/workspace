@@ -2,6 +2,7 @@ import { Download } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { TEXT_PREVIEW_BYTES, formatSize, previewOf } from "~/lib/drive/drive";
+import { useAndroidApp } from "~/lib/mobile-app";
 
 import { KindIcon } from "./icons";
 
@@ -103,6 +104,7 @@ export const FilePreview = ({
 }) => {
   const kind = previewOf(contentType, name);
   const textual = kind === "text" || kind === "code";
+  const androidApp = useAndroidApp();
 
   if (kind === "image") {
     return (
@@ -145,6 +147,18 @@ export const FilePreview = ({
           className="max-h-[72vh] max-w-full"
         />
       </div>
+    );
+  }
+
+  if (kind === "pdf" && androidApp) {
+    // The Android System WebView has no PDF viewer, so the frame would stay empty.
+    return (
+      <NoPreview
+        download={download}
+        name={name}
+        contentType={contentType}
+        why="The app can't show a PDF here on Android."
+      />
     );
   }
 

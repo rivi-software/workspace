@@ -987,16 +987,33 @@ const restyle = (html: string, visit: StyleVisitor): string => {
   return out + html.slice(last);
 };
 
-const DARK_QUERY = /@media[^{]*prefers-color-scheme\s*:\s*dark[^{]*\{/giu;
+const MEDIA = /@media/giu;
+const DARK_SCHEME = /prefers-color-scheme\s*:\s*dark/iu;
 
-/** Where the style sheet's `prefers-color-scheme: dark` queries start and end. */
+/**
+ * Where the style sheet's `prefers-color-scheme: dark` queries start and end: from an `@media` whose prelude, up to
+ * its `{`, asks for the dark scheme, through the `}` that closes it. Each prelude is read once: every `@media` before
+ * the same `{` shares it, and once no `{` follows an `@media`, none follows a later one either, where
+ * `@media[^{]*prefers-color-scheme…\{` searched on to the end of the sheet from every `@media` (#3667).
+ */
 const darkQueries = (css: string): [number, number][] => {
   const found: [number, number][] = [];
-  const open = new RegExp(DARK_QUERY.source, "giu");
+  const media = new RegExp(MEDIA.source, "giu");
 
-  for (let m = open.exec(css); m; m = open.exec(css)) {
+  for (let m = media.exec(css); m; m = media.exec(css)) {
+    const open = css.indexOf("{", m.index + m[0].length);
+
+    if (open === -1) {
+      break;
+    }
+
+    if (!DARK_SCHEME.test(css.slice(m.index, open))) {
+      media.lastIndex = open + 1;
+      continue;
+    }
+
     let depth = 1;
-    let i = m.index + m[0].length;
+    let i = open + 1;
 
     for (; i < css.length && depth > 0; i += 1) {
       if (css[i] === "{") {
@@ -1007,10 +1024,27 @@ const darkQueries = (css: string): [number, number][] => {
     }
 
     found.push([m.index, i]);
-    open.lastIndex = i;
+    media.lastIndex = i;
   }
 
   return found;
+};
+
+/**
+ * Whether a position sits inside one of `ranges`, asked in increasing order. The ranges come in order and never
+ * overlap, so the answers take one pass over them, where testing every range again for each block of a sheet took time
+ * quadratic in its length (#3667).
+ */
+const insideRanges = (ranges: [number, number][]) => {
+  let next = 0;
+
+  return (at: number): boolean => {
+    while (next < ranges.length && ranges[next][1] <= at) {
+      next += 1;
+    }
+
+    return next < ranges.length && at > ranges[next][0];
+  };
 };
 
 /** Each `property: value` of a declaration list, rewritten by `fn`: null keeps it, an empty string drops it. */
@@ -1039,12 +1073,12 @@ const mapRules = (
   css: string,
   fn: (prop: string, value: string, darkRule: boolean) => string | null
 ): string => {
-  const dark = darkQueries(css);
+  const inDarkQuery = insideRanges(darkQueries(css));
 
   return css.replaceAll(
     /\{(?<block>[^{}]*)\}/gu,
     (_, block: string, at: number) => {
-      const darkRule = dark.some(([from, to]) => at > from && at < to);
+      const darkRule = inDarkQuery(at);
 
       return `{${mapDeclarations(block, (prop, value) => fn(prop, value, darkRule))}}`;
     }
@@ -1076,7 +1110,7 @@ const readPalette = (html: string): Palette => {
 
   restyle(html, {
     sheet: (css) => {
-      if (/prefers-color-scheme\s*:\s*dark/iu.test(css)) {
+      if (DARK_SCHEME.test(css)) {
         p.darkReady = true;
       }
 
@@ -1168,6 +1202,10 @@ const PREFERS_SCHEME =
 
 const VIEWPORT_HEIGHT = /\d[sld]?v(?:h|b|min|max)\b/iu;
 
+// A `url(` without its `)` runs to the end of the value, as CSS reads it; a search for the `)` from every `url(` took
+// time quadratic in the value's length (#3667).
+const URL_FUNCTION = /url\([^)]*\)?/giu;
+
 /** The sanitised markup as a complete document for a sandboxed iframe, its CSP in a meta tag. */
 export const mailDocument = (
   html: string,
@@ -1195,7 +1233,7 @@ export const mailDocument = (
       return "";
     }
 
-    if (VIEWPORT_HEIGHT.test(value.replaceAll(/url\([^)]*\)/giu, ""))) {
+    if (VIEWPORT_HEIGHT.test(value.replaceAll(URL_FUNCTION, ""))) {
       return "";
     }
 
