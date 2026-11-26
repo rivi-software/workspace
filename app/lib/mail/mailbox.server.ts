@@ -24,6 +24,7 @@ import {
   messages,
   threadLabels,
   threads,
+  users,
 } from "~/db/schema";
 import type { Address, Message, Thread } from "~/db/schema";
 import { eachOf, throwFailures } from "~/lib/batch";
@@ -470,10 +471,19 @@ const messageView = async (
     });
   }
 
+  // In a shared group inbox, the member who wrote it: the From names the group alone.
+  const author = m.sentBy
+    ? await db.query.users.findFirst({
+        columns: { name: true },
+        where: eq(users.id, m.sentBy),
+      })
+    : null;
+
   return {
     id: m.id,
     direction: m.direction,
     messageId: m.messageId,
+    sentBy: author?.name ?? null,
     from: { email: m.fromEmail, name: m.fromName },
     to: parseJsonAddresses(m.toJson),
     cc: parseJsonAddresses(m.ccJson),

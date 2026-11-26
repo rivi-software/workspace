@@ -42,6 +42,7 @@ import { useListNavigation, useShortcuts } from "./keyboard";
 import { LabelChip, LabelPicker, LabelTriggerButton } from "./labels";
 import { useLeaving } from "./mail-leaving";
 import { useSelection } from "./mail-selection";
+import { inMailbox, useMailbox } from "./mailbox";
 import { SnoozeMenu, SnoozeTriggerButton } from "./snooze-menu";
 import { useToast } from "./toast";
 import {
@@ -61,15 +62,16 @@ import {
 import { useThreadActions } from "./use-thread-actions";
 
 interface ListSearch {
+  box?: string;
   folder?: string;
   q?: string;
   page?: string;
   label?: string;
 }
 
-/** The search params of the list as links keep them: the folder or label, the search, and the page. */
+/** The search params of the list as links keep them: the mailbox, the folder or label, the search, and the page. */
 export const listParams = (data: MailListData, page?: number): ListSearch => {
-  const out: ListSearch = {};
+  const out: ListSearch = data.box ? { box: data.box } : {};
 
   if (data.label) {
     out.label = data.label.id;
@@ -96,6 +98,7 @@ export const listParams = (data: MailListData, page?: number): ListSearch => {
  */
 const ScheduledRow = ({ draft: d }: { draft: DraftRow }) => {
   const unschedule = useServerFn(unscheduleAction);
+  const box = useMailbox();
   const router = useRouter();
   const navigate = useNavigate();
   const toast = useToast();
@@ -112,7 +115,7 @@ const ScheduledRow = ({ draft: d }: { draft: DraftRow }) => {
         let ok: boolean;
 
         try {
-          ({ ok } = await unschedule({ data: { draftId: d.id } }));
+          ({ ok } = await unschedule({ data: { draftId: d.id, box } }));
         } catch (error) {
           toast.show({ message: errorMessage(error), tone: "error" });
 
@@ -133,7 +136,7 @@ const ScheduledRow = ({ draft: d }: { draft: DraftRow }) => {
         toast.show({
           message: "Send cancelled. The message is a draft again.",
         });
-        void navigate({ to: "/mail/compose", search: { draft: d.id } });
+        void navigate({ to: "/mail/compose", search: { draft: d.id, box } });
       },
       () => setBusy(false)
     );
@@ -667,13 +670,17 @@ const ThreadRow = ({
 const isDraftsView = (folder: Folder): boolean =>
   folder === "drafts" || folder === "scheduled";
 
-const listTitle = ({ label, q, folder }: MailListData): string => {
+const viewTitle = ({ label, q, folder }: MailListData): string => {
   if (label) {
     return label.name;
   }
 
   return q ? "Search" : FOLDER_LABEL[folder];
 };
+
+/** The view's name, and the group inbox's when the list is of one: "Inbox · Support". */
+const listTitle = (data: MailListData): string =>
+  data.mailbox ? `${viewTitle(data)} · ${data.mailbox.name}` : viewTitle(data);
 
 /** The conversation whose row has the focus, if any. */
 const focusedId = (): string | null =>
@@ -844,6 +851,16 @@ const ListHeader = ({
   onEmpty: () => void;
 }) => {
   const { folder, q, label, drafts, page, pageSize } = data;
+
+  // What a search keeps of the view: its label or folder, and the mailbox.
+  const searchKeeps: Record<string, string> = label
+    ? { label: label.id }
+    : { folder };
+
+  if (data.box) {
+    searchKeeps.box = data.box;
+  }
+
   const draftsView = isDraftsView(folder);
   const allChosen = threads.length > 0 && chosen.length === threads.length;
   const count = draftsView ? drafts.length : total;
@@ -900,12 +917,15 @@ const ListHeader = ({
             placeholder="Search mail"
             hint="from: to: subject: has:attachment is:unread label: before: after:"
             value={q}
-            hidden={label ? { label: label.id } : { folder }}
+            hidden={searchKeeps}
             className="@sm:w-40 @3xl:w-64"
             clear={
               <Link
                 to="/mail"
-                search={label ? { label: label.id } : { folder }}
+                search={{
+                  ...(label ? { label: label.id } : { folder }),
+                  box: data.box,
+                }}
                 className={searchClearClass}
                 aria-label="Clear search"
               >
@@ -966,6 +986,8 @@ const ScheduledList = ({ drafts }: { drafts: DraftRow[] }) => {
 };
 
 const DraftList = ({ drafts }: { drafts: DraftRow[] }) => {
+  const box = useMailbox();
+
   if (!drafts.length) {
     return (
       <Empty icon={<FileText className="h-4 w-4" />} title="No drafts">
@@ -978,7 +1000,7 @@ const DraftList = ({ drafts }: { drafts: DraftRow[] }) => {
     <Link
       key={d.id}
       to="/mail/compose"
-      search={{ draft: d.id }}
+      search={{ draft: d.id, box }}
       data-row
       className="group/row border-line hover:bg-hover focus-visible:bg-hover flex min-h-10 items-center gap-3 border-b px-4 py-2 text-base focus:outline-none"
     >
@@ -1130,6 +1152,7 @@ export const MailList = ({
   const toast = useToast();
   const folderFn = useServerFn(folderAction);
   const makeLabel = useServerFn(quickLabel);
+  const box = useMailbox();
   const [labelOpen, setLabelOpen] = useState(false);
   const [snoozeOpen, setSnoozeOpen] = useState(false);
   const lastPick = useRef<string | null>(null);
@@ -1243,7 +1266,7 @@ export const MailList = ({
     let result: Awaited<ReturnType<typeof makeLabel>>;
 
     try {
-      result = await makeLabel({ data: { name } });
+      result = await makeLabel({ data: { name, box } });
     } catch (error) {
       toast.show({ message: errorMessage(error), tone: "error" });
 
@@ -1262,7 +1285,7 @@ export const MailList = ({
   };
 
   const readAll = async () => {
-    const fd = new FormData();
+    const fd = inMailbox(new FormData(), box);
     fd.set("intent", "read-all");
     fd.set("folder", folder);
 
@@ -1299,7 +1322,7 @@ export const MailList = ({
       return;
     }
 
-    const fd = new FormData();
+    const fd = inMailbox(new FormData(), box);
     fd.set("intent", "empty");
     fd.set("folder", folder);
     const show = leaving.hide(ids);

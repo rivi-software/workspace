@@ -18,6 +18,7 @@ import type { AddressList } from "./addresses";
 import { composeData, ComposeNotFound } from "./compose.server";
 import type { ComposeData, DraftFileView } from "./compose.server";
 import { searchContacts } from "./contacts.server";
+import { mailContext } from "./context.server";
 import { isFolder } from "./folders";
 import type { Folder } from "./folders";
 import { ImageSenderError, addImageSender } from "./images.server";
@@ -86,7 +87,7 @@ export const threadsAction = createServerFn({ method: "POST" })
   .middleware([formPost])
   .validator(formData)
   .handler(async ({ data }): Promise<ThreadsResult> => {
-    const { db, env, user } = await appContext();
+    const { db, env, user } = await mailContext(field(data, "box") || null);
     const intent = field(data, "intent");
 
     if (!isThreadIntent(intent)) {
@@ -121,7 +122,7 @@ export const undoAction = createServerFn({ method: "POST" })
   .middleware([formPost])
   .validator(formData)
   .handler(async ({ data }): Promise<{ ok: boolean }> => {
-    const { db, env, user } = await appContext();
+    const { db, env, user } = await mailContext(field(data, "box") || null);
     const undo = field(data, "undo");
 
     return { ok: !!undo && (await undoThreadAction(db, env, user.id, undo)) };
@@ -132,7 +133,7 @@ export const folderAction = createServerFn({ method: "POST" })
   .middleware([formPost])
   .validator(formData)
   .handler(async ({ data }): Promise<{ ok: boolean; count: number }> => {
-    const { db, env, user } = await appContext();
+    const { db, env, user } = await mailContext(field(data, "box") || null);
     const intent = field(data, "intent");
     const folderValue = field(data, "folder", "inbox");
     const folder: Folder = isFolder(folderValue) ? folderValue : "inbox";
@@ -166,15 +167,22 @@ export const suggestContacts = createServerFn({ method: "POST" })
 
 /** A label made from the label menu, without leaving the list. */
 export const quickLabel = createServerFn({ method: "POST" })
-  .validator((d: { name: string; color?: string }) => ({
+  .validator((d: { name: string; color?: string; box?: string }) => ({
     name: String(d?.name ?? ""),
     color: d?.color ? String(d.color) : undefined,
+    box: d?.box ? String(d.box) : null,
   }))
   .handler(async ({ data }) => {
-    const { db, user } = await appContext();
+    const { db, user } = await mailContext(data.box);
 
     try {
-      return { ok: true as const, label: await createLabel(db, user.id, data) };
+      return {
+        ok: true as const,
+        label: await createLabel(db, user.id, {
+          name: data.name,
+          color: data.color,
+        }),
+      };
     } catch (error) {
       if (error instanceof LabelError) {
         return { ok: false as const, error: error.message };
@@ -191,10 +199,11 @@ export const composePrefill = createServerFn({ method: "POST" })
       draft?: string;
       reply?: string;
       mode?: "reply" | "all" | "forward";
-    }) => d
+      box?: string;
+    }) => ({ ...d, box: d?.box ? String(d.box) : null })
   )
   .handler(async ({ data }): Promise<ComposeData | null> => {
-    const { db, user } = await appContext();
+    const { db, user } = await mailContext(data.box);
 
     try {
       return await composeData(db, user, data);
@@ -305,7 +314,7 @@ export const draftAction = createServerFn({ method: "POST" })
   .middleware([formPost])
   .validator(formData)
   .handler(async ({ data }): Promise<DraftResult> => {
-    const { db, env, user } = await appContext();
+    const { db, env, user } = await mailContext(field(data, "box") || null);
     const intent = field(data, "intent", "save");
     let draftId = field(data, "draftId") || null;
     const savedAt = new Date().toISOString();
@@ -381,13 +390,17 @@ export const sendAction = createServerFn({ method: "POST" })
   .middleware([formPost])
   .validator(formData)
   .handler(async ({ data }): Promise<SendResult> => {
-    const { db, env, user } = await appContext();
+    const { db, env, user, person } = await mailContext(
+      field(data, "box") || null
+    );
 
     try {
       const sent = await sendComposed(env, db, user, {
         ...composeFields(data, user.email),
         draftId: field(data, "draftId") || null,
         files: await uploadedFiles(data),
+        // In a shared group inbox, who of its members wrote it.
+        sentBy: person.id === user.id ? null : person.id,
       });
 
       return { ok: true, threadId: sent.threadId };
@@ -412,7 +425,7 @@ export const scheduleAction = createServerFn({ method: "POST" })
   .middleware([formPost])
   .validator(formData)
   .handler(async ({ data }): Promise<ScheduleResult> => {
-    const { db, env, user } = await appContext();
+    const { db, env, user } = await mailContext(field(data, "box") || null);
 
     try {
       const { draftId, scheduledAt } = await scheduleComposed(env, db, user, {
@@ -433,11 +446,12 @@ export const scheduleAction = createServerFn({ method: "POST" })
 
 /** "Cancel send": a scheduled message becomes a draft again, to be opened in the composer. */
 export const unscheduleAction = createServerFn({ method: "POST" })
-  .validator((d: { draftId: string }) => ({
+  .validator((d: { draftId: string; box?: string }) => ({
     draftId: String(d?.draftId ?? ""),
+    box: d?.box ? String(d.box) : null,
   }))
   .handler(async ({ data }): Promise<{ ok: boolean }> => {
-    const { db, user } = await appContext();
+    const { db, user } = await mailContext(data.box);
 
     return { ok: await unscheduleDraft(db, user.id, data.draftId) };
   });
@@ -454,7 +468,7 @@ export const unsubscribeAction = createServerFn({ method: "POST" })
   .middleware([formPost])
   .validator(formData)
   .handler(async ({ data }): Promise<UnsubscribeResult> => {
-    const { db, env, user } = await appContext();
+    const { db, env, user } = await mailContext(field(data, "box") || null);
 
     const m = await db.query.messages.findFirst({
       where: and(
@@ -537,7 +551,7 @@ export const senderAction = createServerFn({ method: "POST" })
   .middleware([formPost])
   .validator(formData)
   .handler(async ({ data }): Promise<SenderResult> => {
-    const { db, user } = await appContext();
+    const { db, user } = await mailContext(field(data, "box") || null);
     const intent = field(data, "intent");
 
     try {

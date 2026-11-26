@@ -410,9 +410,17 @@ export const createAuth = async (env: Env, db: Database = createDb(env.DB)) => {
           // (`startSession`, after Duo).
           before: async (session, context) => {
             const row = await db.query.users.findFirst({
-              columns: { active: true, twoFactorEnabled: true },
+              columns: { active: true, twoFactorEnabled: true, kind: true },
               where: eq(users.id, session.userId),
             });
+
+            // A group inbox has no password or passkey, but nobody is ever signed in as one, whatever goes wrong.
+            if (row?.kind === "group") {
+              throw new APIError("FORBIDDEN", {
+                message: "A group inbox cannot sign in.",
+                code: "GROUP_SIGN_IN",
+              });
+            }
 
             if (!row?.active) {
               throw new APIError("FORBIDDEN", {

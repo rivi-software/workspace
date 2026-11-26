@@ -200,6 +200,11 @@ const MessageHeader = ({
               {from}
             </span>
             {m.direction === "outbound" && <Pill tone="neutral">Sent</Pill>}
+            {m.sentBy && (
+              <span className="text-subtle truncate text-sm">
+                by {m.sentBy}
+              </span>
+            )}
             {m.pgp && <PgpPill pgp={m.pgp} />}
             {m.deliveryStatus === "failed" && (
               <Pill tone="red">Not delivered</Pill>

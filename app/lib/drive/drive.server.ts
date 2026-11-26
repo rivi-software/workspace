@@ -1147,7 +1147,11 @@ export const setShare = async (
     }
 
     const person = await db.query.users.findFirst({
-      where: and(eq(users.id, subject), eq(users.active, true)),
+      where: and(
+        eq(users.id, subject),
+        eq(users.active, true),
+        eq(users.kind, "person")
+      ),
     });
 
     if (!person) {
@@ -1190,7 +1194,11 @@ export const removeShare = async (
 /** The people a node can be shared with: everyone active in the workspace but the person themselves. */
 export const colleagues = async (db: Database, userId: string) => {
   const rows = await db.query.users.findMany({
-    where: and(eq(users.active, true), ne(users.id, userId)),
+    where: and(
+      eq(users.active, true),
+      eq(users.kind, "person"),
+      ne(users.id, userId)
+    ),
     orderBy: (u) => [asc(u.name)],
   });
 

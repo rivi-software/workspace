@@ -10,6 +10,7 @@ export const SETTINGS_TABS = [
   "account",
   "mail",
   "tasks",
+  "groups",
   "people",
   "drive",
   "branding",

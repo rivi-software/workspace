@@ -32,16 +32,17 @@ import {
 const keysOf = (loaded: Settings) => Object.keys(loaded).toSorted();
 
 describe("Settings' tabs", () => {
-  it("shows a member Account, Mail and Tasks, and an admin every tab", () => {
+  it("shows a member Account, Mail, Tasks and Groups, and an admin every tab", () => {
     expect({
       member: tabsFor("member"),
       admin: tabsFor("admin"),
     }).toStrictEqual({
-      member: ["account", "mail", "tasks"],
+      member: ["account", "mail", "tasks", "groups"],
       admin: [
         "account",
         "mail",
         "tasks",
+        "groups",
         "people",
         "drive",
         "branding",
@@ -90,6 +91,7 @@ describe("loading Settings", () => {
         ["account", ["account", "me", "signatures", "tab"]],
         ["mail", ["mail", "me", "tab"]],
         ["tasks", ["me", "tab", "tasks"]],
+        ["groups", ["groups", "me", "tab"]],
         ["people", ["me", "people", "tab"]],
         ["drive", ["drive", "me", "tab"]],
         ["branding", ["branding", "me", "tab"]],

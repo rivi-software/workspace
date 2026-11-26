@@ -46,6 +46,7 @@ import {
 import { listParams } from "~/components/mail-list";
 import { useSelection } from "~/components/mail-selection";
 import { ThreadSummary, useThreadSummary } from "~/components/mail-summary";
+import { inMailbox, useMailbox } from "~/components/mailbox";
 import { MessageCard } from "~/components/message-card";
 import { SectionError } from "~/components/section-error";
 import { SnoozeMenu, SnoozeTriggerButton } from "~/components/snooze-menu";
@@ -74,6 +75,7 @@ import {
 import { composeData } from "~/lib/mail/compose.server";
 import type { ComposeData } from "~/lib/mail/compose.server";
 import type { LabelRef } from "~/lib/mail/folders";
+import { mailboxFor } from "~/lib/mail/groups.server";
 import type { MessageData, SenderRuleView } from "~/lib/mail/reads";
 import { openThread } from "~/lib/mail/reads.server";
 import { draftForThread } from "~/lib/mail/send.server";
@@ -87,9 +89,11 @@ import { Route as MailRoute, inboxUnreadOf, listOf, mailTitle } from "./mail";
 const appRoute = getRouteApi("/_app");
 
 const getThread = createServerFn()
-  .validator((d: { threadId: string }) => d)
+  .validator((d: { threadId: string; box?: string }) => d)
   .handler(async ({ data }) => {
-    const { db, env, user, request } = await appContext();
+    const { db, env, user: person, request } = await appContext();
+    // The conversation is the mailbox's: the person's own, or a shared group inbox they are in.
+    const user = await mailboxFor(db, person, data.box);
     const opened = await openThread(db, env, user.id, data.threadId);
 
     if (!opened) {
@@ -250,6 +254,7 @@ const useReplyBox = (
 ) => {
   const toast = useToast();
   const prefill = useServerFn(composePrefill);
+  const box = useMailbox();
   const [compose, setCompose] = useState<ComposeData | null>(draftCompose);
   const replyBox = useRef<HTMLDivElement>(null);
 
@@ -263,7 +268,7 @@ const useReplyBox = (
     let data: Awaited<ReturnType<typeof prefill>>;
 
     try {
-      data = await prefill({ data: { reply: target, mode } });
+      data = await prefill({ data: { reply: target, mode, box } });
     } catch (error) {
       toast.show({ message: errorMessage(error), tone: "error" });
 
@@ -294,6 +299,7 @@ const useSenderActions = (threadId: string, back: () => void) => {
   const toast = useToast();
   const unsubscribe = useServerFn(unsubscribeAction);
   const senders = useServerFn(senderAction);
+  const box = useMailbox();
 
   const onUnsubscribe = async (m: MessageData) => {
     const ways = m.unsubscribe;
@@ -308,7 +314,7 @@ const useSenderActions = (threadId: string, back: () => void) => {
     }
 
     if (ways.oneClick || (ways.mailto && !ways.http)) {
-      const fd = new FormData();
+      const fd = inMailbox(new FormData(), box);
       fd.set("messageId", m.id);
       let result: Awaited<ReturnType<typeof unsubscribe>>;
 
@@ -339,7 +345,7 @@ const useSenderActions = (threadId: string, back: () => void) => {
     intent: "block" | "unblock" | "images",
     sender: string
   ) => {
-    const fd = new FormData();
+    const fd = inMailbox(new FormData(), box);
     fd.set("intent", intent);
     fd.set("sender", sender);
     fd.set("threadId", threadId);
@@ -384,13 +390,14 @@ const useCreateLabel = () => {
   const router = useRouter();
   const toast = useToast();
   const makeLabel = useServerFn(quickLabel);
+  const box = useMailbox();
 
   // A failure answers null, as a refusal does: the picker then stops waiting and keeps what was typed.
   const create = async (name: string): Promise<LabelRef | null> => {
     let result: Awaited<ReturnType<typeof makeLabel>>;
 
     try {
-      result = await makeLabel({ data: { name } });
+      result = await makeLabel({ data: { name, box } });
     } catch (error) {
       toast.show({ message: errorMessage(error), tone: "error" });
 
@@ -698,8 +705,9 @@ const ThreadMenu = ({
   const last = messages.at(-1);
   const { allOpen, toggleAll, print } = reading;
   // "Ask the assistant" only while AI is on (`AI_FEATURES`); Summarize comes with `onSummarize`, which the layout's
-  // `ai` gives.
-  const { assistant } = appRoute.useLoaderData();
+  // `ai` gives. The Assistant reads the person's own mailbox alone, so a group inbox's conversation offers neither.
+  const box = useMailbox();
+  const assistant = appRoute.useLoaderData().assistant && !box;
 
   return (
     <Menu
@@ -1267,7 +1275,7 @@ const ThreadView = () => {
         snoozeOpen={snoozeOpen}
         onSnoozeOpen={setSnoozeOpen}
         onSummarize={
-          layout.ai
+          layout.ai && !list.box
             ? () => {
                 void summarize();
               }
@@ -1340,11 +1348,13 @@ const ConversationError = ({ error }: ErrorComponentProps) => (
 );
 
 export const Route = createFileRoute("/_app/mail/t/$threadId")({
+  // The mailbox alone of the list's params: another folder or page is the same conversation.
+  loaderDeps: ({ search }) => ({ box: search.box }),
   // The conversation stays when the minute's refresh cannot load it again (#3547).
   loader: (run) =>
     keepShown(run, () =>
       getThread({
-        data: { threadId: run.params.threadId },
+        data: { threadId: run.params.threadId, box: run.deps.box },
         fetch: serverFnFetch,
       })
     ),

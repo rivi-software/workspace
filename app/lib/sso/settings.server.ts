@@ -4,7 +4,7 @@
  * confirms password sign-ins. What the tab loads (`applicationsSettings`) and what its forms do
  * (`applicationsIntent`), apart from the server function so the tests call both.
  */
-import { asc, eq } from "drizzle-orm";
+import { and, asc, eq } from "drizzle-orm";
 
 import type { Database } from "~/db";
 import { users } from "~/db/schema";
@@ -44,7 +44,7 @@ export const applicationsSettings = async (
     listSigningKeys(db),
     db.query.users.findMany({
       columns: { id: true, name: true, email: true },
-      where: eq(users.active, true),
+      where: and(eq(users.active, true), eq(users.kind, "person")),
       orderBy: [asc(users.name)],
     }),
   ]);

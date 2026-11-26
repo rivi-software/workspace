@@ -300,7 +300,7 @@ export const createSigningRequest = async (
   const signer =
     input.signerId === user.id ? user : await person(db, input.signerId);
 
-  if (!signer || !signer.active) {
+  if (!signer?.active || signer.kind !== "person") {
     throw new SigningError("Choose who signs for the workspace.");
   }
 
@@ -467,7 +467,11 @@ export const signingEditor = async (
   const blocked = await blockedReason(db, file.node);
 
   const people = await db.query.users.findMany({
-    where: and(eq(users.active, true), ne(users.id, user.id)),
+    where: and(
+      eq(users.active, true),
+      eq(users.kind, "person"),
+      ne(users.id, user.id)
+    ),
     orderBy: (u, { asc }) => [asc(u.name)],
   });
 

@@ -61,6 +61,8 @@ export type FiledMail = Pick<
   bcc?: Address[];
   /** What OpenPGP did to it: opened on arrival (`openPgpMail`), or signed and encrypted on its way out. */
   pgp?: PgpStatus | null;
+  /** For `sent` from a shared group inbox: the member who wrote it. */
+  sentBy?: string | null;
 };
 
 /** Where a message puts its conversation and how it marks it and itself. */
@@ -286,6 +288,7 @@ const sameMessage = async (
 
     if (filing.policy === "sent") {
       ownRow.bccJson = JSON.stringify(filing.mail.bcc ?? []);
+      ownRow.sentBy = filing.mail.sentBy ?? null;
     }
 
     await db.update(messages).set(ownRow).where(eq(messages.id, held.id));
@@ -390,6 +393,7 @@ const messageRowOf = (
       : null,
     spamLearned: placement.spam?.learned ?? null,
     pgpJson: mail.pgp ? JSON.stringify(mail.pgp) : null,
+    sentBy: policy === "sent" ? (mail.sentBy ?? null) : null,
   };
 };
 

@@ -23,7 +23,10 @@ export class PeopleError extends Error {
 
 export const listPeople = async (db: Database) => {
   const [people, aliasRows, recoveryRows, passkeyRows] = await Promise.all([
-    db.query.users.findMany({ orderBy: (u, { asc }) => [asc(u.name)] }),
+    db.query.users.findMany({
+      where: eq(users.kind, "person"),
+      orderBy: (u, { asc }) => [asc(u.name)],
+    }),
     db.query.aliases.findMany(),
     db.query.recoveryAddresses.findMany({
       orderBy: (r, { asc }) => [asc(r.createdAt)],
@@ -79,7 +82,7 @@ export const mailboxAddress = (env: Env, typed: string): string => {
   return address;
 };
 
-const addressTaken = async (
+export const addressTaken = async (
   db: Database,
   address: string
 ): Promise<boolean> => {

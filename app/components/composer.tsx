@@ -32,6 +32,7 @@ import { formatBytes, textToEditorHtml } from "~/lib/text";
 
 import { AddressField } from "./address-field";
 import { DraftWithAi } from "./draft-with-ai";
+import { useMailbox } from "./mailbox";
 import { SignaturePreview } from "./message-body";
 import { RichEditor } from "./rich-editor";
 import type { RichEditorHandle } from "./rich-editor";
@@ -44,11 +45,11 @@ const appRoute = getRouteApi("/_app");
 const AUTOSAVE_MS = 2000;
 const MAX_TOTAL = 20 * 1024 * 1024;
 
-/** The list's own search params, kept across the composer and the thread (folder, search, page, label). */
+/** The list's own search params, kept across the composer and the thread (mailbox, folder, search, page, label). */
 export const listSearch = (prev: Record<string, string | undefined>) => {
   const out: Record<string, string> = {};
 
-  for (const key of ["folder", "q", "page", "label"]) {
+  for (const key of ["box", "folder", "q", "page", "label"]) {
     if (prev[key]) {
       out[key] = defined(prev[key], "the item");
     }
@@ -58,6 +59,21 @@ export const listSearch = (prev: Record<string, string | undefined>) => {
 };
 
 const keepList = (prev: Record<string, string | undefined>) => listSearch(prev);
+
+/** The mailbox the composer writes in, when it is a shared group inbox, for every form it posts. */
+const MailboxField = () => {
+  const box = useMailbox();
+
+  return box ? <input type="hidden" name="box" value={box} /> : null;
+};
+
+/** Whether Draft with AI is offered: where the Worker has a model, and never in a group inbox, as it reads the person's own mail. */
+const useDraftAi = (): boolean => {
+  const { ai } = appRoute.useLoaderData();
+  const box = useMailbox();
+
+  return ai && !box;
+};
 
 const titleOf = (mode: Prefill["mode"]): string => {
   if (mode === "reply") {
@@ -347,7 +363,7 @@ export const Composer = ({
   className?: string;
 }) => {
   const { froms, signatures, prefill, undoSendSeconds, pgp } = data;
-  const { ai } = appRoute.useLoaderData();
+  const ai = useDraftAi();
   const router = useRouter();
   const navigate = useNavigate();
   const toast = useToast();
@@ -355,6 +371,8 @@ export const Composer = ({
   const send = useServerFn(sendAction);
   const schedule = useServerFn(scheduleAction);
   const unschedule = useServerFn(unscheduleAction);
+  // Every form the composer posts is built from its own, which names the mailbox in a hidden field (`MailboxField`).
+  const box = useMailbox();
   const form = useRef<HTMLFormElement>(null);
   const editor = useRef<RichEditorHandle>(null);
   const draftRef = useRef(prefill.draftId);
@@ -593,7 +611,7 @@ export const Composer = ({
                 onClick: () => {
                   void navigate({
                     to: "/mail/compose",
-                    search: { draft: id },
+                    search: { draft: id, box },
                   });
                 },
               }
@@ -647,7 +665,10 @@ export const Composer = ({
               label: "Undo",
               onClick: () => {
                 if (settled.take()) {
-                  void navigate({ to: "/mail/compose", search: { draft: id } });
+                  void navigate({
+                    to: "/mail/compose",
+                    search: { draft: id, box },
+                  });
                 }
               },
             },
@@ -672,7 +693,7 @@ export const Composer = ({
   // The toast that offered it is gone once it is pressed, so a failure gets a toast of its own.
   const cancelScheduled = async (id: string) => {
     try {
-      await unschedule({ data: { draftId: id } });
+      await unschedule({ data: { draftId: id, box } });
     } catch (cancelError) {
       toast.show({
         message: errorMessage(cancelError),
@@ -684,7 +705,7 @@ export const Composer = ({
     }
 
     await router.invalidate();
-    void navigate({ to: "/mail/compose", search: { draft: id } });
+    void navigate({ to: "/mail/compose", search: { draft: id, box } });
   };
 
   /** "Send later": saved as the draft and handed to the cron for `iso`; the toast can take it back. */
@@ -762,7 +783,10 @@ export const Composer = ({
     const id = await saveDraft();
     gone.current = true;
     onClose?.();
-    void navigate({ to: "/mail/compose", search: { draft: id ?? undefined } });
+    void navigate({
+      to: "/mail/compose",
+      search: { draft: id ?? undefined, box },
+    });
   };
 
   // Closing keeps what was written: the inline composer saves only a change, the full one saves on the way out.
@@ -820,6 +844,7 @@ export const Composer = ({
       aria-label={title}
     >
       <ReplyFields prefill={prefill} />
+      <MailboxField />
       {dragging && (
         <div className="bg-accent-soft/70 text-md text-accent pointer-events-none absolute inset-0 z-10 flex items-center justify-center rounded-lg font-medium">
           Drop files to attach them

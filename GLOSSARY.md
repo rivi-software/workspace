@@ -29,6 +29,16 @@ _Avoid_: inbox (one folder of it), account
 **Alias**:
 An extra address delivered to a mailbox, which its owner may also send from.
 
+**Group** (group inbox):
+An address on the mail domain that several people answer, made by an admin. A group is a mailbox nobody signs in as. Its **owners** add and remove its members; its **members** read and send as it.
+_Avoid_: team, list (a mailing list someone else runs)
+
+**Distribution group**:
+A group whose mail is filed in each member's own mailbox; each member reads and files their copy alone.
+
+**Shared inbox**:
+A group with one mailbox of its own that every member opens in Mail: a conversation read, archived or answered there is so for all of them.
+
 **Thread**:
 The messages of one exchange in one mailbox, shown together.
 _Avoid_: conversation (the Assistant's word)

@@ -85,6 +85,7 @@ interface MessageView {
   deliveryStatus: "received" | "sent" | "failed"; deliveryError: string | null;
   spam: boolean;             // the spam filter put it in Spam when it arrived
   pgp: PgpStatus | null;     // what OpenPGP did to it; null for mail without OpenPGP
+  sentBy: string | null;     // the member who wrote it, for a message a shared group inbox sent; null otherwise
   attachments: [{ id: string; filename: string; contentType: string; size: number; inline: boolean; contentId: string | null; url: string }];
 }
 interface PgpStatus {

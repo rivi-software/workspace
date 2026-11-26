@@ -3,14 +3,15 @@ import PostalMime from "postal-mime";
 
 import { createDb } from "~/db";
 import type { Database } from "~/db";
-import { aliases, messages, users } from "~/db/schema";
+import { messages } from "~/db/schema";
 import type { Address, User } from "~/db/schema";
 import { defined, errorMessage } from "~/lib/guards";
 
 import { htmlToText } from "../text";
-import { canonicalAddress, parseAddress } from "./addresses";
+import { parseAddress } from "./addresses";
 import { fileMessage } from "./filing.server";
 import { filterOutcome } from "./filters.server";
+import { resolveDelivery } from "./groups.server";
 import { parseAutocrypt } from "./pgp/autocrypt";
 import type { Autocrypt } from "./pgp/autocrypt";
 import { learnAutocrypt, openPgp } from "./pgp/inbound.server";
@@ -229,33 +230,19 @@ export const openPgpMail = async (
   };
 };
 
-/** The mailbox an address is delivered to: a person's own address or one of their aliases, `+tags` ignored. */
+/**
+ * The one mailbox an address is filed in: a person's own address or alias, or a shared group's mailbox, `+tags`
+ * ignored. Null for no mailbox, and for a distribution group, which files in several (`resolveDelivery`).
+ */
 export const resolveMailbox = async (
   db: Database,
   address: string
 ): Promise<User | null> => {
-  const canonical = canonicalAddress(address);
+  const delivery = await resolveDelivery(db, address);
 
-  const direct = await db.query.users.findFirst({
-    where: eq(users.email, canonical),
-  });
-
-  if (direct) {
-    return direct;
-  }
-
-  const alias = await db.query.aliases.findFirst({
-    where: eq(aliases.address, canonical),
-  });
-
-  if (!alias) {
-    return null;
-  }
-
-  return (
-    (await db.query.users.findFirst({ where: eq(users.id, alias.userId) })) ??
-    null
-  );
+  return delivery && !delivery.distributedBy
+    ? (delivery.mailboxes[0] ?? null)
+    : null;
 };
 
 export type IngestResult =
@@ -269,7 +256,18 @@ export type IngestResult =
     }
   /** The mailbox already holds this Message-ID: a redelivery, or the owner's own copy of a message they sent. */
   | { status: "duplicate"; threadId: string; messageId: string }
-  | { status: "no-mailbox" };
+  | { status: "no-mailbox" }
+  /** A distribution group's address: filed in each member's mailbox, each with its own result. */
+  | {
+      status: "distributed";
+      deliveries: { userId: string; result: MailboxResult }[];
+    };
+
+/** What filing in one mailbox answers. */
+export type MailboxResult = Exclude<
+  IngestResult,
+  { status: "no-mailbox" } | { status: "distributed" }
+>;
 
 /**
  * File a parsed message in the mailbox of `recipient` (the envelope address Email Routing delivered it to), as mail
@@ -284,12 +282,45 @@ export const ingestInboundEmail = async (
   options: { fetch?: typeof fetch } = {}
 ): Promise<IngestResult> => {
   const db = createDb(env.DB);
-  const user = await resolveMailbox(db, recipient);
+  const delivery = await resolveDelivery(db, recipient);
 
-  if (!user) {
+  if (!delivery) {
     return { status: "no-mailbox" };
   }
 
+  if (!delivery.distributedBy) {
+    return fileInMailbox(
+      env,
+      db,
+      defined(delivery.mailboxes[0], "the mailbox"),
+      raw,
+      arrived,
+      options
+    );
+  }
+
+  // Each member's own copy, in turn: a member who also got it straight (To: them and the group) has it once,
+  // deduplicated on its Message-ID, and one mailbox that fails never keeps the others from theirs.
+  const deliveries: { userId: string; result: MailboxResult }[] = [];
+
+  for (const member of delivery.mailboxes) {
+    // oxlint-disable-next-line eslint/no-await-in-loop -- one member at a time: each filing runs its own queries, and a group is small
+    const result = await fileInMailbox(env, db, member, raw, arrived, options);
+    deliveries.push({ userId: member.id, result });
+  }
+
+  return { status: "distributed", deliveries };
+};
+
+/** File a parsed message in one mailbox, as mail that arrives: its owner's filters, the spam filter, OpenPGP. */
+const fileInMailbox = async (
+  env: Env,
+  db: Database,
+  user: User,
+  raw: ArrayBuffer | null,
+  arrived: ParsedMail,
+  options: { fetch?: typeof fetch }
+): Promise<MailboxResult> => {
   // Opened with this mailbox's key: a message delivered to two mailboxes is opened by each.
   const { mail: p, pgp } = raw
     ? await openPgpMail(env, db, user, raw, arrived, options)
@@ -389,8 +420,9 @@ export const handleInboundEmail = async (
     const db = createDb(env.DB);
     const owner = await resolveMailbox(db, message.to);
 
-    // The vacation responder, to a person, never to a machine or a list.
-    if (owner && !parsed.automated) {
+    // The vacation responder, to a person, never to a machine or a list; a group's mail gets no answer, nor does
+    // a distribution group's member answer for it (`distributed` never comes here).
+    if (owner?.kind === "person" && !parsed.automated) {
       await maybeAutoReply(env, owner, await ownAddresses(db, owner), {
         messageId: parsed.messageId,
         references: parsed.references,
@@ -407,6 +439,9 @@ export const handleInboundEmail = async (
       to: message.to,
       status: result.status,
       threadId: result.status === "stored" ? result.threadId : null,
+      // A distribution group's copies: how many of its members it was filed for.
+      members:
+        result.status === "distributed" ? result.deliveries.length : null,
       size: message.rawSize,
       // How the spam filter decided, with the points and the rules that held; never the text.
       spam:

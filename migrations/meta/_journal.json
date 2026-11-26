@@ -36,6 +36,13 @@
       "when": 1795726495986,
       "tag": "0004_single_sign_on",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1795727591557,
+      "tag": "0005_groups",
+      "breakpoints": true
     }
   ]
 }

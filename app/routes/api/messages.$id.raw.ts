@@ -1,12 +1,13 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { env } from "cloudflare:workers";
-import { and, eq } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 
 import { createDb } from "~/db";
 import { messages } from "~/db/schema";
 import { getSessionUser } from "~/lib/auth.server";
+import { MailboxError, mailboxFor } from "~/lib/mail/groups.server";
 
-/** The original message as received (.eml), for the owner only. */
+/** The original message as received (.eml), for its mailbox's owner, or a member of the shared group inbox it is in. */
 export const Route = createFileRoute("/api/messages/$id/raw")({
   server: {
     handlers: {
@@ -19,10 +20,24 @@ export const Route = createFileRoute("/api/messages/$id/raw")({
         }
 
         const m = await db.query.messages.findFirst({
-          where: and(eq(messages.id, params.id), eq(messages.userId, user.id)),
+          where: eq(messages.id, params.id),
         });
 
-        if (!m?.rawKey) {
+        // The message's mailbox as the person would open it: theirs, or a shared group inbox they are in.
+        let reachable = false;
+
+        if (m) {
+          try {
+            await mailboxFor(db, user, m.userId);
+            reachable = true;
+          } catch (error) {
+            if (!(error instanceof MailboxError)) {
+              throw error;
+            }
+          }
+        }
+
+        if (!reachable || !m?.rawKey) {
           return new Response("not found", { status: 404 });
         }
 

@@ -9,6 +9,7 @@ import type { User } from "~/db/schema";
 import { accountSettings } from "./account.server";
 import { brandingSettings } from "./branding-settings.server";
 import { driveSettings } from "./drive/settings.server";
+import { groupsSettings } from "./groups.server";
 import { unreachable } from "./guards";
 import { mailSettings } from "./mail/settings.server";
 import { signatureSettings } from "./mail/signature-settings.server";
@@ -42,6 +43,10 @@ export const loadSettings = async (
 
     case "tasks": {
       return { tab, me, tasks: await tasksSettings(db, user) };
+    }
+
+    case "groups": {
+      return { tab, me, groups: await groupsSettings(db, env, user) };
     }
 
     case "people": {

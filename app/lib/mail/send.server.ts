@@ -19,6 +19,7 @@ import {
 import { formatAddress } from "./addresses";
 import type { AddressList } from "./addresses";
 import { fileMessage } from "./filing.server";
+import { distributionAddresses } from "./groups.server";
 import { PgpError } from "./pgp/keys.server";
 import { buildPgpMail, pgpKeysFor, recipientsOf } from "./pgp/outbound.server";
 import type { PgpChoice } from "./pgp/outbound.server";
@@ -67,6 +68,8 @@ export interface OutgoingMail {
   files: OutgoingFile[];
   /** Sign it with the owner's OpenPGP key, encrypt it to every recipient's, or both; neither when null. */
   pgp?: PgpChoice | null;
+  /** The member who writes it, when the owner is a shared group inbox: kept on the sent copy for the others. */
+  sentBy?: string | null;
 }
 
 /** What the composer holds, as the console, the API and a scheduled message hand it over. */
@@ -87,6 +90,7 @@ export interface ComposedMail {
   /** Files sent along besides the draft's, after them. */
   files?: OutgoingFile[];
   pgp?: PgpChoice | null;
+  sentBy?: string | null;
 }
 
 export class SendError extends Error {
@@ -97,11 +101,20 @@ export class SendError extends Error {
 export const sendableAddresses = async (
   db: Database,
   user: User
-): Promise<Address[]> =>
-  [...(await ownAddresses(db, user))].map((email) => ({
+): Promise<Address[]> => {
+  const [own, groupsIn] = await Promise.all([
+    ownAddresses(db, user),
+    distributionAddresses(db, user.id),
+  ]);
+
+  // A group's address goes out under the group's name, as a reply to the group would expect.
+  const groupName = new Map(groupsIn.map((g) => [g.email, g.name]));
+
+  return [...own].map((email) => ({
     email,
-    name: user.name,
+    name: groupName.get(email) ?? user.name,
   }));
+};
 
 /**
  * What the rich composer wrote, made safe to send: the same sanitiser as for mail that arrives (no script, no form,
@@ -175,6 +188,17 @@ const prepareMail = async (
 
   if (!from) {
     throw new SendError(`You cannot send as ${email}.`);
+  }
+
+  // The owner's key names the owner's addresses, never a group's, which several people send from.
+  if (wantsPgp(mail.pgp)) {
+    const groupsIn = await distributionAddresses(db, user.id);
+
+    if (groupsIn.some((g) => g.email === email)) {
+      throw new SendError(
+        `OpenPGP signs and encrypts only from your own addresses, not from the group address ${email}.`
+      );
+    }
   }
 
   if (!mail.to.length && !mail.cc.length && !mail.bcc.length) {
@@ -465,6 +489,7 @@ const sendPrepared = async (
       size: text.length + total,
       unsubscribe: null,
       pgp,
+      sentBy: mail.sentBy ?? null,
     },
     raw: null,
     // A conversation the owner starts shows under Sent until someone answers, as in Gmail.
@@ -734,6 +759,7 @@ const outgoing = (composed: ComposedMail): Omit<OutgoingMail, "files"> => ({
   inReplyToId: composed.inReplyToId,
   signatureId: composed.signatureId,
   pgp: composed.pgp,
+  sentBy: composed.sentBy,
 });
 
 /**
