@@ -843,9 +843,18 @@ describe(textToHtml, () => {
         cidUrl,
       }).html
     ).toContain('<details class="rivi-quote">');
-    expect(
-      textToHtml("FYI\n\n---------- Forwarded message ---------\nFrom: Jane")
-    ).not.toContain("gmail_quote");
+
+    // A forward's original goes in the quote a rich forward writes (so a signature goes above it), and stays in view.
+    const forward = textToHtml(
+      "FYI\n\n---------- Forwarded message ---------\nFrom: Jane\n\nThe numbers"
+    );
+
+    expect({
+      quoted: forward.includes(
+        '<p style="margin:0 0 16px">FYI</p><div class="gmail_quote"><p style="margin:0 0 16px">---------- Forwarded message ---------<br>From: Jane</p><p style="margin:0 0 16px">The numbers</p></div>'
+      ),
+      folded: sanitizeHtml(forward, { cidUrl }).html.includes("rivi-quote"),
+    }).toStrictEqual({ quoted: true, folded: false });
   });
 
   it("signs above the quoted original, and at the end of a new message", () => {
