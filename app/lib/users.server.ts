@@ -263,7 +263,7 @@ export const removePerson = async (
       .where(eq(users.id, id));
 
     // Deactivation ended these already; nothing they held before is to work while the rest goes.
-    await revoke(db, id, "deactivation");
+    await revoke(db, id, "removal");
   }
 
   // A small mailbox goes at once; a large one goes on in the cron, a minute at a time.

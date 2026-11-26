@@ -752,6 +752,9 @@ const REVOCATIONS = {
   deactivation: { sessions: true, resetLinks: true },
   // A confirmed address taken off the list: someone removes one when that inbox is no longer theirs.
   "recovery-address-removed": { sessions: false, resetLinks: true },
+  // Removed for good (`removePerson`): deactivation ended these already, but the rows that let anyone in go at once,
+  // not when the cron reaches them.
+  removal: { sessions: true, resetLinks: true },
 } as const satisfies Record<string, { sessions: boolean; resetLinks: boolean }>;
 
 /** Why a person's credentials changed, which decides what a revocation ends. */
