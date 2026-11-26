@@ -1,6 +1,6 @@
 /**
- * The addresses the page links its icons at. The Worker answers them (`app/lib/branding.server.ts`): the deployment's
- * own icon when `BRAND_ICON_URL` names one, else the drawing in `public/` (`favicon.svg`, `apple-touch-icon.png`).
+ * The addresses the page links its icons at. The Worker answers them (`app/lib/branding.server.ts`): the
+ * icon an admin uploaded (Settings → Branding), else the drawing in `public/` (`favicon.svg`, `apple-touch-icon.png`).
  * A browser keeps a tab's icon under the icon's address in a store of its own, apart from its HTTP cache, and Safari
  * never asks again, so a new drawing under the old address stays unseen by every browser that showed the old one. The
  * links carry `ICON_VERSION`: bump it whenever the drawing in `public/` changes.

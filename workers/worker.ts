@@ -58,8 +58,8 @@ const withSecurityHeaders = (res: Response, url: URL): Response => {
 };
 
 /**
- * The deployment's brand (`/brand/*`: the accent's stylesheet, the icon, the manifest, from `BRAND_COLOR` and
- * `BRAND_ICON_URL`), the Web Key Directory (`/.well-known/openpgpkey/*`), Better Auth (`/api/auth/*`: the password sign-in, passkeys,
+ * The deployment's brand (`/brand/*`: the accent's stylesheet, the icon and the manifest an admin set under Settings →
+ * Branding), the Web Key Directory (`/.well-known/openpgpkey/*`), Better Auth (`/api/auth/*`: the password sign-in, passkeys,
  * the second factor, sessions), the API for other clients (`/api/v1/*`, docs/API.md), then Start. Served here rather than by route files, so the tests reach them
  * through `exports.default.fetch` (`cloudflare:workers`) without the Vite build.
  */
@@ -71,7 +71,7 @@ const route = async (
   start: StartHandler
 ): Promise<Response> => {
   if (isBrandPath(url.pathname)) {
-    return serveBrand(request, env);
+    return serveBrand(request, env, db);
   }
 
   // The workspace's OpenPGP keys for other mail clients (WKD): `openpgpkey.<MAIL_DOMAIN>` routed here serves them.

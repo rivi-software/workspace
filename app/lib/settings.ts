@@ -12,12 +12,17 @@ export const SETTINGS_TABS = [
   "tasks",
   "people",
   "drive",
+  "branding",
 ] as const;
 
 export type SettingsTab = (typeof SETTINGS_TABS)[number];
 
 /** The tabs only an admin sees, loads and acts in. */
-const ADMIN_TABS: ReadonlySet<SettingsTab> = new Set(["people", "drive"]);
+const ADMIN_TABS: ReadonlySet<SettingsTab> = new Set([
+  "people",
+  "drive",
+  "branding",
+]);
 
 /** The tabs a person with this role sees, in the header's order. */
 export const tabsFor = (role: User["role"]): SettingsTab[] =>

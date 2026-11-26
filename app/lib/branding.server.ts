@@ -1,5 +1,17 @@
+/**
+ * The workspace's own brand, which an admin sets under Settings → Branding: an accent colour and an icon, so a
+ * workspace deployed without a fork can look like its owner's. The colour is a `workspace_settings` row, the icon a
+ * file in the `DRIVE` bucket with a row that names its type. The Worker serves everything that depends on them under
+ * `/brand/`, and the pages link there whatever is set, so no loader reads them and a page renders the same on the
+ * server and in the browser. Nothing set answers the drawing in `public/` and the stylesheet of app.css alone.
+ */
+import { desc, eq, inArray } from "drizzle-orm";
+
 import { THEME_COLORS } from "~/components/theme";
+import type { Database } from "~/db";
+import { users, workspaceSettings } from "~/db/schema";
 import { BRAND_PATHS } from "~/lib/icons";
+import { nowIso } from "~/lib/ids";
 import {
   contrast,
   formatColor,
@@ -9,15 +21,27 @@ import {
 } from "~/lib/mail/colors";
 import type { Rgba } from "~/lib/mail/colors";
 
-/**
- * A deployment's own brand, from two vars, so a workspace deployed without a fork (the Deploy to Cloudflare button)
- * can look like its owner's: `BRAND_COLOR`, the accent, and `BRAND_ICON_URL`, the icon. The Worker serves everything
- * that depends on them under `/brand/`, and the pages link there whatever the vars hold, so no loader reads them and a
- * page renders the same on the server and in the browser. Empty vars answer the drawing in `public/` and the
- * stylesheet of app.css alone.
- */
-
 const BRAND_PREFIX = "/brand/";
+
+/** The `workspace_settings` keys: the accent as `#rrggbb`, and the icon's content type (its bytes are in R2). */
+const COLOR_KEY = "brand.color";
+const ICON_KEY = "brand.icon";
+
+/** Where the icon's bytes are, in the `DRIVE` bucket beside Drive's files and signing's copies. */
+const ICON_OBJECT = "branding/icon";
+
+/** What an icon may be: what a tab, a Home Screen and a manifest read. SVG is served sandboxed (`iconResponse`). */
+export const ICON_TYPES = [
+  "image/png",
+  "image/svg+xml",
+  "image/webp",
+  "image/jpeg",
+] as const;
+
+type IconType = (typeof ICON_TYPES)[number];
+
+/** An icon is small: a favicon, a Home Screen tile. */
+export const MAX_ICON_BYTES = 1024 * 1024;
 
 /** The default drawing, in `public/`. A query carries the page's `ICON_VERSION` on to it. */
 const DEFAULT_ICON = "/favicon.svg";
@@ -29,58 +53,153 @@ const { light: LIGHT_BG, dark: DARK_BG } = THEME_COLORS;
 /** Ink for text on the accent (`--accent-fg`), whichever reads better. */
 const ON_ACCENT = ["#ffffff", "#08090a"] as const;
 
-/** A var change lands with a deploy; a tab picks it up within five minutes. */
-const CACHE = "public, max-age=300";
-
-/** What the brand reads of the Worker's `Env`, as strings: the vars are typed as wrangler.jsonc's literals. */
-export interface BrandVars {
-  APP_NAME: string;
-  BRAND_COLOR: string;
-  BRAND_ICON_URL: string;
-}
+/**
+ * Every page load asks again, and a brand that has not changed answers 304 (`ETag`), so an admin's change shows on
+ * the next page anyone opens; the page that made it swaps its own links at once (`refreshBrandLinks`).
+ */
+const REVALIDATE = "no-cache";
 
 export const isBrandPath = (pathname: string): boolean =>
   pathname.startsWith(BRAND_PREFIX);
 
-const solid = (hex: string): Rgba => {
-  const c = parseColor(hex);
+const isIconType = (type: string): type is IconType =>
+  ICON_TYPES.some((t) => t === type);
 
-  if (!c) {
-    throw new Error(`not a colour: ${hex}`);
-  }
+/** The brand as stored: the accent, the icon's type, and when either last changed, which versions what is served. */
+export interface Brand {
+  color: string | null;
+  icon: { type: IconType; version: string } | null;
+  version: string;
+}
 
-  return c;
+export const readBrand = async (db: Database): Promise<Brand> => {
+  const rows = await db
+    .select({
+      key: workspaceSettings.key,
+      value: workspaceSettings.value,
+      at: workspaceSettings.updatedAt,
+    })
+    .from(workspaceSettings)
+    .where(inArray(workspaceSettings.key, [COLOR_KEY, ICON_KEY]));
+
+  const color = rows.find((r) => r.key === COLOR_KEY);
+  const icon = rows.find((r) => r.key === ICON_KEY);
+  const parsed = color ? parseColor(color.value) : null;
+
+  return {
+    color: parsed && parsed.a >= 1 ? formatColor(parsed) : null,
+    icon:
+      icon && isIconType(icon.value)
+        ? { type: icon.value, version: icon.at }
+        : null,
+    version: rows
+      .map((r) => `${r.key}@${r.at}`)
+      .toSorted()
+      .join(","),
+  };
 };
 
-/** `BRAND_COLOR` as an opaque colour, or null when it is empty or no colour CSS reads. */
-export const brandColor = (
-  env: Pick<BrandVars, "BRAND_COLOR">
-): Rgba | null => {
-  const c = parseColor(env.BRAND_COLOR);
+/** The brand as Settings → Branding shows it, with who changed it last, and when. */
+export const brandSetting = async (db: Database) => {
+  const [brand, [last]] = await Promise.all([
+    readBrand(db),
+    db
+      .select({ at: workspaceSettings.updatedAt, by: users.name })
+      .from(workspaceSettings)
+      .leftJoin(users, eq(users.id, workspaceSettings.updatedBy))
+      .where(inArray(workspaceSettings.key, [COLOR_KEY, ICON_KEY]))
+      .orderBy(desc(workspaceSettings.updatedAt))
+      .limit(1),
+  ]);
 
-  return c && c.a >= 1 ? c : null;
+  return {
+    color: brand.color,
+    icon: brand.icon,
+    updatedBy: last?.by ?? null,
+    updatedAt: last?.at ?? null,
+  };
 };
 
-/** `BRAND_ICON_URL` when it is an https address (http on localhost, for local development), else null. */
-export const brandIcon = (
-  env: Pick<BrandVars, "BRAND_ICON_URL">
-): string | null => {
-  const raw = env.BRAND_ICON_URL.trim();
+const writeSetting = async (
+  db: Database,
+  adminId: string,
+  key: string,
+  value: string
+) => {
+  await db
+    .insert(workspaceSettings)
+    .values({ key, value, updatedBy: adminId, updatedAt: nowIso() })
+    .onConflictDoUpdate({
+      target: workspaceSettings.key,
+      set: { value, updatedBy: adminId, updatedAt: nowIso() },
+    });
+};
 
-  if (!raw) {
+/** A refusal an admin can act on: Settings shows its message. */
+export class BrandError extends Error {
+  override name = "BrandError";
+}
+
+/** Set the accent to a CSS colour, kept as `#rrggbb`; an empty value goes back to app.css's green. */
+export const setBrandColor = async (
+  db: Database,
+  adminId: string,
+  value: string
+) => {
+  if (!value.trim()) {
+    await db
+      .delete(workspaceSettings)
+      .where(eq(workspaceSettings.key, COLOR_KEY));
+
     return null;
   }
 
-  try {
-    const url = new URL(raw);
-    const local = url.hostname === "localhost" || url.hostname === "127.0.0.1";
+  const c = parseColor(value);
 
-    return url.protocol === "https:" || (url.protocol === "http:" && local)
-      ? url.href
-      : null;
-  } catch {
-    return null;
+  if (!c || c.a < 1) {
+    throw new BrandError(
+      "That is not a colour. Enter one such as #e11d48, or pick one."
+    );
   }
+
+  const hex = formatColor(c);
+  await writeSetting(db, adminId, COLOR_KEY, hex);
+
+  return hex;
+};
+
+/** Keep an uploaded icon: a PNG, SVG, WebP or JPEG of at most 1 MB. */
+export const setBrandIcon = async (
+  db: Database,
+  env: Pick<Env, "DRIVE">,
+  adminId: string,
+  file: File
+) => {
+  if (!isIconType(file.type)) {
+    throw new BrandError("The icon must be a PNG, SVG, WebP or JPEG image.");
+  }
+
+  if (!file.size) {
+    throw new BrandError("That file is empty.");
+  }
+
+  if (file.size > MAX_ICON_BYTES) {
+    throw new BrandError("The icon must be 1 MB or smaller.");
+  }
+
+  await env.DRIVE.put(ICON_OBJECT, await file.arrayBuffer(), {
+    httpMetadata: { contentType: file.type },
+  });
+  await writeSetting(db, adminId, ICON_KEY, file.type);
+};
+
+/** Go back to the default mark. */
+export const removeBrandIcon = async (
+  db: Database,
+  env: Pick<Env, "DRIVE">
+) => {
+  await db.delete(workspaceSettings).where(eq(workspaceSettings.key, ICON_KEY));
+  await env.DRIVE.delete(ICON_OBJECT);
 };
 
 /** The colour moved in lightness, one step at a time, until it reads on `ground` at `ratio` or cannot move further. */
@@ -100,6 +219,16 @@ const readableOn = (
   }
 
   return out;
+};
+
+const solid = (hex: string): Rgba => {
+  const c = parseColor(hex);
+
+  if (!c) {
+    throw new Error(`not a colour: ${hex}`);
+  }
+
+  return c;
 };
 
 const onAccent = (accent: Rgba): string => {
@@ -164,13 +293,18 @@ const themeTokens = (
     `--rivi-mark-peak: ${peak};`,
   ].join(" ");
 
+/** The address of the icon as it is now, so a new one is a new address for every cache. */
+const iconHref = (icon: NonNullable<Brand["icon"]>) =>
+  `${BRAND_PATHS.icon}?v=${encodeURIComponent(icon.version)}`;
+
 /**
- * The stylesheet the pages link after app.css: the accent tokens of both themes when `BRAND_COLOR` is set, and the
- * icon in place of the default mark (`BrandMark`) when `BRAND_ICON_URL` is. Empty when neither is.
+ * The stylesheet the pages link after app.css: the accent tokens of both themes when a colour is set, and the icon in
+ * place of the default mark (`BrandMark`) when one is. Empty when neither is. The colour went through `parseColor` and
+ * out as a hex on its way in, and is read back the same way, so nothing typed reaches the stylesheet as written.
  */
-export const brandStylesheet = (env: BrandVars): string => {
+export const brandStylesheet = (brand: Brand): string => {
   const rules: string[] = [];
-  const color = brandColor(env);
+  const color = brand.color ? parseColor(brand.color) : null;
 
   if (color) {
     const { light, dark } = accents(color);
@@ -181,10 +315,10 @@ export const brandStylesheet = (env: BrandVars): string => {
     );
   }
 
-  if (brandIcon(env)) {
+  if (brand.icon) {
     rules.push(
       `.brand-mark-default { display: none; }`,
-      `.brand-mark-icon { display: inline-block; background-image: url("${BRAND_PATHS.icon}"); }`
+      `.brand-mark-icon { display: inline-block; background-image: url("${iconHref(brand.icon)}"); }`
     );
   }
 
@@ -192,55 +326,107 @@ export const brandStylesheet = (env: BrandVars): string => {
 };
 
 /** The web app's manifest: the workspace's name, and its icon (or the default drawings in `public/icons/`). */
-export const brandManifest = (env: BrandVars) => {
-  const icon = brandIcon(env);
-  const svg = icon !== null && new URL(icon).pathname.endsWith(".svg");
+export const brandManifest = (appName: string, brand: Brand) => ({
+  name: appName,
+  short_name: appName,
+  description: "Mail, Drive, Calendar, Tasks and an Assistant, on Cloudflare.",
+  id: "/",
+  start_url: "/mail",
+  scope: "/",
+  display: "standalone",
+  background_color: LIGHT_BG,
+  theme_color: LIGHT_BG,
+  icons: brand.icon
+    ? [
+        {
+          src: iconHref(brand.icon),
+          type: brand.icon.type,
+          sizes: brand.icon.type === "image/svg+xml" ? "any" : "512x512",
+        },
+      ]
+    : [
+        { src: "/icons/icon-192.png", sizes: "192x192", type: "image/png" },
+        { src: "/icons/icon-512.png", sizes: "512x512", type: "image/png" },
+        {
+          src: "/icons/icon-maskable-512.png",
+          sizes: "512x512",
+          type: "image/png",
+          purpose: "maskable",
+        },
+      ],
+  shortcuts: [
+    { name: "Mail", url: "/mail" },
+    { name: "Drive", url: "/drive" },
+    { name: "Calendar", url: "/calendar" },
+    { name: "Tasks", url: "/tasks" },
+    { name: "Assistant", url: "/assistant" },
+  ],
+});
 
-  return {
-    name: env.APP_NAME,
-    short_name: env.APP_NAME,
-    description:
-      "Mail, Drive, Calendar, Tasks and an Assistant, on Cloudflare.",
-    id: "/",
-    start_url: "/mail",
-    scope: "/",
-    display: "standalone",
-    background_color: LIGHT_BG,
-    theme_color: LIGHT_BG,
-    icons: icon
-      ? [{ src: BRAND_PATHS.icon, sizes: svg ? "any" : "512x512" }]
-      : [
-          { src: "/icons/icon-192.png", sizes: "192x192", type: "image/png" },
-          { src: "/icons/icon-512.png", sizes: "512x512", type: "image/png" },
-          {
-            src: "/icons/icon-maskable-512.png",
-            sizes: "512x512",
-            type: "image/png",
-            purpose: "maskable",
-          },
-        ],
-    shortcuts: [
-      { name: "Mail", url: "/mail" },
-      { name: "Drive", url: "/drive" },
-      { name: "Calendar", url: "/calendar" },
-      { name: "Tasks", url: "/tasks" },
-      { name: "Assistant", url: "/assistant" },
-    ],
-  };
-};
-
-/**
- * A redirect, not a copy: the icon stays where its owner keeps it, and the Worker never fetches an address a var
- * names. A browser follows it for a tab's icon, a manifest's and a notification's alike.
- */
 const redirect = (location: string) =>
   new Response(null, {
     status: 302,
-    headers: { Location: location, "Cache-Control": CACHE },
+    headers: { Location: location, "Cache-Control": REVALIDATE },
   });
 
+/** An ETag the brand's version makes; ISO times and keys hold no quote. */
+const etagOf = (version: string) => `"${version || "default"}"`;
+
+/** A body under the brand's version, or 304 when the browser already holds that version. */
+const versioned = (
+  request: Request,
+  version: string,
+  body: () => BodyInit,
+  headers: Record<string, string>
+) => {
+  const etag = etagOf(version);
+  const common = { ETag: etag, "Cache-Control": REVALIDATE, ...headers };
+
+  if (request.headers.get("If-None-Match") === etag) {
+    return new Response(null, { status: 304, headers: common });
+  }
+
+  return new Response(body(), { headers: common });
+};
+
+/**
+ * The uploaded icon, as it is kept. An SVG is a document that can hold script, so it is served as a file a person
+ * uploaded is (`fileResponse`): no script, no frame, sandboxed, so opening `/brand/icon` itself runs nothing.
+ */
+const iconResponse = async (
+  request: Request,
+  env: Pick<Env, "DRIVE">,
+  icon: NonNullable<Brand["icon"]>
+) => {
+  const etag = etagOf(icon.version);
+
+  const headers = {
+    ETag: etag,
+    "Cache-Control": REVALIDATE,
+    "Content-Type": icon.type,
+    "Content-Security-Policy":
+      "default-src 'none'; style-src 'unsafe-inline'; sandbox",
+  };
+
+  if (request.headers.get("If-None-Match") === etag) {
+    return new Response(null, { status: 304, headers });
+  }
+
+  const object = await env.DRIVE.get(ICON_OBJECT);
+
+  if (!object) {
+    return null;
+  }
+
+  return new Response(object.body, { headers });
+};
+
 /** Everything under `/brand/`. */
-export const serveBrand = (request: Request, env: BrandVars): Response => {
+export const serveBrand = async (
+  request: Request,
+  env: Pick<Env, "APP_NAME" | "DRIVE">,
+  db: Database
+): Promise<Response> => {
   const url = new URL(request.url);
 
   if (request.method !== "GET" && request.method !== "HEAD") {
@@ -250,31 +436,36 @@ export const serveBrand = (request: Request, env: BrandVars): Response => {
     });
   }
 
+  const brand = await readBrand(db);
+
   switch (url.pathname) {
     case BRAND_PATHS.theme: {
-      return new Response(brandStylesheet(env), {
-        headers: {
-          "Content-Type": "text/css; charset=utf-8",
-          "Cache-Control": CACHE,
-        },
+      return versioned(request, brand.version, () => brandStylesheet(brand), {
+        "Content-Type": "text/css; charset=utf-8",
       });
     }
 
     case BRAND_PATHS.icon: {
-      return redirect(brandIcon(env) ?? `${DEFAULT_ICON}${url.search}`);
+      const icon = brand.icon && (await iconResponse(request, env, brand.icon));
+
+      return icon ?? redirect(`${DEFAULT_ICON}${url.search}`);
     }
 
     case BRAND_PATHS.touchIcon: {
-      return redirect(brandIcon(env) ?? `${DEFAULT_TOUCH_ICON}${url.search}`);
+      // Safari's Home Screen reads no SVG: an SVG icon leaves the default tile there.
+      const raster = brand.icon?.type === "image/svg+xml" ? null : brand.icon;
+      const icon = raster && (await iconResponse(request, env, raster));
+
+      return icon ?? redirect(`${DEFAULT_TOUCH_ICON}${url.search}`);
     }
 
     case BRAND_PATHS.manifest: {
-      return Response.json(brandManifest(env), {
-        headers: {
-          "Content-Type": "application/manifest+json",
-          "Cache-Control": CACHE,
-        },
-      });
+      return versioned(
+        request,
+        brand.version,
+        () => JSON.stringify(brandManifest(env.APP_NAME, brand)),
+        { "Content-Type": "application/manifest+json" }
+      );
     }
 
     default: {

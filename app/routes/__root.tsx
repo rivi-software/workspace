@@ -124,9 +124,9 @@ export const Route = createRootRoute({
     ],
     links: [
       { rel: "stylesheet", href: appCss },
-      // After app.css, so the deployment's accent wins (`BRAND_COLOR`); empty without one.
+      // After app.css, so the accent an admin set wins (Settings → Branding); empty without one.
       { rel: "stylesheet", href: BRAND_STYLESHEET_HREF },
-      // No `type`: the deployment's icon may be a PNG (`BRAND_ICON_URL`).
+      // No `type`: the workspace's icon may be a PNG (Settings → Branding).
       { rel: "icon", href: FAVICON_HREF },
       { rel: "apple-touch-icon", href: APPLE_TOUCH_ICON_HREF },
       { rel: "manifest", href: MANIFEST_HREF },

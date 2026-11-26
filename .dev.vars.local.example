@@ -7,10 +7,6 @@
 SESSION_SECRET=dev-session-secret-change-me-and-make-it-long
 APP_NAME=Workspace
 APP_URL=http://localhost:5174
-# Optional: the workspace's own accent (a CSS colour) and icon (an https address). Empty keeps the green and the mark.
-# A hex colour goes in quotes (BRAND_COLOR="#e11d48"): unquoted, the # starts a comment.
-BRAND_COLOR=
-BRAND_ICON_URL=
 # The seed's mailboxes are on example.com; Miniflare delivers mail for any address to email() and keeps sent mail on disk.
 MAIL_DOMAIN=example.com
 # Optional: importing a Microsoft 365 mailbox (README, Microsoft 365 import). The Entra application's client id and

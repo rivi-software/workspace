@@ -17,6 +17,7 @@ import {
 import { useEffect, useMemo, useState } from "react";
 import { z } from "zod";
 
+import { BrandingSettings } from "~/components/branding-settings";
 import { DriveSettings } from "~/components/drive/drive-settings";
 import { MailSettings } from "~/components/mail-settings";
 import { SignaturePreview } from "~/components/message-body";
@@ -1166,6 +1167,7 @@ const TAB_LABELS: Record<SettingsTab, string> = {
   tasks: "Tasks",
   people: "People",
   drive: "Drive",
+  branding: "Branding",
 };
 
 /** The open tab, from the slice the loader answered for it alone. */
@@ -1195,6 +1197,10 @@ const TabBody = ({
 
     case "drive": {
       return <DriveSettings {...settings.drive} />;
+    }
+
+    case "branding": {
+      return <BrandingSettings {...settings.branding} />;
     }
 
     case "account": {

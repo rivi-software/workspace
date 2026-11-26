@@ -7,6 +7,7 @@ import type { Database } from "~/db";
 import type { User } from "~/db/schema";
 
 import { accountSettings } from "./account.server";
+import { brandingSettings } from "./branding-settings.server";
 import { driveSettings } from "./drive/settings.server";
 import { unreachable } from "./guards";
 import { mailSettings } from "./mail/settings.server";
@@ -48,6 +49,10 @@ export const loadSettings = async (
 
     case "drive": {
       return { tab, me, drive: await driveSettings(db, user) };
+    }
+
+    case "branding": {
+      return { tab, me, branding: await brandingSettings(db, user) };
     }
 
     case "account": {
