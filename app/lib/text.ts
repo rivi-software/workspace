@@ -536,6 +536,12 @@ export const htmlToText = (html: string): string => {
   return r.lines.join("\n");
 };
 
+/** The line a forward's original (or Outlook's "Original Message") starts on, which runs to the end of the message. */
+const opensForward = (line: string): boolean =>
+  /^-{2,}\s*(?:original message|forwarded message)\s*-{2,}$/iu.test(
+    line.trim()
+  );
+
 /** Where a reply's quoted original begins: an attribution line (Gmail wraps it over up to three) or the first `>` run. */
 export const quoteStart = (lines: string[]): number => {
   for (let i = 0; i < lines.length; i += 1) {
@@ -557,9 +563,7 @@ export const quoteStart = (lines: string[]): number => {
       return i;
     }
 
-    if (
-      /^-{2,}\s*(?:original message|forwarded message)\s*-{2,}$/iu.test(line)
-    ) {
+    if (opensForward(line)) {
       return i;
     }
   }
@@ -739,7 +743,16 @@ export const textToHtmlBody = (value: string): string => {
   const lines = value.replaceAll(/\r\n?/gu, "\n").split("\n");
   const start = quoteStart(lines);
 
-  if (start < 0 || !lines.slice(start).some((l) => l.startsWith(">"))) {
+  if (start < 0) {
+    return textBlocks(lines);
+  }
+
+  // A forward's original runs to the end, in the same `gmail_quote` a rich forward writes, so a signature goes above it.
+  if (opensForward(lines[start])) {
+    return `${textBlocks(lines.slice(0, start))}<div class="gmail_quote">${textBlocks(lines.slice(start))}</div>`;
+  }
+
+  if (!lines.slice(start).some((l) => l.startsWith(">"))) {
     return textBlocks(lines);
   }
 
@@ -764,7 +777,8 @@ export const textToHtmlBody = (value: string): string => {
 /**
  * Text a person typed, as email paragraphs: a blank line starts a paragraph, a newline breaks the line. Linkified and
  * escaped. The quoted original under a reply becomes a blockquote in Gmail's `gmail_quote`, which Gmail and this app
- * fold; a forward stays in view. No text colour is set, so each client's dark mode reads it as its own.
+ * fold; a forward's original goes in one too, and stays in view, since no reader folds a quote that opens with a
+ * forward's header. No text colour is set, so each client's dark mode reads it as its own.
  */
 export const textToHtml = (value: string): string =>
   outgoingHtml(textToHtmlBody(value));

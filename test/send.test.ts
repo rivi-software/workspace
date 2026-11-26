@@ -4,6 +4,7 @@ import { beforeAll, describe, expect, it, vi } from "vitest";
 
 import { draftFiles, drafts } from "~/db/schema";
 import { parseAddressList } from "~/lib/mail/addresses";
+import { composeData } from "~/lib/mail/compose.server";
 import { saveFilter } from "~/lib/mail/filters.server";
 import { ingestInboundEmail } from "~/lib/mail/ingest.server";
 import { listThreads, loadThread } from "~/lib/mail/mailbox.server";
@@ -425,6 +426,76 @@ describe("sending mail", () => {
     });
 
     expect(row?.subject).toBe("Later!");
+  });
+
+  it("puts the signature above the original of a reply and a forward, written as text or rich", async () => {
+    const user = await mailbox("sig-quotes");
+
+    const signatureId = await saveSignature(db, user.id, {
+      name: "Logo",
+      text: "",
+      html: "<p><b>Pat</b> RIVI</p>",
+    });
+
+    const inbound = await ingestInboundEmail(
+      env,
+      null,
+      mail({
+        subject: "Numbers",
+        text: "the original body",
+        html: "<p>the original body</p>",
+        to: [{ email: user.email, name: null }],
+      }),
+      user.email
+    );
+
+    if (inbound.status !== "stored") {
+      throw new Error("not stored");
+    }
+
+    const signedAbove: Record<string, boolean> = {};
+
+    for (const mode of ["reply", "forward"] as const) {
+      // oxlint-disable-next-line eslint/no-await-in-loop -- two modes, read in turn
+      const { prefill } = await composeData(db, user, {
+        reply: inbound.messageId,
+        mode,
+      });
+
+      for (const rich of [false, true]) {
+        const { sent, env: testEnv } = recordingEmail();
+
+        // oxlint-disable-next-line eslint/no-await-in-loop -- one send each, read in turn
+        await sendMail(testEnv, db, user, {
+          from: user.email,
+          to: [{ email: "jane@acme.com", name: null }],
+          cc: [],
+          bcc: [],
+          subject: prefill.subject,
+          inReplyToId: prefill.inReplyToId,
+          text: `My answer${prefill.text}`,
+          html: rich
+            ? prefill.html.replace("<div><br></div>", "<div>My answer</div>")
+            : undefined,
+          signatureId,
+          files: [],
+        });
+
+        const html = defined(sent[0].html);
+        const signature = html.indexOf('class="rivi_signature"');
+
+        signedAbove[`${mode} ${rich ? "rich" : "text"}`] =
+          html.indexOf("My answer") < signature &&
+          signature < html.indexOf("the original body");
+      }
+    }
+
+    expect(signedAbove).toStrictEqual({
+      "reply text": true,
+      "reply rich": true,
+      "forward text": true,
+      "forward rich": true,
+    });
   });
 });
 
