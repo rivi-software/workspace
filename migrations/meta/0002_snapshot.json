@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "3bd824a2-5b60-4b9e-9a23-935ea33001eb",
+  "id": "8f51fde4-d293-4d47-b4f9-a757b4ad9711",
   "prevId": "c5349352-70e1-40aa-a5a8-09f5fa6929be",
   "tables": {
     "accounts": {
@@ -347,6 +347,75 @@
         "assistant_messages_user_id_users_id_fk": {
           "name": "assistant_messages_user_id_users_id_fk",
           "tableFrom": "assistant_messages",
+          "tableTo": "users",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "assistant_undos": {
+      "name": "assistant_undos",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "undo": {
+          "name": "undo",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(strftime('%Y-%m-%dT%H:%M:%fZ','now'))"
+        },
+        "used_at": {
+          "name": "used_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "assistant_undos_user_idx": {
+          "name": "assistant_undos_user_idx",
+          "columns": [
+            "user_id",
+            "created_at"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "assistant_undos_user_id_users_id_fk": {
+          "name": "assistant_undos_user_id_users_id_fk",
+          "tableFrom": "assistant_undos",
           "tableTo": "users",
           "columnsFrom": [
             "user_id"
@@ -4224,13 +4293,6 @@
           "notNull": true,
           "autoincrement": false,
           "default": true
-        },
-        "removing_since": {
-          "name": "removing_since",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
         },
         "two_factor_enabled": {
           "name": "two_factor_enabled",

@@ -17,6 +17,7 @@ import {
   aliases,
   assistantConversations,
   assistantMessages,
+  assistantUndos,
   attachments,
   calendarAttendees,
   calendarEvents,
@@ -39,6 +40,7 @@ import {
   pgpPeerKeys,
   recoveryAddresses,
   recoveryTokens,
+  searchEntries,
   senderRules,
   sessions,
   signatures,
@@ -53,11 +55,16 @@ import {
   workspaceSettings,
 } from "~/db/schema";
 
+import { searchIndexFor } from "./search/index.server";
+
 /** Rows deleted by one statement: one bound value, however many rows, and short enough for D1's time limit. */
 const ROW_BATCH = 500;
 
 /** Drive nodes a round: their ids are bound one each, under D1's 100. */
 const NODE_BATCH = 90;
+
+/** Search entries a round: their ids go to Vectorize in one call and back in as one JSON array. */
+const SEARCH_BATCH = 100;
 
 /** Signing requests a round; each has up to two stored PDFs. */
 const REQUEST_BATCH = 50;
@@ -229,11 +236,49 @@ const forgetDriveMaker: Step = {
 };
 
 /**
+ * What the search by meaning holds of the person's mail and files: the vectors leave the index with their rows, as
+ * the indexer's sweep takes them out, since nothing would sweep them once the rows are gone. Without an index (AI
+ * off, or a mock provider) only the rows go; a vector left behind sits under the person's own namespace, which no
+ * search names again.
+ */
+const searchRound: Step = {
+  covers: ["search_entries.user_id"],
+  batch: SEARCH_BATCH,
+  round: async (env, db, userId) => {
+    const entries = await db
+      .select({ id: searchEntries.id })
+      .from(searchEntries)
+      .where(eq(searchEntries.userId, userId))
+      .limit(SEARCH_BATCH);
+
+    const ids = entries.map((e) => e.id);
+
+    if (!ids.length) {
+      return 0;
+    }
+
+    await searchIndexFor(env)?.remove(ids);
+
+    await db
+      .delete(searchEntries)
+      .where(
+        sql`${searchEntries.id} in (select value from json_each(${JSON.stringify(ids)}))`
+      );
+
+    return ids.length;
+  },
+};
+
+/**
  * In the order the foreign keys need: what points at a row goes before it. `test/removal.test.ts` fails on a table
  * that names a person and is not here, so a new one is added with its table.
  */
 export const REMOVAL_STEPS: readonly Step[] = [
-  // Mail: the stored objects first, then the rows from the leaves in.
+  // The search by meaning first, while the rows still say which vectors are the person's.
+  searchRound,
+  // Mail: the stored objects first, then the rows from the leaves in. A shared group inbox's message the person
+  // wrote stays the group's, without its writer.
+  forget(messages, messages.sentBy),
   mailObjects("raw"),
   mailObjects("att"),
   mailObjects("draft"),
@@ -265,6 +310,7 @@ export const REMOVAL_STEPS: readonly Step[] = [
   forgetDriveMaker,
   driveRound,
   // The Assistant, Calendar and Tasks.
+  rows(assistantUndos, assistantUndos.userId),
   rows(assistantMessages, assistantMessages.userId),
   rows(assistantConversations, assistantConversations.userId),
   rows(calendarAttendees, calendarAttendees.userId),

@@ -17,6 +17,7 @@ client ── POST /api/auth/sign-out, Authorization: Bearer <token> ──▶ 2
 - `POST /api/auth/sign-in/email` answers the session token in the `set-auth-token` response header (and as `token` in the body). Keep it in the client's secure storage; send it as `Authorization: Bearer <token>` on every request.
 - An account with an authenticator app answers `200 { "twoFactorRedirect": true }` instead, with a two-factor cookie (`workspace.two_factor`, named `__Secure-workspace.two_factor` where the workspace runs on https). Post the app's six-digit code to `POST /api/auth/two-factor/verify-totp` with `{ "code": "123456" }`, that cookie, and an `Origin` header equal to `APP_URL`'s origin (Better Auth refuses a request that carries cookies without a trusted origin); the answer carries the session token in `set-auth-token`. `POST /api/auth/two-factor/verify-backup-code` takes one of the backup codes the same way. `"trustDevice": true` on either skips the second factor for 30 days on that client, through the cookie the answer sets.
 - A passkey sign-in needs a browser (WebAuthn): a client without one signs in with the password.
+- While Duo is set up ([SSO.md](SSO.md#duo)), `/api/auth/sign-in/email` answers `404`: a password alone opens no session then. Sign in through the browser (the password, then Duo) and use that session's token, or sign in with a passkey.
 - Better Auth rate-limits `/api/auth/sign-in/email` (20 a quarter hour per client) and the two-factor endpoints (10); a `429` carries `Retry-After`. A wrong password answers `401`, a deactivated account `403`.
 - `GET /api/auth/get-session` with the bearer token answers the session and the person, or `null` once it has ended. `POST /api/auth/sign-out` ends it.
 - A deployment's `APP_URL` is the only origin Better Auth trusts; a client sends no `Origin` header, which is fine.
@@ -35,9 +36,11 @@ client ── POST /api/auth/sign-out, Authorization: Bearer <token> ──▶ 2
 
 | Method and path | Answer |
 | --- | --- |
-| `GET /me` | `{ user: { id, name, email, role: "admin" \| "member" }, appName, counts, labels: LabelRef[], preferences: { layout, undoSendSeconds, pageSize }, driveUsed: bytes, github: { connected }, colleagues: [{ id, name, email }], suggestions: string[] }`. `counts` is `{ inboxUnread, spamUnread, snoozed, drafts, scheduled, labels: { <labelId>: unread } }`; `suggestions` are the Assistant's opening questions. |
+| `GET /me` | `{ user: { id, name, email, role: "admin" \| "member" }, appName, counts, labels: LabelRef[], mailboxes: [{ id, name, email, counts, labels: LabelRef[] }], preferences: { layout, undoSendSeconds, pageSize }, driveUsed: bytes, github: { connected }, colleagues: [{ id, name, email }], assistant: { enabled }, suggestions: string[] }`. `counts` is `{ inboxUnread, spamUnread, snoozed, drafts, scheduled, labels: { <labelId>: unread } }`; `mailboxes` are the shared group inboxes the person is in, by name, each with its own counts and labels (open one with `?box=<id>` on the Mail routes); `assistant.enabled` is false while the workspace's AI is off (`AI_FEATURES`); `suggestions` are the Assistant's opening questions, none while it is off. |
 
 ### Mail
+
+Every Mail route takes `?box=<id>`: the id of a shared group inbox the person is in (`GET /me`'s `mailboxes`), whose mail the route then reads and changes as if it were the person's own, as the console's `/mail?box=` does. Without it the route acts in the person's own mailbox. A box the person is not in, a group that is off, a distribution group or another person's mailbox is `404` with `{ ok: false, error: "You are not in that group inbox." }`. In a shared inbox `GET /mail/compose` offers the group's addresses to send from, and `POST /mail/send` keeps who wrote the message (`MessageView.sentBy`) for the other members. A distribution group needs none of this: its mail lands in each member's own inbox, and its address is among `ComposeData.froms`.
 
 | Method and path | Request | Answer |
 | --- | --- | --- |
@@ -49,8 +52,8 @@ client ── POST /api/auth/sign-out, Authorization: Bearer <token> ──▶ 2
 | `POST /mail/read-all` | `{ folder?, label?, q? }` as a list request | `{ ok: true }` |
 | `POST /mail/folders/:folder/empty` | `trash` or `spam` | `{ ok: true, count }` |
 | `GET /mail/compose` | `?reply=<messageId>&mode=reply\|all\|forward`, or `?draft=<draftId>`, or `?to=<address>`, or nothing for a blank message | `ComposeData` |
-| `POST /mail/send` | `{ from, to, cc, bcc, subject, text, inReplyToId?, signatureId?, draftId?, files?: [{ filename, contentType, base64 }], pgpSign?: boolean, pgpEncrypt?: boolean }`; `to`, `cc` and `bcc` are typed lists (`Ada <ada@acme.com>, bob@acme.com`); `from` one of `ComposeData.froms`; `draftId` deletes the draft once sent; the files together at most 20 MB; `pgpSign` signs with the person's OpenPGP key and `pgpEncrypt` encrypts to every recipient's (`400` naming whoever has no key, or when the person has none) | `{ ok: true, threadId }` |
-| `POST /mail/drafts` | `{ id?, threadId?, inReplyToId?, mode: "new" \| "reply" \| "forward", from, to, cc, bcc, subject, text, signatureId?, pgpSign?, pgpEncrypt? }` | `{ ok: true, draftId, savedAt }` |
+| `POST /mail/send` | `{ from, to, cc, bcc, subject, text, inReplyToId?, signatureId?, draftId?, files?: [{ filename, contentType, base64 }], pgpSign?: boolean, pgpEncrypt?: boolean }`; `to`, `cc` and `bcc` are typed lists (`Ada <ada@acme.com>, bob@acme.com`); `from` one of `ComposeData.froms`, the address alone or its typed form (`Ada <ada@acme.com>`); `draftId` deletes the draft once sent; the files together at most 20 MB; `pgpSign` signs with the person's OpenPGP key and `pgpEncrypt` encrypts to every recipient's (`400` naming whoever has no key, or when the person has none) | `{ ok: true, threadId }` |
+| `POST /mail/drafts` | `{ id?, threadId?, inReplyToId?, mode: "new" \| "reply" \| "forward", from, to, cc, bcc, subject, text, signatureId?, pgpSign?, pgpEncrypt? }`, the fields as `POST /mail/send` reads them | `{ ok: true, draftId, savedAt }` |
 | `DELETE /mail/drafts/:id` | | `{ ok: true }` |
 | `GET /mail/contacts` | `?q=` | `{ contacts: Address[] }` (at most 8, most used first) |
 | `POST /mail/labels` | `{ name, color? }` | `{ ok: true, label: LabelRef }` |
@@ -84,6 +87,7 @@ interface MessageView {
   deliveryStatus: "received" | "sent" | "failed"; deliveryError: string | null;
   spam: boolean;             // the spam filter put it in Spam when it arrived
   pgp: PgpStatus | null;     // what OpenPGP did to it; null for mail without OpenPGP
+  sentBy: string | null;     // the name of the member who wrote it, for a message a shared group inbox sent; null otherwise
   attachments: [{ id: string; filename: string; contentType: string; size: number; inline: boolean; contentId: string | null; url: string }];
 }
 interface PgpStatus {
@@ -203,9 +207,13 @@ interface Issue { repo: string; number: number; title: string; url: string; stat
 | `GET /assistant/conversations` | | `{ conversations: [{ id, title, updatedAt }], suggestions: string[] }` newest first |
 | `GET /assistant/conversations/:id` | | `{ conversation: { id, title, updatedAt }, messages: [{ id, role: "user" \| "assistant", parts: Part[] }] }` oldest first |
 | `DELETE /assistant/conversations/:id` | | `{ ok: true }` |
-| `POST /assistant/chat` | `{ conversationId: string \| null, message: { role: "user", parts: [{ type: "text", text }] } }` | `text/event-stream`: the answer as it comes (below) |
+| `POST /assistant/chat` | `{ conversationId: string \| null, message: { role: "user", parts: [{ type: "text", text }] }, timeZone?: string }`, `timeZone` the device's IANA zone ("Europe/Amsterdam"), which says what "today" and "14:00" mean in the question; UTC without it | `text/event-stream`: the answer as it comes (below) |
 
-A stored `Part` is `{ type: "text", text }`, `{ type: "step-start" }`, or a tool's step `{ type: "tool-<name>", toolCallId, state: "output-available", input, output }` with `<name>` one of `search_mail`, `read_conversation`, `search_drive`, `read_file`, `create_draft`. The answer's text is Markdown, with links on paths of the console (`/mail/t/<id>`, `/drive/d/<id>`); a client shows the step as "Searched mail", "Read a conversation", "Searched Drive", "Read a file", "Prepared a draft".
+While the workspace's AI is off (`AI_FEATURES` is `off`; `GET /me` answers `assistant.enabled: false`), every route of this section is `404` with `{ ok: false, error: "The Assistant is off in this workspace." }`.
+
+A stored `Part` is `{ type: "text", text }`, `{ type: "step-start" }`, or a tool's step `{ type: "tool-<name>", toolCallId, state: "output-available", input, output }` with `<name>` one of `search_mail`, `read_conversation`, `read_attachment`, `search_drive`, `read_file`, `create_draft`, `list_events`, `list_tasks`, `create_task`, `create_event`, `organize_mail`, and more as the Assistant learns them: a client shows a name it does not know as a step without a label of its own. The answer's text is Markdown, with links on paths of the console (`/mail/t/<id>`, `/drive/d/<id>`, `/calendar?date=<day>`, `/tasks`) and, for a GitHub issue, on its address on GitHub; a client shows the step as "Searched mail", "Read a conversation", "Searched Drive", "Read a file", "Prepared a draft", "Read the calendar", "Read the tasks", "Added a task", "Added an event", "Organized mail". An `organize_mail` step's `output` holds `action`, `count`, `at`, `undoId` (the id of the undo the server keeps for ten minutes, or null) and, once undone, `undone`; the API has no endpoint that undoes a step yet, so a client shows the step and leaves the undo to the console.
+
+The AI in Mail itself, a conversation's summary and a drafted message body, has no endpoint here yet: the console reaches it on its session (`POST /api/mail/summary` and the `draftWithAiAction` server function), so a client leaves both to the console until then.
 
 The chat answers the AI SDK's UI message stream, server-sent events each with a JSON object, ending in `data: [DONE]`:
 

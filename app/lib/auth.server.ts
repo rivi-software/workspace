@@ -29,6 +29,10 @@ import {
 } from "~/db/schema";
 import type { User } from "~/db/schema";
 
+import { base64UrlDecode } from "./crypto";
+import { duoEnabled } from "./duo/enabled";
+import { isJsonObject, stringOrNull } from "./guards";
+import type { parseJsonObject } from "./guards";
 import { newId, nowIso } from "./ids";
 
 /** Where Better Auth answers, before TanStack Start (`workers/worker.ts`). */
@@ -137,6 +141,98 @@ export const generatePassword = (): string => {
 
   return Array.from(bytes, (b) => alphabet[b % alphabet.length]).join("");
 };
+
+// ---------- how a session was signed in (RFC 8176 `amr`) ----------
+
+/**
+ * How a session was signed in, as RFC 8176 names the methods: what an application that signs in through the
+ * workspace reads from the ID token's `amr` (docs/SSO.md). `pwd` a password, `otp` a one-time code (the
+ * authenticator app, or Duo's), `pop` proof of a key the person holds (a passkey), `mfa` two factors.
+ */
+export type Amr = readonly string[];
+
+/** The authenticator data's flags byte follows the 32-byte RP ID hash; bit 2 is User Verified (WebAuthn §6.1). */
+const UV_FLAG = 0x04;
+
+/**
+ * The `authenticatorData` of the passkey assertion a sign-in posted to the passkey plugin (`response.response`, as
+ * `@simplewebauthn/browser` sends it), or null when the body carries none.
+ */
+const assertionAuthenticatorData = (
+  body: ReturnType<typeof parseJsonObject> | null
+): string | null => {
+  const credential = isJsonObject(body?.response) ? body.response : null;
+
+  const response = isJsonObject(credential?.response)
+    ? credential.response
+    : null;
+
+  return stringOrNull(response?.authenticatorData);
+};
+
+/**
+ * Whether the passkey that signed in also verified the person (a fingerprint, a face, the device's PIN): then it is two
+ * factors in one, something held and something known or been. Read after the plugin verified the assertion, since a
+ * session is only made for one that checked out.
+ */
+export const passkeyVerifiedUser = (
+  authenticatorData: string | null
+): boolean => {
+  if (!authenticatorData) {
+    return false;
+  }
+
+  try {
+    const flags = base64UrlDecode(authenticatorData)[32] ?? 0;
+
+    // oxlint-disable-next-line eslint/no-bitwise -- a flag of the authenticator data is one bit of its flags byte
+    return (flags & UV_FLAG) !== 0;
+  } catch {
+    return false;
+  }
+};
+
+/**
+ * What a session Better Auth makes says about the sign-in, by the endpoint that made it. The password alone is
+ * `pwd`; for a person with an authenticator app it is `pwd mfa`, since Better Auth keeps that session only on a device
+ * the code trusted within 30 days (otherwise it is deleted at once for the code's step). The code itself, or a backup
+ * code, is `pwd otp mfa`. A passkey is `pop`, and `pop mfa` when it verified the person. A session made anew for a
+ * signed-in person (a new password, the authenticator app turned on) keeps what the one before it said, and one made
+ * by an endpoint not listed here says nothing.
+ */
+export const amrForSignIn = (input: {
+  path: string;
+  authenticatorData: string | null;
+  twoFactorEnabled: boolean;
+  current: string | null;
+}): string | null => {
+  switch (input.path) {
+    case "/sign-in/email": {
+      return input.twoFactorEnabled ? "pwd mfa" : "pwd";
+    }
+
+    case "/two-factor/verify-totp":
+    case "/two-factor/verify-backup-code": {
+      return "pwd otp mfa";
+    }
+
+    case "/passkey/verify-authentication": {
+      return passkeyVerifiedUser(input.authenticatorData) ? "pop mfa" : "pop";
+    }
+
+    default: {
+      return input.current;
+    }
+  }
+};
+
+/** A session's `amr` column as the list an ID token carries: empty for a session that recorded nothing. */
+export const amrList = (amr: string | null | undefined): string[] =>
+  (amr ?? "").split(" ").filter(Boolean);
+
+/** The session row's `amr` before the hook: what its maker asked for (`startSession`), or nothing. */
+const amrAsked = (session: ReturnType<typeof parseJsonObject>): string | null =>
+  stringOrNull(session.amr) || null;
 
 // ---------- the Better Auth instance ----------
 
@@ -255,6 +351,10 @@ export const createAuth = async (env: Env, db: Database = createDb(env.DB)) => {
       },
     },
     session: {
+      // How the person signed in (`amrForSignIn`), written by the hook below and never by a client.
+      additionalFields: {
+        amr: { type: "string", required: false, input: false },
+      },
       expiresIn: SESSION_TTL_SECONDS,
       updateAge: 60 * 60 * 24,
       // Every request reads the session row: "Sign out everywhere" and a new password end a session at once, not
@@ -290,6 +390,10 @@ export const createAuth = async (env: Env, db: Database = createDb(env.DB)) => {
       "/change-email",
       "/delete-user",
       "/delete-user/callback",
+      // With Duo on, a password sign-in goes through `passwordSignIn` and Duo's prompt alone: Better Auth's own
+      // HTTP route would hand out a session on the password, without Duo. The server still calls `signInEmail`
+      // when Duo cannot take sign-ins and the person's authenticator app stands in for it.
+      ...(duoEnabled(env) ? ["/sign-in/email"] : []),
     ],
     advanced: {
       cookiePrefix: COOKIE_PREFIX,
@@ -302,11 +406,21 @@ export const createAuth = async (env: Env, db: Database = createDb(env.DB)) => {
       session: {
         create: {
           // Deactivated people keep their mail but cannot sign in, by any way in.
-          before: async (session) => {
+          // Each session also records how the person signed in (`amrForSignIn`), unless its maker named it
+          // (`startSession`, after Duo).
+          before: async (session, context) => {
             const row = await db.query.users.findFirst({
-              columns: { active: true },
+              columns: { active: true, twoFactorEnabled: true, kind: true },
               where: eq(users.id, session.userId),
             });
+
+            // A group inbox has no password or passkey, but nobody is ever signed in as one, whatever goes wrong.
+            if (row?.kind === "group") {
+              throw new APIError("FORBIDDEN", {
+                message: "A group inbox cannot sign in.",
+                code: "GROUP_SIGN_IN",
+              });
+            }
 
             if (!row?.active) {
               throw new APIError("FORBIDDEN", {
@@ -315,6 +429,22 @@ export const createAuth = async (env: Env, db: Database = createDb(env.DB)) => {
                 code: "ACCOUNT_DEACTIVATED",
               });
             }
+
+            const amr =
+              amrAsked(session) ??
+              (context
+                ? amrForSignIn({
+                    path: context.path ?? "",
+                    authenticatorData: assertionAuthenticatorData(
+                      isJsonObject(context.body) ? context.body : null
+                    ),
+                    twoFactorEnabled: row.twoFactorEnabled,
+                    // A session made anew for a signed-in person keeps what the one before it said.
+                    current: stringOrNull(context.context.session?.session.amr),
+                  })
+                : null);
+
+            return { data: { ...session, amr } };
           },
           // When the person last signed in, for the People page.
           after: async (session) => {
@@ -412,6 +542,121 @@ export const getSessionUser = async (
   });
 
   return user?.active ? user : null;
+};
+
+/** Who is signed in on a request, and how: what the identity provider puts in an ID token (`sid`, `auth_time`, `amr`). */
+export interface SessionIdentity {
+  user: User;
+  /** The session's id: the ID token's `sid`. */
+  sid: string;
+  /** When the person signed in, in seconds since the epoch: the ID token's `auth_time`. */
+  authTime: number;
+  amr: string[];
+}
+
+/** The person behind the request's session, with the session's own facts; null without an active person. */
+export const getSessionIdentity = async (
+  request: Request,
+  env: Env,
+  db: Database
+): Promise<SessionIdentity | null> => {
+  const auth = await authFor(env);
+  const found = await auth.api.getSession({ headers: request.headers });
+
+  if (!found) {
+    return null;
+  }
+
+  const user = await db.query.users.findFirst({
+    where: eq(users.id, found.user.id),
+  });
+
+  if (!user?.active) {
+    return null;
+  }
+
+  return {
+    user,
+    sid: found.session.id,
+    authTime: Math.floor(new Date(found.session.createdAt).getTime() / 1000),
+    amr: amrList(found.session.amr),
+  };
+};
+
+/** The HMAC better-call signs a cookie's value with, as Better Auth reads its session cookie back. */
+const signCookieValue = async (value: string, secret: string) => {
+  const key = await crypto.subtle.importKey(
+    "raw",
+    new TextEncoder().encode(secret),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"]
+  );
+
+  const signature = new Uint8Array(
+    await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(value))
+  );
+
+  return encodeURIComponent(
+    `${value}.${btoa(String.fromCodePoint(...signature))}`
+  );
+};
+
+/**
+ * A session for a sign-in the workspace confirmed itself rather than through Better Auth (the password, then Duo:
+ * `duo.server.ts`), saying how (`amr`), and the `Set-Cookie` that carries it, as Better Auth would have written it.
+ * The session hook still refuses a deactivated person.
+ */
+export const startSession = async (
+  request: Request,
+  env: Env,
+  userId: string,
+  amr: Amr
+): Promise<string> => {
+  const auth = await authFor(env);
+  const context = await auth.$context;
+
+  const session = await context.internalAdapter.createSession(userId, false, {
+    amr: amr.join(" "),
+    ipAddress: request.headers.get("cf-connecting-ip"),
+    userAgent: request.headers.get("user-agent"),
+  });
+
+  const cookie = context.authCookies.sessionToken;
+  const { attributes } = cookie;
+
+  return [
+    `${cookie.name}=${await signCookieValue(session.token, context.secret)}`,
+    `Max-Age=${context.sessionConfig.expiresIn}`,
+    `Path=${attributes.path ?? "/"}`,
+    attributes.httpOnly === false ? null : "HttpOnly",
+    `SameSite=${attributes.sameSite ?? "Lax"}`,
+    attributes.secure ? "Secure" : null,
+  ]
+    .filter(Boolean)
+    .join("; ");
+};
+
+/**
+ * Signs the browser out of the session the request carries, through Better Auth: the row goes, and the answer's
+ * `Set-Cookie` headers clear the cookie. Nothing to end answers no headers.
+ */
+export const endCurrentSession = async (
+  request: Request,
+  env: Env
+): Promise<string[]> => {
+  const auth = await authFor(env);
+
+  if (!(await auth.api.getSession({ headers: request.headers }))) {
+    return [];
+  }
+
+  const res = await auth.api.signOut({
+    headers: request.headers,
+    asResponse: true,
+  });
+
+  return res.headers.getSetCookie();
 };
 
 export const requireUser = async (

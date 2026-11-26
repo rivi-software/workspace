@@ -4,7 +4,6 @@
  * document). They sit above `mailbox.server.ts`, which queries, and `threads.server.ts`, which writes: a list wakes
  * the snoozed threads whose time came, and opening a thread reads it. The shapes they answer are in `reads.ts`.
  */
-import { waitUntil } from "cloudflare:workers";
 
 import type { Database } from "~/db";
 import type { Draft, Thread, User } from "~/db/schema";
@@ -20,7 +19,6 @@ import {
   listThreads,
   loadMessage,
   loadThread,
-  pruneExpired,
 } from "./mailbox.server";
 import { PAGE_SIZE_CHOICES, parsePreferences } from "./preferences";
 import type {
@@ -36,7 +34,7 @@ import { sanitizeHtml } from "./sanitize";
 import { listScheduled } from "./schedule.server";
 import { listDrafts } from "./send.server";
 import { senderRuleFor } from "./spam";
-import { listSenderRules, pruneSpamTokens } from "./spam.server";
+import { listSenderRules } from "./spam.server";
 import { isForwardSubject, participantLabel } from "./threading";
 import { markThreadRead, wakeSnoozed } from "./threads.server";
 
@@ -50,9 +48,6 @@ export interface ListAsked {
   /** 25, 50 or 100; anything else is the person's preference. */
   pageSize?: string | number | null;
 }
-
-/** How long a list waits before it prunes the person's trash and Spam again. */
-const PRUNE_EVERY_SECONDS = 6 * 3600;
 
 /**
  * The view a list asks for: a label lists the archive (a label that is not the person's is none), a folder that
@@ -92,23 +87,6 @@ const pageOf = (asked: ListAsked["page"]): number =>
 const pageSizeOf = (asked: ListAsked["pageSize"], preferred: number): number =>
   PAGE_SIZE_CHOICES.find((choice) => choice === Number(asked)) ?? preferred;
 
-/**
- * The trash and Spam shed what is older than 30 days, a batch every few hours, and the spam filter the words that
- * say nothing: after the answer, so the list never waits for it.
- */
-const pruneNowAndThen = async (db: Database, env: Env, userId: string) => {
-  const key = `prune:${userId}`;
-
-  if (await env.KV.get(key)) {
-    return;
-  }
-
-  await env.KV.put(key, "1", { expirationTtl: PRUNE_EVERY_SECONDS });
-  waitUntil(
-    Promise.all([pruneExpired(db, env, userId), pruneSpamTokens(db, userId)])
-  );
-};
-
 const draftRow = (d: Draft): DraftRow => ({
   id: d.id,
   to: participantLabel(parseJsonAddresses(d.toJson)),
@@ -143,7 +121,6 @@ const listRow = (t: Thread, labels: LabelRef[]): ListRow => ({
  */
 export const listPage = async (
   db: Database,
-  env: Env,
   user: Pick<User, "id" | "preferencesJson">,
   asked: ListAsked,
   now = new Date()
@@ -156,8 +133,8 @@ export const listPage = async (
     parsePreferences(user.preferencesJson).pageSize
   );
 
+  // The cron prunes the trash, Spam and the spam filter's idle words, so a list prunes nothing.
   await wakeSnoozed(db, now, user.id);
-  await pruneNowAndThen(db, env, user.id);
 
   const base = { folder, q, page, pageSize, label, labels };
 

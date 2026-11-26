@@ -1,8 +1,7 @@
-import { Link, createFileRoute, redirect } from "@tanstack/react-router";
+import { Link, createFileRoute } from "@tanstack/react-router";
 import type { ErrorComponentProps } from "@tanstack/react-router";
 import { createServerFn } from "@tanstack/react-start";
 import { setResponseHeader } from "@tanstack/react-start/server";
-import { eq } from "drizzle-orm";
 import {
   KeyRound,
   LogOut,
@@ -18,6 +17,8 @@ import {
 import { useEffect, useMemo, useState } from "react";
 import { z } from "zod";
 
+import { ApplicationsSettings } from "~/components/applications-settings";
+import { BrandingSettings } from "~/components/branding-settings";
 import { DriveSettings } from "~/components/drive/drive-settings";
 import { MailSettings } from "~/components/mail-settings";
 import { SignaturePreview } from "~/components/message-body";
@@ -41,481 +42,106 @@ import {
   selectClass,
   textareaClass,
 } from "~/components/ui";
-import { schema } from "~/db";
-import type { Database } from "~/db";
-import type { User } from "~/db/schema";
+import { accountIntent } from "~/lib/account.server";
 import { useAction } from "~/lib/action";
-import {
-  endSession,
-  listSessions,
-  removeAllPasskeys,
-  resetTwoFactor,
-  revoke,
-} from "~/lib/auth.server";
-import { externalShareRecords } from "~/lib/drive/links.server";
 import { formData, formPost } from "~/lib/forms";
-import { field } from "~/lib/guards";
+import { groupsIntent } from "~/lib/groups.server";
+import { unreachable } from "~/lib/guards";
 import { keepShown } from "~/lib/keep-shown";
-import { listFilters } from "~/lib/mail/filters.server";
-import { listImageSenders } from "~/lib/mail/images.server";
-import { importView, latestImport } from "~/lib/mail/import/import.server";
-import { microsoftConfigured } from "~/lib/mail/import/microsoft.server";
-import { listLabels } from "~/lib/mail/labels.server";
-import { listPeerKeys, ownKeyView } from "~/lib/mail/pgp/keys.server";
-import { parsePreferences } from "~/lib/mail/preferences";
+import { signatureIntent } from "~/lib/mail/signature-settings.server";
 import { sanitizeSignatureHtml } from "~/lib/mail/signatures";
-import {
-  SignatureError,
-  deleteSignature,
-  listSignatures,
-  saveSignature,
-  setDefaultSignatures,
-} from "~/lib/mail/signatures.server";
-import { learntTotals, listSenderRules } from "~/lib/mail/spam.server";
-import {
-  MAX_RECOVERY_ADDRESSES,
-  RecoveryError,
-  addRecoveryAddress,
-  listRecoveryAddresses,
-  removeRecoveryAddress,
-  resendConfirmation,
-} from "~/lib/recovery.server";
+import { peopleIntent } from "~/lib/people.server";
 import { appContext } from "~/lib/request.server";
 import { serverFnFetch } from "~/lib/server-fn-fetch";
-import { githubConnection } from "~/lib/tasks/github.server";
+import { SETTINGS_TABS, tabsFor } from "~/lib/settings";
+import type { SettingsResult, SettingsTab } from "~/lib/settings";
+import { loadSettings } from "~/lib/settings.server";
 import { escapeHtml } from "~/lib/text";
-import {
-  PeopleError,
-  addAlias,
-  changeAddress,
-  changeOwnPassword,
-  createPerson,
-  listPeople,
-  removeAlias,
-  removePerson,
-  resetPassword,
-  setPersonActive,
-  setPersonRole,
-  updateProfile,
-} from "~/lib/users.server";
-import { externalSharingSetting } from "~/lib/workspace-settings.server";
 
 const searchSchema = z.object({
-  tab: z.enum(["account", "mail", "tasks", "people", "drive"]).optional(),
+  // A tab that is gone, or one the address mistyped, opens Account rather than failing the page.
+  tab: z.enum(SETTINGS_TABS).optional().catch(undefined),
   // How connecting a mailbox for an import went (`finishMicrosoftConnect`), and Microsoft's reason when it failed.
   connect: z.string().optional(),
   reason: z.coerce.string().optional(),
 });
 
-/** How many passkeys a person may add: a laptop, a phone, a key or two, with room to spare. */
-const MAX_PASSKEYS = 10;
+/** Who is looking and the open tab's slice alone: a tab only an admin sees opens Account for anyone else. */
+const getSettings = createServerFn()
+  .validator((d: { tab?: SettingsTab } | undefined) => {
+    // A tab still on the build before this one calls without a payload and renders every tab's data from one
+    // answer, which this answer no longer is: answered, that tab's page would break on its minute's refresh. Failing
+    // keeps what it shows (`keepShown`) until it moves onto this build, which `deploy-watch` offers at once.
+    if (d === undefined) {
+      throw new Error(
+        "Settings was asked by an earlier build: reload the page."
+      );
+    }
 
-const getSettings = createServerFn().handler(async () => {
-  const { db, user, env, request } = await appContext();
-  const signatureRows = await listSignatures(db, user.id);
-  const recoveryRows = await listRecoveryAddresses(db, user.id);
-  const senderRules = await listSenderRules(db, user.id);
-  const imageSenderRows = await listImageSenders(db, user.id);
+    return d;
+  })
+  .handler(async ({ data }) => {
+    const { db, env, user, request } = await appContext();
 
-  const passkeyRows = await db.query.passkeys.findMany({
-    where: eq(schema.passkeys.userId, user.id),
-    orderBy: (p, { asc }) => [asc(p.createdAt)],
+    return loadSettings(db, env, user, request, data.tab);
   });
 
-  return {
-    me: {
-      id: user.id,
-      name: user.name,
-      email: user.email,
-      role: user.role,
-      lastSignInAt: user.lastSignInAt,
-    },
-    // Whether a password sign-in asks for an authenticator app's code (`<TwoFactor>`); a passkey sign-in never does.
-    twoFactorEnabled: user.twoFactorEnabled,
-    // What signs the person in without a password (`<Passkeys>`), oldest first.
-    passkeys: passkeyRows.map((p) => ({
-      id: p.id,
-      name: p.name ?? "Passkey",
-      createdAt: p.createdAt.toISOString(),
-      backedUp: p.backedUp,
-    })),
-    maxPasskeys: MAX_PASSKEYS,
-    // Every browser the person is signed in on, newest first, for signing one out from here.
-    sessions: await listSessions(request, env, db, user.id),
-    signatures: signatureRows.map(
-      ({ id, name, text, html, isDefault, isReplyDefault }) => ({
-        id,
-        name,
-        text,
-        html,
-        isDefault,
-        isReplyDefault,
-      })
-    ),
-    // Where a reset link goes when the person forgets their password (`app/lib/recovery.server.ts`).
-    recoveryAddresses: recoveryRows.map(({ id, address, confirmedAt }) => ({
-      id,
-      address,
-      confirmedAt,
-    })),
-    maxRecoveryAddresses: MAX_RECOVERY_ADDRESSES,
-    mailDomain: env.MAIL_DOMAIN,
-    people: user.role === "admin" ? await listPeople(db) : [],
-    // Settings → Drive: sharing outside the workspace, and the record of every link and invite (#2836).
-    drive:
-      user.role === "admin"
-        ? {
-            sharing: await externalSharingSetting(db),
-            records: await externalShareRecords(db),
-          }
-        : null,
-    // Settings → Tasks: the person's own GitHub connection (#3111).
-    tasks: { github: await githubConnection(db, user.id) },
-    // Settings → Mail: how the list reads, the labels, the filters, spam, images and the vacation responder.
-    mail: {
-      preferences: parsePreferences(user.preferencesJson),
-      labels: await listLabels(db, user.id),
-      filters: await listFilters(db, user.id),
-      spam: {
-        senders: senderRules.map(({ sender, verdict }) => ({
-          sender,
-          verdict,
-        })),
-        learnt: await learntTotals(db, user.id),
-        mailDomain: env.MAIL_DOMAIN,
-      },
-      imageSenders: imageSenderRows.map((s) => s.sender),
-      vacation: {
-        on: user.vacationOn,
-        subject: user.vacationSubject,
-        text: user.vacationText,
-        from: user.vacationFrom,
-        until: user.vacationUntil,
-      },
-      imports: await (async () => {
-        const latest = await latestImport(db, user.id);
-
-        return {
-          configured: microsoftConfigured(env),
-          latest: latest ? importView(latest) : null,
-        };
-      })(),
-      // Settings → Mail → OpenPGP: the person's own key and the keys of the people they write to.
-      pgp: {
-        own: await ownKeyView(db, user.id),
-        peers: await listPeerKeys(db, user.id),
-        signByDefault: parsePreferences(user.preferencesJson).pgpSign,
-        mailDomain: env.MAIL_DOMAIN,
-      },
-    },
-  };
-});
-
-interface Result {
-  error?: string;
-  message?: string;
-  password?: string;
-}
-
-/** A form field that is empty or missing as null, for an id that may be left out. */
-const optionalField = (form: FormData, name: string): string | null =>
-  field(form, name) || null;
+// Each tab's forms go to its concept's intent handler, which the tests call without the route.
 
 const accountAction = createServerFn({ method: "POST" })
   .middleware([formPost])
   .validator(formData)
-  .handler(async ({ data }): Promise<Result> => {
+  .handler(async ({ data }): Promise<SettingsResult> => {
     const { db, env, user, request } = await appContext();
-    const intent = field(data, "intent");
 
-    try {
-      if (intent === "profile") {
-        await updateProfile(db, user.id, { name: field(data, "name") });
+    const { cookie, ...result } = await accountIntent(
+      db,
+      env,
+      user,
+      data,
+      request
+    );
 
-        return { message: "Saved." };
-      }
-
-      if (intent === "signature") {
-        const id = optionalField(data, "id");
-        await saveSignature(db, user.id, {
-          id,
-          name: field(data, "name"),
-          text: field(data, "text"),
-          html: data.has("html") ? field(data, "html") : null,
-        });
-
-        return { message: id ? "Saved." : "Signature added." };
-      }
-
-      if (intent === "default-signature") {
-        await setDefaultSignatures(db, user.id, {
-          new: optionalField(data, "signatureId"),
-          reply: optionalField(data, "replySignatureId"),
-        });
-
-        return { message: "Saved." };
-      }
-
-      if (intent === "delete-signature") {
-        await deleteSignature(db, user.id, field(data, "id"));
-
-        return { message: "Signature deleted." };
-      }
-
-      if (intent === "signout-all") {
-        // Every session of the person is over, this one included: the sign-in page is next.
-        await revoke(db, user.id, "sign-out-everywhere");
-        throw redirect({ href: "/login" });
-      }
-
-      if (intent === "revoke-session") {
-        await endSession(db, user.id, field(data, "id"));
-
-        return { message: "Signed out there." };
-      }
-
-      if (intent === "password") {
-        // Every other session ended with the old password; this browser goes on, in the new session Better Auth
-        // made for it when it made one.
-        const cookie = await changeOwnPassword(request, env, {
-          current: field(data, "current"),
-          password: field(data, "password"),
-          confirm: field(data, "confirm"),
-        });
-
-        if (cookie) {
-          setResponseHeader("Set-Cookie", cookie);
-        }
-
-        return {
-          message:
-            "Password changed. Every other browser and device is signed out.",
-        };
-      }
-
-      if (intent === "recovery-add") {
-        const address = await addRecoveryAddress(env, db, user, {
-          address: field(data, "address"),
-          password: field(data, "current"),
-        });
-
-        return { message: `We sent a confirmation link to ${address}.` };
-      }
-
-      if (intent === "recovery-resend") {
-        const address = await resendConfirmation(
-          env,
-          db,
-          user,
-          field(data, "id")
-        );
-
-        return { message: `Sent again to ${address}.` };
-      }
-
-      if (intent === "recovery-remove") {
-        await removeRecoveryAddress(db, user.id, field(data, "id"));
-
-        return { message: "Recovery address removed." };
-      }
-    } catch (error) {
-      if (
-        error instanceof PeopleError ||
-        error instanceof SignatureError ||
-        error instanceof RecoveryError
-      ) {
-        return { error: error.message };
-      }
-
-      throw error;
+    // A new password renews the session: this browser goes on in the new one.
+    if (cookie) {
+      setResponseHeader("Set-Cookie", cookie);
     }
 
-    return {};
+    return result;
   });
 
-/** Settings → People: a person's new primary address, with what the admin tells them about their OpenPGP key. */
-const changeAddressAction = async (
-  db: Database,
-  env: Env,
-  id: string,
-  data: FormData
-): Promise<Result> => {
-  const changed = await changeAddress(
-    db,
-    env,
-    id,
-    field(data, "address"),
-    data.get("keepOld") === "on"
-  );
+const signaturesAction = createServerFn({ method: "POST" })
+  .middleware([formPost])
+  .validator(formData)
+  .handler(async ({ data }): Promise<SettingsResult> => {
+    const { db, env, user } = await appContext();
 
-  return {
-    message: changed.hasPgpKey
-      ? `Their address is now ${changed.address}. Their OpenPGP key names the old one: they make a new key under Settings → Mail to be found at the new address.`
-      : `Their address is now ${changed.address}.`,
-  };
-};
-
-/** Settings → People: a deactivated person removed for good, at once or over the next minutes. */
-const removePersonAction = async (
-  db: Database,
-  env: Env,
-  actor: User,
-  id: string,
-  data: FormData
-): Promise<Result> => {
-  const removed = await removePerson(
-    db,
-    env,
-    actor,
-    id,
-    field(data, "confirm")
-  );
-
-  return {
-    message: removed.gone
-      ? `${removed.email} is removed, with everything that was theirs.`
-      : `Removing ${removed.email}: mail to them bounces now, and what was theirs goes over the next minutes.`,
-  };
-};
+    return signatureIntent(db, env, user, data);
+  });
 
 const peopleAction = createServerFn({ method: "POST" })
   .middleware([formPost])
   .validator(formData)
-  .handler(async ({ data }): Promise<Result> => {
+  .handler(async ({ data }): Promise<SettingsResult> => {
     const { db, env, user } = await appContext();
 
-    if (user.role !== "admin") {
-      return { error: "Only an admin can manage people." };
-    }
+    return peopleIntent(db, env, user, data);
+  });
 
-    const intent = field(data, "intent");
-    const id = field(data, "id");
+const groupsAction = createServerFn({ method: "POST" })
+  .middleware([formPost])
+  .validator(formData)
+  .handler(async ({ data }): Promise<SettingsResult> => {
+    const { db, env, user } = await appContext();
 
-    try {
-      switch (intent) {
-        case "create": {
-          const created = await createPerson(db, env, {
-            email: field(data, "email"),
-            name: field(data, "name"),
-            role: field(data, "role") === "admin" ? "admin" : "member",
-          });
-
-          return {
-            message: `${created.email} is ready. Their one-time password:`,
-            password: created.password,
-          };
-        }
-
-        case "deactivate": {
-          await setPersonActive(db, user, id, false);
-
-          return { message: "Deactivated." };
-        }
-
-        case "activate": {
-          await setPersonActive(db, user, id, true);
-
-          return { message: "Reactivated." };
-        }
-
-        case "address": {
-          return await changeAddressAction(db, env, id, data);
-        }
-
-        case "remove": {
-          return await removePersonAction(db, env, user, id, data);
-        }
-
-        case "admin": {
-          await setPersonRole(db, user, id, "admin");
-
-          return { message: "Now an admin." };
-        }
-
-        case "member": {
-          await setPersonRole(db, user, id, "member");
-
-          return { message: "Now a member." };
-        }
-
-        case "reset": {
-          const password = await resetPassword(db, id);
-
-          return {
-            message: "Signed out everywhere. Their new one-time password:",
-            password,
-          };
-        }
-
-        case "alias": {
-          const address = await addAlias(db, env, id, field(data, "alias"));
-
-          return { message: `${address} now reaches this mailbox.` };
-        }
-
-        case "unalias": {
-          await removeAlias(db, id, field(data, "alias"));
-
-          return { message: "Alias removed." };
-        }
-
-        case "signout": {
-          await revoke(db, id, "sign-out-everywhere");
-
-          return {
-            message:
-              "Signed out everywhere: their next request asks them to sign in.",
-          };
-        }
-
-        case "recovery-remove": {
-          await removeRecoveryAddress(db, id, field(data, "recoveryId"));
-
-          return { message: "Recovery address removed." };
-        }
-
-        case "passkeys-remove": {
-          // A lost device: the person signs in with their password until they add another.
-          const removed = await removeAllPasskeys(db, id);
-
-          return {
-            message:
-              removed === 1
-                ? "Passkey removed."
-                : `${removed} passkeys removed.`,
-          };
-        }
-
-        case "two-factor-reset": {
-          // A lost authenticator: its secret and backup codes go, and the password alone signs them in again.
-          await resetTwoFactor(db, id);
-
-          return {
-            message:
-              "Two-factor authentication reset: their next password sign-in needs no code until they set up an authenticator app again.",
-          };
-        }
-
-        default: {
-          break;
-        }
-      }
-    } catch (error) {
-      if (error instanceof PeopleError) {
-        return { error: error.message };
-      }
-
-      throw error;
-    }
-
-    return {};
+    return groupsIntent(db, env, user, data);
   });
 
 const Feedback = ({
   result,
   error,
 }: {
-  result?: Result;
+  result?: SettingsResult;
   error: string | null;
 }) => {
   const message = result?.error ?? error;
@@ -848,7 +474,7 @@ const SignatureFields = ({ signature }: { signature?: SignatureRow }) => {
 };
 
 const SignatureItem = ({ signature: s }: { signature: SignatureRow }) => {
-  const act = useAction(accountAction, { id: s.id });
+  const act = useAction(signaturesAction, { id: s.id });
   const [editing, setEditing] = useState(false);
 
   return (
@@ -924,8 +550,8 @@ const SignatureItem = ({ signature: s }: { signature: SignatureRow }) => {
 };
 
 const Signatures = ({ signatures }: { signatures: SignatureRow[] }) => {
-  const create = useAction(accountAction);
-  const choose = useAction(accountAction);
+  const create = useAction(signaturesAction);
+  const choose = useAction(signaturesAction);
   const [adding, setAdding] = useState(false);
 
   return (
@@ -1076,18 +702,7 @@ const Account = ({
   maxRecoveryAddresses,
   mailDomain,
   sessions,
-}: Pick<
-  LoaderData,
-  | "me"
-  | "signatures"
-  | "twoFactorEnabled"
-  | "passkeys"
-  | "maxPasskeys"
-  | "recoveryAddresses"
-  | "maxRecoveryAddresses"
-  | "mailDomain"
-  | "sessions"
->) => {
+}: Pick<TabData<"account">, "me" | "signatures"> & AccountData) => {
   const profile = useAction(accountAction);
   const password = useAction(accountAction);
   const signOut = useAction(accountAction);
@@ -1694,66 +1309,401 @@ const People = ({
   );
 };
 
+/** What a group's mode means, in a line, for the list and the form that makes one. */
+const MODE_LINE: Record<GroupRow["mode"], string> = {
+  distribute: "Each member gets a copy in their own inbox.",
+  shared: "One inbox the members share in Mail.",
+};
+
+/** A confirmation before a submit that cannot be undone; the submit goes on only when the person agrees. */
+const confirmFirst =
+  (question: string) => (e: { preventDefault: () => void }) => {
+    // oxlint-disable-next-line eslint/no-alert -- destructive action requires user confirmation
+    if (!confirm(question)) {
+      e.preventDefault();
+    }
+  };
+
+/** One group: its address and mode, its members, and what the person may change of it. */
+const GroupItem = ({
+  group: g,
+  people,
+  isAdmin,
+}: {
+  group: GroupRow;
+  people: GroupsData["people"];
+  isAdmin: boolean;
+}) => {
+  const act = useAction(groupsAction, { id: g.id });
+  const [renaming, setRenaming] = useState(false);
+  const inGroup = new Set(g.members.map((m) => m.id));
+  const addable = people.filter((p) => !inGroup.has(p.id));
+
+  return (
+    <li className={cx("space-y-2 p-4", !g.active && "opacity-60")}>
+      <div className="flex items-center gap-3">
+        <Avatar name={g.name} size={28} />
+        <div className="min-w-0 flex-1">
+          {renaming ? (
+            <act.Form
+              className="flex items-center gap-1"
+              onSubmit={() => setRenaming(false)}
+            >
+              <input
+                name="name"
+                autoFocus
+                required
+                defaultValue={g.name}
+                aria-label="Group name"
+                className={cx(inputClass, "h-6 w-56 text-sm")}
+              />
+              <Button size="sm" type="submit" name="intent" value="rename">
+                Save
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => setRenaming(false)}
+              >
+                Cancel
+              </Button>
+            </act.Form>
+          ) : (
+            <div className="flex items-center gap-2 text-base font-medium">
+              <span className="truncate">{g.name}</span>
+              <Pill tone={g.mode === "shared" ? "accent" : "neutral"}>
+                {g.mode === "shared" ? "Shared inbox" : "Distribution"}
+              </Pill>
+              {!g.active && <Pill tone="amber">Off</Pill>}
+              {g.myRole === "owner" && (
+                <span className="text-subtle text-xs">you own it</span>
+              )}
+            </div>
+          )}
+          <div className="text-muted truncate text-sm">
+            {g.email}
+            <span className="text-subtle">
+              {" · "}
+              {MODE_LINE[g.mode]}
+            </span>
+          </div>
+        </div>
+        {g.canManage && (
+          <act.Form className="flex flex-wrap items-center gap-1">
+            {!renaming && (
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => setRenaming(true)}
+              >
+                <Pencil className="h-3.5 w-3.5" />
+                Rename
+              </Button>
+            )}
+            {isAdmin && (
+              <Button
+                size="sm"
+                variant="ghost"
+                type="submit"
+                name="intent"
+                value={g.active ? "deactivate" : "activate"}
+                onClick={
+                  g.active
+                    ? confirmFirst(
+                        `Turn ${g.email} off? Mail to it bounces until it is on again.`
+                      )
+                    : undefined
+                }
+              >
+                {g.active ? "Turn off" : "Turn on"}
+              </Button>
+            )}
+            {isAdmin && g.mode === "distribute" && (
+              <Button
+                size="sm"
+                variant="ghost"
+                type="submit"
+                name="intent"
+                value="delete"
+                title="Delete group"
+                aria-label={`Delete ${g.name}`}
+                onClick={confirmFirst(
+                  `Delete ${g.email}? Mail to it bounces from now on; what its members received stays with them.`
+                )}
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+              </Button>
+            )}
+          </act.Form>
+        )}
+      </div>
+      <ul className="space-y-1 pl-10">
+        {g.members.map((m) => (
+          <li key={m.id} className="flex items-center gap-2 text-sm">
+            <span className={cx("min-w-0 truncate", !m.active && "opacity-60")}>
+              {m.name} <span className="text-subtle">{m.email}</span>
+            </span>
+            {m.role === "owner" && <Pill tone="accent">Owner</Pill>}
+            {!m.active && <Pill tone="amber">Deactivated</Pill>}
+            {g.canManage && (
+              <act.Form className="ml-auto flex items-center gap-1">
+                <input type="hidden" name="userId" value={m.id} />
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  type="submit"
+                  name="intent"
+                  value={m.role === "owner" ? "member" : "owner"}
+                >
+                  {m.role === "owner" ? "Make member" : "Make owner"}
+                </Button>
+                <button
+                  type="submit"
+                  name="intent"
+                  value="remove"
+                  aria-label={`Remove ${m.name} from ${g.name}`}
+                  className="text-subtle hover:bg-hover hover:text-fg rounded-full p-0.5"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              </act.Form>
+            )}
+          </li>
+        ))}
+        {!g.members.length && (
+          <li className="text-subtle text-sm">
+            {g.mode === "distribute"
+              ? "No members yet: mail to it bounces."
+              : "No members yet: its mail waits for someone to read it."}
+          </li>
+        )}
+      </ul>
+      {g.canManage && addable.length > 0 && (
+        <act.Form className="flex flex-wrap items-center gap-1 pl-10">
+          <select
+            name="email"
+            required
+            defaultValue=""
+            aria-label={`Add someone to ${g.name}`}
+            className={cx(selectClass, "h-6 text-sm")}
+          >
+            <option value="" disabled>
+              Add someone…
+            </option>
+            {addable.map((p) => (
+              <option key={p.id} value={p.email}>
+                {p.name} ({p.email})
+              </option>
+            ))}
+          </select>
+          <select
+            name="role"
+            defaultValue="member"
+            aria-label="Their role in the group"
+            className={cx(selectClass, "h-6 text-sm")}
+          >
+            <option value="member">Member</option>
+            <option value="owner">Owner</option>
+          </select>
+          <Button size="sm" type="submit" name="intent" value="add">
+            <Plus className="h-3 w-3" />
+            Add
+          </Button>
+        </act.Form>
+      )}
+      <div className="pl-10">
+        <Feedback result={act.data} error={act.error} />
+      </div>
+    </li>
+  );
+};
+
+/** Settings → Groups: every group for an admin, the ones a person is in for anyone else. */
+const Groups = ({ groups, people, canCreate, mailDomain }: GroupsData) => {
+  const create = useAction(groupsAction);
+  const [adding, setAdding] = useState(false);
+
+  return (
+    <Section
+      title="Groups"
+      actions={
+        canCreate && (
+          <Button
+            size="sm"
+            onClick={() => setAdding((a) => !a)}
+            aria-expanded={adding}
+          >
+            <Plus className="h-3.5 w-3.5" />
+            New group
+          </Button>
+        )
+      }
+    >
+      {adding && (
+        <create.Form className="border-line bg-sidebar space-y-3 border-b p-4">
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Field label="Name" hint="Its mail goes out under this name.">
+              <input name="name" required className={inputClass} />
+            </Field>
+            <Field
+              label="Address"
+              hint={`Before the @; the address is on ${mailDomain}.`}
+            >
+              <div className="flex items-center">
+                <input
+                  name="email"
+                  required
+                  pattern="[^@\s]+"
+                  className={cx(inputClass, "rounded-r-none")}
+                />
+                <span className="border-line bg-hover text-muted flex h-7 items-center rounded-r-md border border-l-0 px-2 text-sm">
+                  @{mailDomain}
+                </span>
+              </div>
+            </Field>
+          </div>
+          <fieldset className="space-y-1">
+            <legend className="text-muted mb-1 text-sm font-medium">
+              Kind
+            </legend>
+            <label className="flex items-start gap-2 text-sm">
+              <input
+                type="radio"
+                name="mode"
+                value="distribute"
+                defaultChecked
+                className="mt-0.5"
+              />
+              <span>
+                Distribution group{" "}
+                <span className="text-muted">{MODE_LINE.distribute}</span>
+              </span>
+            </label>
+            <label className="flex items-start gap-2 text-sm">
+              <input
+                type="radio"
+                name="mode"
+                value="shared"
+                className="mt-0.5"
+              />
+              <span>
+                Shared inbox{" "}
+                <span className="text-muted">{MODE_LINE.shared}</span>
+              </span>
+            </label>
+          </fieldset>
+          <Feedback result={create.data} error={create.error} />
+          <div className="flex gap-2">
+            <Button
+              type="submit"
+              name="intent"
+              value="create"
+              variant="primary"
+              loading={create.state === "submitting"}
+            >
+              Create group
+            </Button>
+            <Button variant="ghost" onClick={() => setAdding(false)}>
+              Cancel
+            </Button>
+          </div>
+        </create.Form>
+      )}
+      <ul className="divide-line divide-y">
+        {groups.map((g) => (
+          <GroupItem key={g.id} group={g} people={people} isAdmin={canCreate} />
+        ))}
+      </ul>
+      {!groups.length && (
+        <div className="text-muted p-6 text-center text-base">
+          <Users className="mx-auto mb-2 h-4 w-4" />
+          {canCreate
+            ? "No groups yet. A group gives several people one address."
+            : "You are not in any group."}
+        </div>
+      )}
+    </Section>
+  );
+};
+
+/** Each tab's name in the header. */
+const TAB_LABELS: Record<SettingsTab, string> = {
+  account: "Account",
+  mail: "Mail",
+  tasks: "Tasks",
+  groups: "Groups",
+  people: "People",
+  drive: "Drive",
+  branding: "Branding",
+  applications: "Applications",
+};
+
+/** The open tab, from the slice the loader answered for it alone. */
+const TabBody = ({
+  settings,
+  connect,
+  reason,
+}: {
+  settings: LoaderData;
+  connect: string | undefined;
+  reason: string | undefined;
+}) => {
+  switch (settings.tab) {
+    case "mail": {
+      return (
+        <MailSettings {...settings.mail} connect={connect} reason={reason} />
+      );
+    }
+
+    case "tasks": {
+      return <TasksSettings github={settings.tasks.github} />;
+    }
+
+    case "groups": {
+      return <Groups {...settings.groups} />;
+    }
+
+    case "people": {
+      return <People {...settings.people} meId={settings.me.id} />;
+    }
+
+    case "drive": {
+      return <DriveSettings {...settings.drive} />;
+    }
+
+    case "branding": {
+      return <BrandingSettings {...settings.branding} />;
+    }
+
+    case "applications": {
+      return <ApplicationsSettings {...settings.applications} />;
+    }
+
+    case "account": {
+      return (
+        <Account
+          me={settings.me}
+          signatures={settings.signatures}
+          {...settings.account}
+        />
+      );
+    }
+
+    default: {
+      return unreachable(settings, "Settings tab");
+    }
+  }
+};
+
 const SettingsPage = () => {
-  const {
-    me,
-    signatures,
-    people,
-    mailDomain,
-    twoFactorEnabled,
-    passkeys,
-    maxPasskeys,
-    sessions,
-    recoveryAddresses,
-    maxRecoveryAddresses,
-    mail,
-    drive,
-    tasks,
-  } = Route.useLoaderData();
-
-  const { tab = "account", connect, reason } = Route.useSearch();
-
-  const tabs: ["account" | "mail" | "tasks" | "people" | "drive", string][] = [
-    ["account", "Account"],
-    ["mail", "Mail"],
-    ["tasks", "Tasks"],
-  ];
-
-  if (me.role === "admin") {
-    tabs.push(["people", "People"], ["drive", "Drive"]);
-  }
-
-  let body: React.ReactNode;
-
-  if (tab === "mail") {
-    body = <MailSettings {...mail} connect={connect} reason={reason} />;
-  } else if (tab === "tasks") {
-    body = <TasksSettings github={tasks.github} />;
-  } else if (tab === "people" && me.role === "admin") {
-    body = <People people={people} mailDomain={mailDomain} meId={me.id} />;
-  } else if (tab === "drive" && drive) {
-    body = <DriveSettings {...drive} />;
-  } else {
-    body = (
-      <Account
-        me={me}
-        signatures={signatures}
-        twoFactorEnabled={twoFactorEnabled}
-        passkeys={passkeys}
-        maxPasskeys={maxPasskeys}
-        recoveryAddresses={recoveryAddresses}
-        maxRecoveryAddresses={maxRecoveryAddresses}
-        mailDomain={mailDomain}
-        sessions={sessions}
-      />
-    );
-  }
+  const settings = Route.useLoaderData();
+  const { connect, reason } = Route.useSearch();
 
   return (
     <>
       <ViewHeader title="Settings">
         <div className="bg-hover flex items-center gap-0.5 rounded-md p-0.5">
-          {tabs.map(([key, label]) => (
+          {tabsFor(settings.me.role).map((key) => (
             <Link
               key={key}
               to="/settings"
@@ -1761,19 +1711,21 @@ const SettingsPage = () => {
               replace
               className={cx(
                 "h-6 rounded-[5px] px-2 text-sm leading-6 transition-colors duration-100",
-                tab === key
+                settings.tab === key
                   ? "bg-elevated text-fg shadow-[0_1px_2px_rgb(0_0_0/0.08)]"
                   : "text-muted hover:text-fg"
               )}
-              aria-current={tab === key ? "page" : undefined}
+              aria-current={settings.tab === key ? "page" : undefined}
             >
-              {label}
+              {TAB_LABELS[key]}
             </Link>
           ))}
         </div>
       </ViewHeader>
       <div className="flex-1 overflow-y-auto">
-        <div className="mx-auto max-w-2xl space-y-6 px-4 py-4">{body}</div>
+        <div className="mx-auto max-w-2xl space-y-6 px-4 py-4">
+          <TabBody settings={settings} connect={connect} reason={reason} />
+        </div>
       </div>
     </>
   );
@@ -1786,9 +1738,12 @@ const SettingsError = ({ error }: ErrorComponentProps) => (
 
 export const Route = createFileRoute("/_app/settings")({
   validateSearch: searchSchema,
+  // The open tab alone: another tab is another load. `connect` and `reason` stay out, as nothing loads them.
+  loaderDeps: ({ search }) => ({ tab: search.tab }),
   // Settings stay when the minute's refresh cannot load them again (#3548): an error state in their place would take
   // what is being typed into a form with it.
-  loader: (run) => keepShown(run, () => getSettings({ fetch: serverFnFetch })),
+  loader: (run) =>
+    keepShown(run, () => getSettings({ data: run.deps, fetch: serverFnFetch })),
   head: () => ({ meta: [{ title: "Settings · Workspace" }] }),
   component: SettingsPage,
   errorComponent: SettingsError,
@@ -1796,10 +1751,19 @@ export const Route = createFileRoute("/_app/settings")({
 
 type LoaderData = (typeof Route)["types"]["loaderData"];
 
-type RecoveryRow = LoaderData["recoveryAddresses"][number];
+/** What the loader answers when this tab is open. */
+type TabData<Tab extends SettingsTab> = Extract<LoaderData, { tab: Tab }>;
 
-type SignatureRow = LoaderData["signatures"][number];
+type AccountData = TabData<"account">["account"];
 
-type Person = LoaderData["people"][number];
+type RecoveryRow = AccountData["recoveryAddresses"][number];
 
-type SessionRow = LoaderData["sessions"][number];
+type SignatureRow = TabData<"account">["signatures"][number];
+
+type Person = TabData<"people">["people"]["people"][number];
+
+type GroupsData = TabData<"groups">["groups"];
+
+type GroupRow = GroupsData["groups"][number];
+
+type SessionRow = AccountData["sessions"][number];

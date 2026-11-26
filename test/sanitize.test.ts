@@ -67,6 +67,55 @@ const inDark = (html: string, swapped = false) => {
   return { reading, doc, body: doc.slice(doc.indexOf("<body>")) };
 };
 
+/** `unit` repeated between `before` and `after`, to `size` characters in all. */
+const fill = (unit: string, before: string, after: string, size: number) =>
+  before +
+  unit.repeat(Math.floor((size - before.length - after.length) / unit.length)) +
+  after;
+
+// From every `@media` without a `{` after it, the search for a dark-mode query ran on to the end of the style sheet,
+// as did the search for the `)` of every `url(` in a colour, so 40 KB of either took 0.4 to 1.2 s to read (#3667).
+// One pass reads each in a millisecond.
+const craftedCss = (size: number) => ({
+  "@media": fill("@media", "<style>", "</style>x", size),
+  "@media {": fill("@media ", "<style>", "{p{color:red}}</style>x", size),
+  "dark queries": fill(
+    "@media (prefers-color-scheme:dark){p{color:red}}",
+    "<style>",
+    "</style>x",
+    size
+  ),
+  "url( in a style sheet": fill(
+    "url(",
+    "<style>p{background:",
+    "}</style>x",
+    size
+  ),
+  "url( in a style attribute": fill(
+    "url(",
+    '<p style="color:',
+    '">x</p>',
+    size
+  ),
+  "url( in bgcolor": fill("url(", '<p bgcolor="', '">x</p>', size),
+});
+
+/** The inputs whose readings and documents, light and dark, took `budgetMs` or more. */
+const slowToReadCss = (inputs: Record<string, string>, budgetMs: number) =>
+  Object.entries(inputs)
+    .filter(([, raw]) => {
+      const safe = sanitizeHtml(raw, { cidUrl }).html;
+      const started = performance.now();
+
+      for (const swapped of [false, true]) {
+        const reading = mailReading(safe, { dark: true, swapped });
+        mailDocument(safe, { origin, loadRemoteImages: false, reading });
+      }
+
+      return performance.now() - started >= budgetMs;
+    })
+    .map(([name]) => name);
+
 describe(sanitizeHtml, () => {
   it("drops scripts, frames, forms and event handlers, and keeps the text", () => {
     const { html } = sanitizeHtml(
@@ -646,6 +695,28 @@ describe(mailDocument, () => {
     });
   });
 
+  it("adapts the rules beside a message's dark-mode queries and leaves the rules inside them as written", () => {
+    const { reading, doc } = inDark(
+      '<style>@media screen{p{margin:0}} @media (prefers-color-scheme: dark){.a{color:#101010}} .b{color:#111111} @media screen and (prefers-color-scheme:dark){.c{color:#121212}} .d{color:#131313}</style><p class="b">x</p>'
+    );
+
+    expect({
+      reading,
+      a: doc.includes(".a{color:#101010}"),
+      b: doc.includes("#111111"),
+      c: doc.includes(".c{color:#121212}"),
+      d: doc.includes("#131313"),
+    }).toStrictEqual({ reading: dark, a: true, b: false, c: true, d: false });
+  });
+
+  it("reads 100 KB of crafted CSS in linear time, for either reading (#3667)", () => {
+    expect(slowToReadCss(craftedCss(100_000), 100)).toStrictEqual([]);
+  });
+
+  it("reads crafted CSS as large as MAX_HTML in linear time (#3667)", () => {
+    expect(slowToReadCss(craftedCss(MAX_HTML), 1500)).toStrictEqual([]);
+  });
+
   it("takes a color-scheme declaration without dark-mode CSS for no dark mode", () => {
     const { reading, body } = inDark(
       '<meta name="color-scheme" content="light dark"><h2 style="color:#111111">Invoice</h2><p style="color:#333333">Attached.</p>'
@@ -772,9 +843,18 @@ describe(textToHtml, () => {
         cidUrl,
       }).html
     ).toContain('<details class="rivi-quote">');
-    expect(
-      textToHtml("FYI\n\n---------- Forwarded message ---------\nFrom: Jane")
-    ).not.toContain("gmail_quote");
+
+    // A forward's original goes in the quote a rich forward writes (so a signature goes above it), and stays in view.
+    const forward = textToHtml(
+      "FYI\n\n---------- Forwarded message ---------\nFrom: Jane\n\nThe numbers"
+    );
+
+    expect({
+      quoted: forward.includes(
+        '<p style="margin:0 0 16px">FYI</p><div class="gmail_quote"><p style="margin:0 0 16px">---------- Forwarded message ---------<br>From: Jane</p><p style="margin:0 0 16px">The numbers</p></div>'
+      ),
+      folded: sanitizeHtml(forward, { cidUrl }).html.includes("rivi-quote"),
+    }).toStrictEqual({ quoted: true, folded: false });
   });
 
   it("signs above the quoted original, and at the end of a new message", () => {

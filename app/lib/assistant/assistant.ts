@@ -1,7 +1,11 @@
 import type { UIMessage } from "ai";
 
+import { calendarHref } from "~/lib/calendar/calendar";
 import { driveHref } from "~/lib/drive/drive";
 import { listHref } from "~/lib/mail/links";
+import { tasksHref } from "~/lib/tasks/tasks";
+
+import { daysLabel, stampLabel } from "./time";
 
 /**
  * The Assistant's shared vocabulary: what the page, the sidebar and the server (`chat.server.ts`) agree on. A plain
@@ -15,9 +19,18 @@ export const ASSISTANT_TOOLS = [
   "search_drive",
   "read_file",
   "create_draft",
+  "read_attachment",
+  "list_events",
+  "list_tasks",
+  "create_task",
+  "create_event",
+  "organize_mail",
 ] as const;
 
 export type AssistantToolName = (typeof ASSISTANT_TOOLS)[number];
+
+/** How long after the assistant organised mail its step offers Undo, and the server takes it. */
+export const UNDO_WINDOW_MS = 10 * 60_000;
 
 /** A question is at most this long. */
 export const MAX_QUESTION_CHARS = 8000;
@@ -89,6 +102,8 @@ export const isToolPart = (part: { type: string }): part is ToolPart =>
 export const SUGGESTIONS = [
   "What arrived in my inbox today?",
   "Summarize my unread conversations",
+  "What is on my calendar this week?",
+  "Which tasks are overdue?",
   "Which files did I work on last?",
   "Help me write an email",
 ] as const;
@@ -181,14 +196,23 @@ const phaseLabel = (
   return failed ? labels.failed : labels.done;
 };
 
-/** A search step: "Searched mail for “x”" with a query, "Listed mail" without. */
+/**
+ * A search step: "Searched mail for “x”" with a query, "Searched mail about “x”" for a search by meaning, "Listed
+ * mail" without either.
+ */
 const searchLabel = (
-  { running }: StepState,
+  { running, input }: StepState,
   query: string | undefined,
   labels: { busy: string; searched: string; listed: string }
 ) => {
   if (running) {
     return labels.busy;
+  }
+
+  const about = str(input, "about");
+
+  if (about) {
+    return `${labels.searched.replace(/ for$/u, "")} about ${quote(about)}`;
   }
 
   return query ? `${labels.searched} ${quote(query)}` : labels.listed;
@@ -213,6 +237,202 @@ const draftDetail = (state: StepState) => {
   const to = str(state.output, "to");
 
   return to ? `to ${to}` : undefined;
+};
+
+/** What `organize_mail` did, in the past tense, around how many conversations it did it to. */
+const organized = (
+  action: string | undefined,
+  n: string,
+  label: string | undefined,
+  until: string | undefined
+): string => {
+  // A step stored before an action was added, or without one, still reads as something organised.
+  switch (action ?? "") {
+    case "archive": {
+      return `Archived ${n}`;
+    }
+
+    case "inbox": {
+      return `Moved ${n} to the inbox`;
+    }
+
+    case "trash": {
+      return `Moved ${n} to the trash`;
+    }
+
+    case "star": {
+      return `Starred ${n}`;
+    }
+
+    case "unstar": {
+      return `Took the star off ${n}`;
+    }
+
+    case "read": {
+      return `Marked ${n} as read`;
+    }
+
+    case "unread": {
+      return `Marked ${n} as unread`;
+    }
+
+    case "snooze": {
+      return `Snoozed ${n}${until ? ` until ${stampLabel(until)}` : ""}`;
+    }
+
+    case "unsnooze": {
+      return `Ended the snooze of ${n}`;
+    }
+
+    case "label": {
+      return `Put the label ${quote(label)} on ${n}`;
+    }
+
+    case "unlabel": {
+      return `Took the label ${quote(label)} off ${n}`;
+    }
+
+    default: {
+      return `Organised ${n}`;
+    }
+  }
+};
+
+/** What the step says beside what it did: that it was undone, and what it left alone. */
+const organizedDetail = (state: StepState): string | undefined => {
+  if (state.failed) {
+    return state.error;
+  }
+
+  const inSpam = num(state.output, "inSpam");
+
+  return (
+    [
+      field(state.output, "undone") === true ? "undone" : "",
+      inSpam ? `${plural(inSpam, "conversation")} in Spam left alone` : "",
+    ]
+      .filter(Boolean)
+      .join(", ") || undefined
+  );
+};
+
+/** The step of the tool that organises mail (`organize-tools.server.ts`). */
+const organizeStep = (state: StepState): StepView => {
+  const { running, failed, output } = state;
+
+  return {
+    label: phaseLabel(state, {
+      busy: "Organising mail…",
+      failed: "Could not organise the mail",
+      done: organized(
+        str(output, "action"),
+        plural(num(output, "count") ?? 0, "conversation"),
+        str(output, "label"),
+        str(output, "until")
+      ),
+    }),
+    detail: organizedDetail(state),
+    link: str(output, "link"),
+    running,
+    failed,
+  };
+};
+
+/**
+ * Whether a step can still be undone at `now`: the assistant organised mail, the step names an undo the server
+ * keeps, nobody used it, and it is no older than `UNDO_WINDOW_MS`.
+ */
+export const canUndo = (part: ToolPart, now: number): boolean => {
+  const at = Date.parse(str(part.output, "at") ?? "");
+
+  return (
+    part.type === "tool-organize_mail" &&
+    part.state === "output-available" &&
+    Boolean(str(part.output, "undoId")) &&
+    field(part.output, "undone") !== true &&
+    now - at <= UNDO_WINDOW_MS
+  );
+};
+
+/** The step of a Calendar or Tasks tool (`planner-tools.server.ts`), or null for another tool. */
+const plannerStep = (name: string, state: StepState): StepView | null => {
+  const { running, failed, input, output } = state;
+
+  switch (name) {
+    case "list_events": {
+      const from = str(input, "from");
+      const to = str(input, "to");
+
+      return {
+        label: phaseLabel(state, {
+          busy: "Reading the calendar…",
+          failed: "Could not read the calendar",
+          done: from
+            ? `Read the calendar, ${daysLabel(from, to)}`
+            : "Read the calendar",
+        }),
+        detail: countDetail(state, "event"),
+        link: str(output, "link") ?? calendarHref(),
+        running,
+        failed,
+      };
+    }
+
+    case "list_tasks": {
+      return {
+        label: phaseLabel(state, {
+          busy: "Reading the tasks…",
+          failed: "Could not read the tasks",
+          done:
+            str(input, "status") === "done"
+              ? "Read the tasks that are done"
+              : "Read the open tasks",
+        }),
+        detail: countDetail(state, "task"),
+        link: str(output, "link") ?? tasksHref(),
+        running,
+        failed,
+      };
+    }
+
+    case "create_task": {
+      const title = str(output, "title");
+      const dueOn = str(output, "dueOn");
+
+      return {
+        label: phaseLabel(state, {
+          busy: "Adding a task…",
+          failed: "Could not add the task",
+          done: `Added a task${title ? `: ${quote(title)}` : ""}`,
+        }),
+        detail: failed ? state.error : dueOn && `due ${stampLabel(dueOn)}`,
+        link: str(output, "link"),
+        running,
+        failed,
+      };
+    }
+
+    case "create_event": {
+      const title = str(output, "title");
+      const start = str(output, "start");
+
+      return {
+        label: phaseLabel(state, {
+          busy: "Adding an event…",
+          failed: "Could not add the event",
+          done: `Added an event${title ? `: ${quote(title)}` : ""}`,
+        }),
+        detail: failed ? state.error : start && stampLabel(start),
+        link: str(output, "link"),
+        running,
+        failed,
+      };
+    }
+
+    default: {
+      return null;
+    }
+  }
 };
 
 const toolStep = (name: string, state: StepState): StepView => {
@@ -265,6 +485,7 @@ const toolStep = (name: string, state: StepState): StepView => {
       };
     }
 
+    case "read_attachment":
     case "read_file": {
       return {
         label: phaseLabel(state, {
@@ -295,12 +516,18 @@ const toolStep = (name: string, state: StepState): StepView => {
       };
     }
 
+    case "organize_mail": {
+      return organizeStep(state);
+    }
+
     default: {
-      return {
-        label: running ? `Running ${name}…` : `Ran ${name}`,
-        running,
-        failed,
-      };
+      return (
+        plannerStep(name, state) ?? {
+          label: running ? `Running ${name}…` : `Ran ${name}`,
+          running,
+          failed,
+        }
+      );
     }
   }
 };

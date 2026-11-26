@@ -3,6 +3,7 @@
 // (sent through the local EMAIL binding) -> Sent lists the thread -> archive -> search finds it
 // -> Drive takes an upload, lists it, serves it and finds it -> a link outside the workspace opens the file's page and
 // serves the file without a session, with Range, until it is revoked -> Better Auth answers the session and signs out
+// -> single sign-on signs the admin in to the seeded application (a code, the tokens, userinfo)
 // -> the Assistant answers a question through its search_mail tool (on the mock model) and keeps the conversation ->
 // the calendar, the tasks and the GitHub connection page render -> the forgotten-password request answers the same
 // for any address, and the reset pages render.
@@ -237,6 +238,11 @@ const health = await r.json();
 
 if (!r.ok || !health.ok) {
   fail("health endpoint failed");
+}
+
+// The phone app's start page reads it from its own origin before it keeps a workspace's address (mobile/).
+if (r.headers.get("access-control-allow-origin") !== "*") {
+  fail("health endpoint is not readable from the phone app");
 }
 
 log("search, the views, Settings → Mail and health ok");
@@ -482,6 +488,87 @@ log(
   "a link outside the workspace serves the file without a session, and nothing once revoked"
 );
 
+// 7b. Single sign-on: the seeded application (`app_local_example`, seed/seed.sql) gets a code for the signed-in
+// admin, redeems it with its secret and the PKCE verifier, and reads userinfo with the access token.
+{
+  const verifier = Buffer.from(
+    crypto.getRandomValues(new Uint8Array(32))
+  ).toString("base64url");
+
+  const challenge = Buffer.from(
+    await crypto.subtle.digest("SHA-256", new TextEncoder().encode(verifier))
+  ).toString("base64url");
+
+  const redirectUri = "http://localhost:5175/auth/callback";
+
+  const query = new URLSearchParams({
+    response_type: "code",
+    client_id: "app_local_example",
+    redirect_uri: redirectUri,
+    scope: "openid email profile",
+    state: "smoke-state",
+    nonce: "smoke-nonce",
+    code_challenge: challenge,
+    code_challenge_method: "S256",
+  });
+
+  r = await fetch(`${base}/oauth/authorize?${query}`, {
+    headers: { cookie },
+    redirect: "manual",
+  });
+
+  const back = URL.parse(r.headers.get("location") ?? "");
+  const code = back?.searchParams.get("code");
+
+  if (
+    r.status !== 302 ||
+    !code ||
+    back.searchParams.get("state") !== "smoke-state"
+  ) {
+    fail(`authorize answered ${r.status} ${r.headers.get("location")}`);
+  }
+
+  r = await fetch(`${base}/oauth/token`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/x-www-form-urlencoded",
+      authorization: `Basic ${btoa("app_local_example:dev-sso-client-secret")}`,
+    },
+    body: new URLSearchParams({
+      grant_type: "authorization_code",
+      code,
+      redirect_uri: redirectUri,
+      code_verifier: verifier,
+    }),
+  });
+
+  const tokens = await r.json().catch(() => null);
+
+  if (!r.ok || !tokens?.id_token || !tokens?.access_token) {
+    fail(`the token endpoint answered ${r.status}`);
+  }
+
+  const claims = JSON.parse(
+    Buffer.from(tokens.id_token.split(".")[1], "base64url").toString()
+  );
+
+  if (claims.email !== mailbox || claims.nonce !== "smoke-nonce") {
+    fail("the ID token names someone else");
+  }
+
+  r = await fetch(`${base}/oauth/userinfo`, {
+    headers: { authorization: `Bearer ${tokens.access_token}` },
+  });
+
+  const info = await r.json().catch(() => null);
+
+  if (!r.ok || info?.email !== mailbox) {
+    fail(`userinfo answered ${r.status}`);
+  }
+}
+
+log("single sign-on signs the admin in to the seeded application");
+
 // 8. Better Auth: the session the sign-in made answers at /api/auth/get-session, and the account menu's sign-out
 // (a form post to /logout, which ends it through Better Auth) leaves nothing behind
 r = await req("/api/auth/get-session");
@@ -531,7 +618,7 @@ if (!r.ok) {
 
 html = await r.text();
 
-if (!html.includes("Ask about your mail and files")) {
+if (!html.includes("Ask about your mail, files, calendar and tasks")) {
   fail("the Assistant page shows no welcome");
 }
 
@@ -618,6 +705,27 @@ for (const [path, expected] of [
 }
 
 log("the calendar, the tasks and the GitHub connection page render");
+
+// 10b. Settings loads the open tab alone: each tab the seeded admin sees renders from its own slice.
+for (const [path, expected] of [
+  ["/settings", "Change password"],
+  ["/settings?tab=account", "Signatures"],
+  ["/settings?tab=mail", "Reading and writing"],
+  ["/settings?tab=people", "Add person"],
+  ["/settings?tab=drive", "Sharing outside the workspace"],
+  ["/settings?tab=applications", "Single sign-on"],
+]) {
+  // oxlint-disable-next-line eslint/no-await-in-loop -- a smoke test walks its checks in order, one request at a time
+  r = await req(path);
+  // oxlint-disable-next-line eslint/no-await-in-loop -- a smoke test walks its checks in order, one request at a time
+  html = await r.text();
+
+  if (!r.ok || !html.includes(expected)) {
+    fail(`${path} failed: ${r.status}`);
+  }
+}
+
+log("every Settings tab renders");
 
 // 11. a forgotten password: the request answers the same for any address, and the pages render signed out
 for (const email of [mailbox, "nobody@example.com"]) {

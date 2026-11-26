@@ -1,0 +1,27 @@
+{
+  "compilerOptions": {
+    "strict": true,
+    "noEmit": true,
+    "skipLibCheck": true,
+    "verbatimModuleSyntax": true,
+    "allowImportingTsExtensions": true,
+    "types": [
+      "node"
+    ],
+    "lib": [
+      "ES2023",
+      "DOM"
+    ],
+    "target": "ES2023",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "checkJs": true,
+    "allowJs": true
+  },
+  "include": [
+    "scripts/**/*.ts",
+    "tests/**/*.ts",
+    "src/**/*.js",
+    "src/**/*.d.ts"
+  ]
+}

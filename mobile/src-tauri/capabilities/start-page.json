@@ -1,0 +1,12 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "start-page",
+  "description": "The start page (src/index.html) reads and sets the workspace's address. No remote origin is named, so no page of a workspace, nor any site it opens, may call the app.",
+  "local": true,
+  "windows": ["main"],
+  "permissions": [
+    "allow-workspace-address",
+    "allow-parse-workspace-address",
+    "allow-set-workspace-address"
+  ]
+}

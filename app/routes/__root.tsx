@@ -11,9 +11,15 @@ import {
 import type { ErrorComponentProps } from "@tanstack/react-router";
 import type { ReactNode } from "react";
 
-import { RiviMark } from "~/components/brand";
+import { BrandMark } from "~/components/brand";
 
 import { THEME_COLORS, themeInitScript } from "../components/theme";
+import {
+  APPLE_TOUCH_ICON_HREF,
+  BRAND_STYLESHEET_HREF,
+  FAVICON_HREF,
+  MANIFEST_HREF,
+} from "../lib/icons";
 
 import appCss from "../app.css?url";
 
@@ -42,7 +48,7 @@ const ErrorShell = ({
   stack?: string;
 }) => (
   <main className="mx-auto max-w-2xl p-10">
-    <RiviMark className="mb-6 text-[28px]" />
+    <BrandMark className="mb-6 text-[28px]" />
     <h1 className="text-xl font-semibold">{message}</h1>
     <p className="text-muted mt-2 text-base">{details}</p>
     <a
@@ -118,9 +124,12 @@ export const Route = createRootRoute({
     ],
     links: [
       { rel: "stylesheet", href: appCss },
-      { rel: "icon", href: "/favicon.svg", type: "image/svg+xml" },
-      { rel: "apple-touch-icon", href: "/apple-touch-icon.png" },
-      { rel: "manifest", href: "/manifest.webmanifest" },
+      // After app.css, so the accent an admin set wins (Settings → Branding); empty without one.
+      { rel: "stylesheet", href: BRAND_STYLESHEET_HREF },
+      // No `type`: the workspace's icon may be a PNG (Settings → Branding).
+      { rel: "icon", href: FAVICON_HREF },
+      { rel: "apple-touch-icon", href: APPLE_TOUCH_ICON_HREF },
+      { rel: "manifest", href: MANIFEST_HREF },
     ],
   }),
   shellComponent: RootDocument,

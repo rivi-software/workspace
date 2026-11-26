@@ -645,7 +645,7 @@ describe("organising mail", () => {
       new Date(Date.now() - 31 * 86_400_000)
     );
     await applyThreadAction(db, env, other.id, [fresh], { intent: "trash" });
-    await expect(pruneExpired(db, env, other.id)).resolves.toBe(1);
+    await expect(pruneExpired(db, env)).resolves.toBe(1);
     await expect(thread(old)).resolves.toBeUndefined();
     await expect(thread(fresh)).resolves.toBeDefined();
     await expect(emptyFolder(db, env, other.id, "trash")).resolves.toBe(1);

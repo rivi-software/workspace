@@ -4,6 +4,7 @@ import { createServerFn } from "@tanstack/react-start";
 
 import { AssistantPage } from "~/components/assistant/chat";
 import { SectionError } from "~/components/section-error";
+import { aiEnabled } from "~/lib/ai";
 import { getConversation } from "~/lib/assistant/chat.server";
 import { keepShown } from "~/lib/keep-shown";
 import { appContext } from "~/lib/request.server";
@@ -14,8 +15,12 @@ import { assistantTitle } from "./assistant";
 const getConversationData = createServerFn()
   .validator((d: { id: string }) => d)
   .handler(async ({ data }) => {
-    const { db, user } = await appContext();
-    const found = await getConversation(db, user.id, data.id);
+    const { db, user, env } = await appContext();
+
+    // With AI off no conversation opens; the section says why (./assistant.tsx).
+    const found = aiEnabled(env)
+      ? await getConversation(db, user.id, data.id)
+      : null;
 
     if (!found) {
       throw notFound();

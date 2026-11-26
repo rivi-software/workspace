@@ -16,6 +16,7 @@ import {
 import {
   htmlToText,
   MAX_DEPTH,
+  MAX_HTML,
   MAX_TEXT,
   quoteHtmlForForward,
   quoteHtmlForReply,
@@ -74,6 +75,78 @@ describe("a text reading of HTML", () => {
     const read = htmlToText(long);
     expect(read.length).toBeLessThanOrEqual(MAX_TEXT);
     expect(read.length).toBeGreaterThan(MAX_TEXT - 100);
+  });
+
+  it("reads a `<` that starts no tag or that no `>` ends as text, and a `>` in a quoted value as its tag's", () => {
+    expect(htmlToText("<p>1 < 2 and 3 > 2</p>")).toBe("1 < 2 and 3 > 2");
+    expect(htmlToText("<p>Keep <b this")).toBe("Keep <b this");
+    expect(htmlToText('<p>Hi <span title="a>b">there</span></p>')).toBe(
+      "Hi there"
+    );
+  });
+
+  it("reads a comment or style left open as the browser would, and a style's end tag with a space in it", () => {
+    expect(htmlToText("<!-- open <p>Hello</p>")).toBe("Hello");
+    expect(htmlToText("<p>a</p><!-- never closed")).toBe(
+      "a\n\n<!-- never closed"
+    );
+    expect(htmlToText("<style>p{}<p>Still here</p>")).toBe("p{}\n\nStill here");
+    expect(htmlToText("<p>x</p><style>.a{}</style >after")).toBe("x\n\nafter");
+  });
+
+  // Markup that never closes, repeated to `MAX_HTML`: the three expressions before the tag loop and the loop's own
+  // looked again from every opening for a `-->`, `>` or end tag that never came, and a line was read whole again after
+  // every piece added to it, so most of these took minutes (80,000 `<!` took 4.6 s, #3565). One pass reads each in
+  // well under a second.
+  const CRAFTED_BUDGET_MS = 1500;
+
+  const readsInTime = (units: string[]) =>
+    units.filter((unit) => {
+      const html = unit.repeat(Math.ceil(MAX_HTML / unit.length));
+      const started = performance.now();
+      htmlToText(html);
+
+      return performance.now() - started >= CRAFTED_BUDGET_MS;
+    });
+
+  it("reads comments, doctypes and dropped elements that never close in linear time (#3565)", () => {
+    expect(
+      readsInTime([
+        "<!--",
+        "<!",
+        "<?",
+        "<style>",
+        "<style ",
+        "<script>",
+        "<head>",
+        "<title>",
+        "<template>",
+      ])
+    ).toStrictEqual([]);
+  });
+
+  it("reads tags that never end, and lines that only grow, in linear time (#3565)", () => {
+    expect(
+      readsInTime([
+        "<",
+        "<a",
+        "<a <",
+        '<a "',
+        '<a "<b "',
+        "</td>a",
+        "<pre> <div>",
+      ])
+    ).toStrictEqual([]);
+    expect(
+      readsInTime([`<a href="https://x.co/${" ".repeat(MAX_HTML / 2)}">x</a>`])
+    ).toStrictEqual([]);
+  });
+
+  it("reads only the first MAX_HTML characters of a longer part", () => {
+    const within = "<p>within</p>";
+    const pad = " ".repeat(MAX_HTML - within.length);
+
+    expect(htmlToText(`${pad}${within}<p>beyond</p>`)).toBe("within");
   });
 });
 

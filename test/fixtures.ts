@@ -89,6 +89,28 @@ export const mailbox = async (
   return defined(await db.query.users.findFirst({ where: eq(users.id, id) }));
 };
 
+/** A mailbox whose person is an admin. */
+export const adminMailbox = async (
+  local: string,
+  name = local
+): Promise<User> => {
+  const user = await mailbox(local, name);
+  await db.update(users).set({ role: "admin" }).where(eq(users.id, user.id));
+
+  return { ...user, role: "admin" };
+};
+
+/** A form as a browser posts it, with these fields. */
+export const formOf = (fields: Record<string, string>): FormData => {
+  const form = new FormData();
+
+  for (const [name, value] of Object.entries(fields)) {
+    form.set(name, value);
+  }
+
+  return form;
+};
+
 /** The session cookie's name, as Better Auth sets it on the tests' https origin (`__Secure-workspace.session_token`). */
 export const SESSION_COOKIE = sessionCookieName(env);
 
@@ -119,6 +141,14 @@ export const sessionFor = async (
 
   return defined(sessionCookieOf(res), `a session for ${user.email}`);
 };
+
+/** A request from a browser that sends this `cookie` header, for code that reads the session. */
+export const withCookie = (cookie: string): Request =>
+  new Request(env.APP_URL, { headers: { cookie } });
+
+/** A request from a browser signed in as the person (`sessionFor`). */
+export const requestAs = async (user: User): Promise<Request> =>
+  withCookie(await sessionFor(user));
 
 /** The session token itself, for a bearer `Authorization` header (the API's tests). */
 export const tokenOf = (cookie: string): string =>

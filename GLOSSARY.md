@@ -13,6 +13,13 @@ _Avoid_: user, account, member (a role)
 **Admin**:
 A person who may also create mailboxes and manage the other people: their passwords, passkeys, second factor, aliases, roles and sessions.
 
+**Second factor**:
+What confirms a password sign-in: Duo's prompt while Duo is set up, else the person's authenticator app. A passkey signs in on its own. A session records how it was signed in (`amr`).
+
+**Application**:
+Another app that signs people in through the workspace (single sign-on, OpenID Connect), registered by an admin under Settings → Applications, open to everyone or to the people on its list, each with an optional role.
+_Avoid_: client (the protocol's word, fine in code), relying party
+
 ### Mail
 
 **Mailbox**:
@@ -21,6 +28,16 @@ _Avoid_: inbox (one folder of it), account
 
 **Alias**:
 An extra address delivered to a mailbox, which its owner may also send from.
+
+**Group** (group inbox):
+An address on the mail domain that several people answer, made by an admin. A group is a mailbox nobody signs in as. Its **owners** add and remove its members; its **members** read and send as it.
+_Avoid_: team, list (a mailing list someone else runs)
+
+**Distribution group**:
+A group whose mail is filed in each member's own mailbox; each member reads and files their copy alone.
+
+**Shared inbox**:
+A group with one mailbox of its own that every member opens in Mail: a conversation read, archived or answered there is so for all of them.
 
 **Thread**:
 The messages of one exchange in one mailbox, shown together.

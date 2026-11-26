@@ -36,8 +36,9 @@ export const useShortcuts = (shortcuts: Shortcut[]) => {
   });
 
   const pending = useRef<string | null>(null);
-  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+
     const onKey = (e: KeyboardEvent) => {
       // An open dialog takes Escape itself (its cancel event); a shortcut's preventDefault would stop that.
       if (e.key === "Escape" && document.querySelector("dialog[open]")) {
@@ -77,9 +78,7 @@ export const useShortcuts = (shortcuts: Shortcut[]) => {
         const chord = `${pending.current} ${key}`;
         pending.current = null;
 
-        if (timer.current) {
-          clearTimeout(timer.current);
-        }
+        clearTimeout(timer);
 
         const hit = ref.current.find(
           (s) => s.keys === chord && (s.allowInInput || !typing)
@@ -106,7 +105,7 @@ export const useShortcuts = (shortcuts: Shortcut[]) => {
 
       if (ref.current.some((s) => s.keys.startsWith(`${key} `))) {
         pending.current = key;
-        timer.current = setTimeout(() => {
+        timer = setTimeout(() => {
           pending.current = null;
         }, 800);
 
@@ -123,7 +122,12 @@ export const useShortcuts = (shortcuts: Shortcut[]) => {
 
     document.addEventListener("keydown", onKey);
 
-    return () => document.removeEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("keydown", onKey);
+
+      // A chord started just before the page left must not outlive it.
+      clearTimeout(timer);
+    };
   }, []);
 };
 

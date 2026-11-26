@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 
-import { RiviMark } from "~/components/brand";
+import { BrandMark } from "~/components/brand";
 
 /** The card a signed-out page's form sits on. */
 export const authCardClass =
@@ -19,7 +19,7 @@ export const AuthShell = ({
   <main className="bg-sidebar flex min-h-dvh items-center justify-center p-6">
     <div className="animate-fade-in w-full max-w-[360px]">
       <div className="mb-6 flex items-center gap-2.5">
-        <RiviMark className="text-[32px]" />
+        <BrandMark className="text-[32px]" />
         <div>
           <h1 className="text-md leading-tight font-semibold">{appName}</h1>
           <p className="text-muted text-sm">{subtitle}</p>

@@ -10,6 +10,7 @@ import {
 } from "@tanstack/react-router";
 import { createServerFn } from "@tanstack/react-start";
 import {
+  AppWindow,
   Archive,
   Bell,
   BellOff,
@@ -37,11 +38,12 @@ import {
   Star,
   Sun,
   Trash2,
+  UsersRound,
 } from "lucide-react";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 
 import { AssistantSidebar } from "~/components/assistant/sidebar";
-import { RiviMark } from "~/components/brand";
+import { BrandMark } from "~/components/brand";
 import { PlannerSidebar } from "~/components/calendar/sidebar";
 import { DriveSidebar } from "~/components/drive/sidebar";
 import { UploadPanel, UploadProvider } from "~/components/drive/uploads";
@@ -55,46 +57,77 @@ import { ToastProvider, useToast } from "~/components/toast";
 import {
   Avatar,
   Menu,
+  MenuAnchor,
   MenuItem,
   MenuLink,
   MenuSeparator,
   cx,
 } from "~/components/ui";
+import { aiEnabled } from "~/lib/ai";
 import { listConversations } from "~/lib/assistant/chat.server";
+import { assistantReady } from "~/lib/assistant/provider.server";
 import { colleagues, storageUsed } from "~/lib/drive/drive.server";
 import { isJsonObject, stringOrNull } from "~/lib/guards";
+import { FAVICON_HREF } from "~/lib/icons";
 import { keepShown } from "~/lib/keep-shown";
 import type { Folder, LabelRef } from "~/lib/mail/folders";
+import { sharedMailboxes } from "~/lib/mail/groups.server";
 import { listLabels } from "~/lib/mail/labels.server";
 import { folderCounts, newestUnread } from "~/lib/mail/mailbox.server";
 import { parsePreferences } from "~/lib/mail/preferences";
 import { participantLabel } from "~/lib/mail/threading";
 import { appContext } from "~/lib/request.server";
 import { serverFnFetch } from "~/lib/server-fn-fetch";
+import { listApps } from "~/lib/sso/clients.server";
 import { githubConnection } from "~/lib/tasks/github.server";
 
 const getLayout = createServerFn().handler(async () => {
   const { db, user, env } = await appContext();
+  const assistant = aiEnabled(env);
 
-  const [counts, labels, newest, driveUsed, conversations, people, github] =
-    await Promise.all([
-      folderCounts(db, user.id),
-      listLabels(db, user.id),
-      newestUnread(db, user.id),
-      // What the person's files in Drive take, for the sidebar.
-      storageUsed(db, user.id),
-      // The person's recent conversations with the Assistant, for its sidebar.
-      listConversations(db, user.id, 30),
-      // Whom a new event from the sidebar can invite (#3111).
-      colleagues(db, user.id),
-      // Whether a new task from the sidebar can name a GitHub issue.
-      githubConnection(db, user.id),
-    ]);
+  const [
+    counts,
+    labels,
+    newest,
+    driveUsed,
+    conversations,
+    people,
+    github,
+    apps,
+    shared,
+  ] = await Promise.all([
+    folderCounts(db, user.id),
+    listLabels(db, user.id),
+    newestUnread(db, user.id),
+    // What the person's files in Drive take, for the sidebar.
+    storageUsed(db, user.id),
+    // The person's recent conversations with the Assistant, for its sidebar.
+    assistant ? listConversations(db, user.id, 30) : [],
+    // Whom a new event from the sidebar can invite (#3111).
+    colleagues(db, user.id),
+    // Whether a new task from the sidebar can name a GitHub issue.
+    githubConnection(db, user.id),
+    // The applications the person signs in to through the workspace, under Apps in the account menu.
+    listApps(db, user.id),
+    // The shared group inboxes the person is in, each with its own counts and labels for the sidebar.
+    sharedMailboxes(db, user.id).then((boxes) =>
+      Promise.all(
+        boxes.map(async (box) => ({
+          id: box.id,
+          name: box.name,
+          email: box.email,
+          counts: await folderCounts(db, box.id),
+          labels: await listLabels(db, box.id),
+        }))
+      )
+    ),
+  ]);
 
   return {
     user: { id: user.id, name: user.name, email: user.email, role: user.role },
     counts,
     labels,
+    shared,
     // The newest unread conversation, so a tab can tell of new mail.
     newest: newest
       ? {
@@ -106,10 +139,15 @@ const getLayout = createServerFn().handler(async () => {
       : null,
     preferences: parsePreferences(user.preferencesJson),
     appName: env.APP_NAME,
+    // Whether this Worker has a model and AI is on, and so offers AI where a person reads and writes mail.
+    ai: assistantReady(env),
     driveUsed,
     conversations,
     colleagues: people,
     githubConnected: github !== null,
+    // Whether the Assistant and every way to it show (`AI_FEATURES`).
+    assistant,
+    apps,
   };
 });
 
@@ -161,6 +199,15 @@ const useNewMailNotice = (
   const navigate = useNavigate();
   const seen = useRef<{ id: string; at: string } | null>(null);
   const since = useRef<string | null>(null);
+  // A notification's click opens its thread while the console is mounted: every refresh reruns the effect below,
+  // so the listeners end with the console, not with the run that added them.
+  const clicks = useRef<AbortSignal | null>(null);
+  useEffect(() => {
+    const controller = new AbortController();
+    clicks.current = controller.signal;
+
+    return () => controller.abort();
+  }, []);
   useEffect(() => {
     // The tab's opening, which only mail that arrived after it is told of.
     const opened = since.current ?? new Date().toISOString();
@@ -184,18 +231,22 @@ const useNewMailNotice = (
     const n = new Notification(newest.people, {
       body: newest.subject,
       tag: `mail-${newest.id}`,
-      icon: "/favicon.svg",
+      icon: FAVICON_HREF,
     });
 
-    n.addEventListener("click", () => {
-      window.focus();
-      void navigate({
-        to: "/mail/t/$threadId",
-        params: { threadId: newest.id },
-        search: {},
-      });
-      n.close();
-    });
+    n.addEventListener(
+      "click",
+      () => {
+        window.focus();
+        void navigate({
+          to: "/mail/t/$threadId",
+          params: { threadId: newest.id },
+          search: {},
+        });
+        n.close();
+      },
+      { signal: clicks.current ?? undefined }
+    );
   }, [newest, navigate]);
 };
 
@@ -419,9 +470,11 @@ const useNotifications = () => {
 const useShellShortcuts = ({
   toggleSidebar,
   showHelp,
+  assistant,
 }: {
   toggleSidebar: () => void;
   showHelp: () => void;
+  assistant: boolean;
 }) => {
   const navigate = useNavigate();
   const toast = useToast();
@@ -486,25 +539,31 @@ const useShellShortcuts = ({
         void navigate({ to: "/tasks", search: {} });
       },
     },
-    {
-      keys: "g h",
-      run: () => {
-        void navigate({ to: "/assistant", search: {} });
-      },
-    },
-    {
-      keys: "mod+j",
-      run: () => {
-        void navigate({ to: "/assistant", search: {} });
-      },
-      allowInInput: true,
-    },
+    // The Assistant's, only while AI is on.
+    ...(assistant
+      ? [
+          {
+            keys: "g h",
+            run: () => {
+              void navigate({ to: "/assistant", search: {} });
+            },
+          },
+          {
+            keys: "mod+j",
+            run: () => {
+              void navigate({ to: "/assistant", search: {} });
+            },
+            allowInInput: true,
+          },
+        ]
+      : []),
   ]);
 };
 
 const AccountMenu = ({
   user,
   appName,
+  apps,
   theme,
   setTheme,
   notify,
@@ -513,6 +572,7 @@ const AccountMenu = ({
 }: {
   user: Layout["user"];
   appName: string;
+  apps: Layout["apps"];
   theme: Theme;
   setTheme: (t: Theme) => void;
   notify: boolean;
@@ -535,7 +595,7 @@ const AccountMenu = ({
           open && "bg-hover"
         )}
       >
-        <RiviMark className="shrink-0 text-[20px]" />
+        <BrandMark className="shrink-0 text-[20px]" />
         <span className="truncate">{appName}</span>
         <ChevronsUpDown className="text-subtle ml-auto h-3.5 w-3.5 shrink-0" />
       </button>
@@ -576,6 +636,23 @@ const AccountMenu = ({
     >
       Settings
     </MenuLink>
+    {apps.length > 0 && (
+      <>
+        <MenuSeparator />
+        <div className="text-subtle px-2 py-1 text-xs">Apps</div>
+        {apps.map((app) => (
+          <MenuAnchor
+            key={app.id}
+            href={app.launchUrl}
+            target="_blank"
+            rel="noopener"
+            icon={<AppWindow className="h-3.5 w-3.5" />}
+          >
+            {app.name}
+          </MenuAnchor>
+        ))}
+      </>
+    )}
     <MenuSeparator />
     <form
       method="post"
@@ -589,13 +666,26 @@ const AccountMenu = ({
   </Menu>
 );
 
+/** The modules the strip and the tab bar show: the Assistant only while AI is on. */
+const shownModules = (assistant: boolean) =>
+  MODULES.filter((m) => assistant || m.module !== "assistant");
+
 // On a phone the tab bar at the bottom of the screen takes its place (`TabBar`).
-const ModuleStrip = ({ current }: { current: ShellModule | null }) => (
+const ModuleStrip = ({
+  current,
+  assistant,
+}: {
+  current: ShellModule | null;
+  assistant: boolean;
+}) => (
   <nav
-    className="bg-hover mx-3 mb-3 grid grid-cols-5 gap-0.5 rounded-md p-0.5 max-sm:hidden"
+    className={cx(
+      "bg-hover mx-3 mb-3 grid gap-0.5 rounded-md p-0.5 max-sm:hidden",
+      assistant ? "grid-cols-5" : "grid-cols-4"
+    )}
     aria-label="Modules"
   >
-    {MODULES.map((m) => (
+    {shownModules(assistant).map((m) => (
       <Link
         key={m.to}
         to={m.to}
@@ -621,14 +711,20 @@ const ModuleStrip = ({ current }: { current: ShellModule | null }) => (
  * (#3529): one tap switches modules, and the drawer keeps the module's own navigation. It sits
  * above the home indicator (`pb-safe`) and steps aside while the person types (app.css, `--dock`).
  */
-const TabBar = ({ current }: { current: ShellModule | null }) => (
+const TabBar = ({
+  current,
+  assistant,
+}: {
+  current: ShellModule | null;
+  assistant: boolean;
+}) => (
   <nav
     data-tab-bar
     aria-label="Modules"
     className="border-line bg-sidebar/95 px-safe pb-safe print-hidden fixed inset-x-0 bottom-0 z-20 border-t backdrop-blur-sm sm:hidden"
   >
-    <ul className="grid h-12 grid-cols-5">
-      {MODULES.map((m) => (
+    <ul className={cx("grid h-12", assistant ? "grid-cols-5" : "grid-cols-4")}>
+      {shownModules(assistant).map((m) => (
         <li key={m.to} className="min-w-0">
           <Link
             to={m.to}
@@ -648,20 +744,88 @@ const TabBar = ({ current }: { current: ShellModule | null }) => (
   </nav>
 );
 
+/** The mailboxes a person reads in Mail: their own, then each shared group inbox, with its unread count. */
+const MailboxSwitcher = ({
+  onMail,
+  box,
+  own,
+  shared,
+}: {
+  onMail: boolean;
+  box: string | undefined;
+  own: { name: string; counts: Layout["counts"] };
+  shared: Layout["shared"];
+}) => (
+  <>
+    <div className="text-subtle mb-1 px-2 text-xs font-medium">Mailboxes</div>
+    <ul className="mb-4 space-y-px">
+      {[
+        {
+          id: undefined,
+          name: own.name,
+          unread: own.counts.inboxUnread,
+          icon: Inbox,
+        },
+        ...shared.map((g) => ({
+          id: g.id,
+          name: g.name,
+          unread: g.counts.inboxUnread,
+          icon: UsersRound,
+        })),
+      ].map(({ id, name, unread, icon: Icon }) => {
+        const active = onMail && box === id;
+
+        return (
+          <li key={id ?? "own"}>
+            <Link
+              to="/mail"
+              search={id ? { box: id } : {}}
+              className={cx(
+                "flex h-7 items-center gap-2 rounded-md px-2 text-base transition-colors duration-100",
+                active
+                  ? "bg-active text-fg"
+                  : "text-muted hover:bg-hover hover:text-fg"
+              )}
+              aria-current={active ? "page" : undefined}
+            >
+              <Icon className="h-4 w-4 shrink-0" />
+              <span className="flex-1 truncate">{name}</span>
+              {unread > 0 && (
+                <span
+                  className="tnum text-2xs text-subtle font-semibold"
+                  aria-label={`${unread} unread`}
+                >
+                  {unread}
+                </span>
+              )}
+            </Link>
+          </li>
+        );
+      })}
+    </ul>
+  </>
+);
+
 const MailSidebar = ({
   onMail,
   folder: searchedFolder,
   label: searchedLabel,
-  counts,
-  labels,
+  box: searchedBox,
+  own,
+  shared,
 }: {
   onMail: boolean;
   folder: string | null;
   label: string | null;
-  counts: Layout["counts"];
-  labels: Layout["labels"];
+  box: string | null;
+  own: { name: string; counts: Layout["counts"]; labels: Layout["labels"] };
+  shared: Layout["shared"];
 }) => {
   const activeFolder = searchedLabel ? null : (searchedFolder ?? "inbox");
+  // A shared group inbox the person is in shows its own folders' counts and labels; any other box, their own.
+  const group = onMail ? shared.find((g) => g.id === searchedBox) : undefined;
+  const box = group?.id;
+  const { counts, labels } = group ?? own;
 
   const badges: Partial<Record<Folder, number>> = {
     inbox: counts.inboxUnread,
@@ -684,7 +848,7 @@ const MailSidebar = ({
       <div className="px-3 pb-3">
         <Link
           to="/mail/compose"
-          search={{}}
+          search={box ? { box } : {}}
           className="bg-accent text-accent-fg hover:bg-accent-hover flex h-7 w-full items-center justify-center gap-1.5 rounded-md px-2.5 text-base font-medium shadow-[inset_0_1px_0_rgb(255_255_255/0.12),0_1px_1px_rgb(0_0_0/0.08)] transition-colors"
           title="Compose (c)"
         >
@@ -694,7 +858,17 @@ const MailSidebar = ({
       </div>
 
       <nav className="flex-1 overflow-y-auto px-2 pb-2" aria-label="Mail">
-        <div className="text-subtle mb-1 px-2 text-xs font-medium">Mail</div>
+        {shared.length > 0 && (
+          <MailboxSwitcher
+            onMail={onMail}
+            box={box}
+            own={own}
+            shared={shared}
+          />
+        )}
+        <div className="text-subtle mb-1 px-2 text-xs font-medium">
+          {group ? group.name : "Mail"}
+        </div>
         <ul className="space-y-px">
           {folders.map(({ folder, label, icon: Icon }) => {
             const active = onMail && activeFolder === folder;
@@ -704,7 +878,10 @@ const MailSidebar = ({
               <li key={folder}>
                 <Link
                   to="/mail"
-                  search={folder === "inbox" ? {} : { folder }}
+                  search={{
+                    box,
+                    folder: folder === "inbox" ? undefined : folder,
+                  }}
                   className={cx(
                     "flex h-7 items-center gap-2 rounded-md px-2 text-base transition-colors duration-100",
                     active
@@ -754,7 +931,7 @@ const MailSidebar = ({
               <li key={l.id}>
                 <Link
                   to="/mail"
-                  search={{ label: l.id }}
+                  search={{ box, label: l.id }}
                   className={cx(
                     "flex h-7 items-center gap-2 rounded-md px-2 text-base transition-colors duration-100",
                     active
@@ -803,12 +980,14 @@ const ModuleSidebar = ({
   pathname,
   folder,
   label,
+  box,
 }: {
   layout: Layout;
   current: ShellModule | null;
   pathname: string;
   folder: string | null;
   label: string | null;
+  box: string | null;
 }) => {
   if (current === "drive") {
     return <DriveSidebar used={layout.driveUsed} />;
@@ -841,8 +1020,13 @@ const ModuleSidebar = ({
       onMail={current === "mail"}
       folder={folder}
       label={label}
-      counts={layout.counts}
-      labels={layout.labels}
+      box={box}
+      own={{
+        name: layout.user.name,
+        counts: layout.counts,
+        labels: layout.labels,
+      }}
+      shared={layout.shared}
     />
   );
 };
@@ -902,7 +1086,7 @@ const AppShell = () => {
   useRefresh();
 
   const layout = Route.useLoaderData();
-  const { user, newest, appName } = layout;
+  const { user, newest, appName, assistant, apps } = layout;
   const loading = useRouterState({ select: (s) => s.isLoading });
   const { pathname, search } = useLocation();
   const [theme, setTheme] = useTheme();
@@ -923,7 +1107,11 @@ const AppShell = () => {
 
   const { notify, toggle: toggleNotify } = useNotifications();
   useNewMailNotice(newest);
-  useShellShortcuts({ toggleSidebar, showHelp: () => setHelp(true) });
+  useShellShortcuts({
+    toggleSidebar,
+    showHelp: () => setHelp(true),
+    assistant,
+  });
 
   // People are PostHog persons by their user id, so an error shows who it happened to.
   useEffect(() => {
@@ -936,7 +1124,9 @@ const AppShell = () => {
     );
   }, [user.id, user.email, user.name, user.role]);
 
-  const current = moduleOf(pathname);
+  // With AI off, `/assistant` only says so (routes/_app/assistant.tsx), beside Mail's sidebar.
+  const module = moduleOf(pathname);
+  const current = module === "assistant" && !assistant ? null : module;
 
   return (
     <div className="bg-bg text-fg flex h-dvh overflow-hidden print:h-auto print:overflow-visible">
@@ -974,6 +1164,7 @@ const AppShell = () => {
           <AccountMenu
             user={user}
             appName={appName}
+            apps={apps}
             theme={theme}
             setTheme={setTheme}
             notify={notify}
@@ -991,7 +1182,7 @@ const AppShell = () => {
           </button>
         </div>
 
-        <ModuleStrip current={current} />
+        <ModuleStrip current={current} assistant={assistant} />
 
         <ModuleSidebar
           layout={layout}
@@ -999,6 +1190,7 @@ const AppShell = () => {
           pathname={pathname}
           folder={searchParam(search, "folder")}
           label={searchParam(search, "label")}
+          box={searchParam(search, "box")}
         />
 
         <SidebarFooter
@@ -1028,8 +1220,12 @@ const AppShell = () => {
         </button>
         <Outlet />
       </main>
-      <TabBar current={current} />
-      <ShortcutsHelp open={help} onClose={() => setHelp(false)} />
+      <TabBar current={current} assistant={assistant} />
+      <ShortcutsHelp
+        open={help}
+        onClose={() => setHelp(false)}
+        assistant={assistant}
+      />
       <UploadPanel />
       <NewVersionNotice />
     </div>

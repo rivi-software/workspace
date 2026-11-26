@@ -11,3 +11,7 @@ MICROSOFT_TENANT_ID=
 # Optional: Amazon SES (README, Amazon SES). Empty: mail goes out through Cloudflare Email Sending.
 SES_ACCESS_KEY_ID=
 SES_SECRET_ACCESS_KEY=
+# Optional: Duo as the second factor of the password sign-in (docs/SSO.md). Empty: the authenticator app and passkeys.
+DUO_CLIENT_ID=
+DUO_CLIENT_SECRET=
+DUO_API_HOST=

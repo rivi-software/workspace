@@ -2,7 +2,13 @@ import { env } from "cloudflare:workers";
 import { eq } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
 
-import { driveNodes, drafts, users } from "~/db/schema";
+import {
+  drafts,
+  driveNodes,
+  messages,
+  searchEntries,
+  users,
+} from "~/db/schema";
 import { createEvent, listEvents } from "~/lib/calendar/calendar.server";
 import {
   createFolder,
@@ -10,6 +16,7 @@ import {
   setShare,
   startUpload,
 } from "~/lib/drive/drive.server";
+import { createGroup } from "~/lib/groups.server";
 import { ingestInboundEmail, resolveMailbox } from "~/lib/mail/ingest.server";
 import { REMOVAL_STEPS, continueRemoval } from "~/lib/removal.server";
 import { createTask } from "~/lib/tasks/tasks.server";
@@ -22,7 +29,8 @@ import {
   setPersonActive,
 } from "~/lib/users.server";
 
-import { db, defined, mail, mailbox } from "./fixtures";
+import { adminMailbox, db, defined, mail, mailbox } from "./fixtures";
+import { fakeSearchIndex } from "./search-index";
 
 const domain = env.MAIL_DOMAIN;
 
@@ -69,6 +77,12 @@ const reaches = async (address: string) => {
   return owner?.id ?? null;
 };
 
+/** What the database does itself when the `users` row goes: deletes the row with it, or forgets the person. */
+const LET_GO = new Set(["CASCADE", "SET NULL"]);
+
+/** A group's own `groups` row names its `users` row, never a person's; `removePerson` refuses a group. */
+const NEVER_A_PERSON = new Set(["groups.id"]);
+
 describe("removing a person", () => {
   it("covers every column that names a person, or the database lets the row go without it", async () => {
     const tables = await env.DB.prepare(
@@ -89,7 +103,8 @@ describe("removing a person", () => {
 
         if (
           k.table === "users" &&
-          k.on_delete !== "CASCADE" &&
+          !LET_GO.has(k.on_delete) &&
+          !NEVER_A_PERSON.has(column) &&
           !covered.has(column)
         ) {
           missing.push(column);
@@ -358,5 +373,108 @@ describe("changing a person's address", () => {
       changeAddress(db, env, cy.id, "cy@gmail.com", true)
     ).rejects.toThrow(PeopleError);
     await expect(addressOf(cy.id)).resolves.toBe(cy.email);
+  });
+});
+
+describe("removing a person beside groups and the search by meaning", () => {
+  it("never removes a group or changes its address through People", async () => {
+    const admin = await adminMailbox("rg-admin");
+
+    const group = await createGroup(db, env, admin, {
+      email: "rg-sales",
+      name: "Sales",
+      mode: "shared",
+    });
+
+    await expect(
+      removePerson(db, env, admin, group.id, group.email)
+    ).rejects.toThrow("no such person");
+    await expect(
+      changeAddress(db, env, group.id, "rg-team", true)
+    ).rejects.toThrow("no such person");
+    await expect(addressOf(group.id)).resolves.toBe(group.email);
+  });
+
+  it("takes their vectors out of the index, and keeps a shared inbox's message without its writer", async () => {
+    const admin = await adminMailbox("rs-admin");
+    const colleague = await mailbox("rs-colleague", "Colleague");
+    const leaver = await mailbox("rs-leaver", "Leaver");
+    const search = fakeSearchIndex();
+
+    // A message in a shared group inbox, written by the leaver.
+    const group = await createGroup(db, env, admin, {
+      email: "rs-support",
+      name: "Support",
+      mode: "shared",
+    });
+
+    const filed = await ingestInboundEmail(
+      env,
+      null,
+      mail({ to: [{ email: group.email, name: null }] }),
+      group.email
+    );
+
+    if (filed.status !== "stored") {
+      throw new Error(`not stored: ${filed.status}`);
+    }
+
+    await db
+      .update(messages)
+      .set({ sentBy: leaver.id })
+      .where(eq(messages.threadId, filed.threadId));
+
+    // What the index holds of the leaver's and of the colleague's.
+    await search.index.put([
+      { id: "th_rs_leaver", kind: "mail", owner: leaver.id, text: "theirs" },
+      {
+        id: "th_rs_colleague",
+        kind: "mail",
+        owner: colleague.id,
+        text: "kept",
+      },
+    ]);
+    await db.insert(searchEntries).values([
+      {
+        id: "th_rs_leaver",
+        kind: "mail",
+        userId: leaver.id,
+        sourceAt: "2026-11-01T00:00:00.000Z",
+      },
+      {
+        id: "th_rs_colleague",
+        kind: "mail",
+        userId: colleague.id,
+        sourceAt: "2026-11-01T00:00:00.000Z",
+      },
+    ]);
+
+    await setPersonActive(db, admin, leaver.id, false);
+
+    const removed = await removePerson(
+      db,
+      search.env,
+      admin,
+      leaver.id,
+      leaver.email
+    );
+
+    const groupMessages = await db.query.messages.findMany({
+      where: eq(messages.threadId, filed.threadId),
+    });
+
+    const entries = await db.query.searchEntries.findMany();
+
+    expect({
+      gone: removed.gone,
+      indexed: search.ids(),
+      entries: entries.map((e) => e.id).filter((id) => id.startsWith("th_rs_")),
+      writers: groupMessages.map((m) => m.sentBy),
+    }).toStrictEqual({
+      gone: true,
+      indexed: ["th_rs_colleague"],
+      entries: ["th_rs_colleague"],
+      writers: [null],
+    });
   });
 });

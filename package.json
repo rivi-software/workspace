@@ -42,57 +42,57 @@
     "clean": "rm -rf dist .wrangler/deploy worker-configuration.d.ts tsconfig.node.tsbuildinfo tsconfig.cloudflare.tsbuildinfo seed/seed.generated.sql"
   },
   "dependencies": {
-    "@ai-sdk/anthropic": "^4.0.96",
-    "@better-auth/core": "1.7.18",
-    "@better-auth/passkey": "1.7.18",
+    "@ai-sdk/anthropic": "^4.0.108",
+    "@better-auth/core": "1.7.26",
+    "@better-auth/passkey": "1.7.26",
     "@fontsource-variable/inter": "5.3.0",
-    "@posthog/rollup-plugin": "1.6.2",
-    "@rivi-software/cloudflare-deploy": "0.3.0",
-    "@rivi-software/deploy-watch": "0.7.0",
-    "@rivi-software/posthog-tanstack-start": "0.1.1",
-    "@rivi-software/workers-mail": "0.2.0",
+    "@posthog/rollup-plugin": "1.6.4",
+    "@rivi-software/cloudflare-deploy": "1.0.0",
+    "@rivi-software/deploy-watch": "1.0.1",
+    "@rivi-software/posthog-tanstack-start": "1.0.1",
+    "@rivi-software/workers-mail": "1.1.0",
     "@tanstack/react-router": "1.170.46",
-    "@tanstack/react-start": "1.169.4",
+    "@tanstack/react-start": "1.169.7",
     "agents": "^0.33.0",
-    "ai": "^7.0.162",
-    "better-auth": "1.7.18",
-    "dompurify": "3.4.17",
+    "ai": "^7.0.181",
+    "better-auth": "1.7.26",
+    "dompurify": "3.4.18",
     "drizzle-orm": "0.45.4",
-    "lucide-react": "1.69.0",
+    "lucide-react": "1.76.0",
     "openpgp": "6.3.2",
     "pdf-lib": "1.17.1",
     "pdfjs-dist": "6.5.438",
-    "postal-mime": "^4.2.0",
-    "posthog-js": "1.447.1",
-    "posthog-node": "5.63.0",
+    "postal-mime": "^4.2.1",
+    "posthog-js": "1.453.0",
+    "posthog-node": "5.74.0",
     "react": "19.3.1",
     "react-dom": "19.3.1",
     "uqr": "0.1.3",
     "zod": "4.6.7"
   },
   "devDependencies": {
-    "@cloudflare/vite-plugin": "1.67.0",
-    "@cloudflare/vitest-plugin": "1.5.1",
+    "@cloudflare/vite-plugin": "1.69.1",
+    "@cloudflare/vitest-plugin": "1.8.1",
     "@openpgp/web-stream-tools": "0.3.1",
-    "@rivi-software/d1-migrations": "0.1.1",
-    "@rivi-software/workers-bundle-check": "0.1.1",
-    "@tailwindcss/vite": "4.3.4",
+    "@rivi-software/d1-migrations": "1.0.0",
+    "@rivi-software/workers-bundle-check": "1.0.0",
+    "@tailwindcss/vite": "4.3.5",
     "@types/node": "26.6.6",
     "@types/react": "19.3.0",
     "@types/react-dom": "19.3.0",
-    "@vitejs/plugin-react": "6.2.1",
+    "@vitejs/plugin-react": "6.3.0",
     "drizzle-kit": "0.31.11",
-    "lefthook": "2.2.2",
-    "oxfmt": "0.76.0",
-    "oxlint": "1.91.0",
+    "lefthook": "2.2.1",
+    "oxfmt": "0.78.0",
+    "oxlint": "1.93.0",
     "oxlint-tsgolint": "7.0.2006",
-    "tailwindcss": "4.3.4",
+    "tailwindcss": "4.3.5",
     "tsx": "4.23.15",
     "typescript": "7.0.2",
-    "ultracite": "8.1.1",
-    "vite": "8.3.5",
+    "ultracite": "8.2.1",
+    "vite": "8.3.8",
     "vitest": "5.1.0",
-    "wrangler": "4.157.0"
+    "wrangler": "4.161.0"
   },
   "engines": {
     "node": ">=24.2",
@@ -115,6 +115,9 @@
       "DRIVE": {
         "description": "The files in Drive, and the original and signed copy of every signing request."
       },
+      "SEARCH": {
+        "description": "The Vectorize index the Assistant finds mail and files in by what they are about: 1024 dimensions, cosine (`wrangler vectorize create workspace-search --dimensions=1024 --metric=cosine`)."
+      },
       "SESSION_SECRET": {
         "description": "**Required.** Signs the session cookies, the file links and every sealed value. Paste the output of `openssl rand -base64 48`; changing it later signs everyone out."
       },
@@ -133,6 +136,15 @@
       "SES_SECRET_ACCESS_KEY": {
         "description": "Optional, for Amazon SES: the IAM user's secret access key."
       },
+      "DUO_CLIENT_ID": {
+        "description": "Optional, for [Duo](https://github.com/rivi-software/workspace/blob/main/docs/SSO.md#second-factor-duo) as the second factor of every password sign-in: the Web SDK application's Client ID. Leave the three Duo secrets empty to use the authenticator app and passkeys instead."
+      },
+      "DUO_CLIENT_SECRET": {
+        "description": "Optional, for Duo: the Web SDK application's Client secret."
+      },
+      "DUO_API_HOST": {
+        "description": "Optional, for Duo: the API hostname, `api-xxxxxxxx.duosecurity.com`."
+      },
       "APP_NAME": {
         "description": "What the pages, the mails and the passkeys call the workspace."
       },
@@ -144,6 +156,12 @@
       },
       "SES_REGION": {
         "description": "Amazon SES's region, used only once the two SES secrets are set."
+      },
+      "DUO_FAIL_OPEN": {
+        "description": "`true` lets the password alone in while Duo cannot take sign-ins, for someone without an authenticator app. Anything else refuses them until Duo answers."
+      },
+      "AI_FEATURES": {
+        "description": "`off` turns every AI feature off: the Assistant, its API and every link to it, Mail's summary and draft, and the search by meaning. Anything else leaves them on."
       },
       "AI_PROVIDER": {
         "description": "The Assistant's model: `workers-ai` (Workers AI through AI Gateway), `anthropic` (Claude through AI Gateway, which holds the key) or `mock` (no model)."

@@ -23,19 +23,17 @@ export class PeopleError extends Error {
 }
 
 export const listPeople = async (db: Database) => {
-  const people = await db.query.users.findMany({
-    orderBy: (u, { asc }) => [asc(u.name)],
-  });
-
-  const aliasRows = await db.query.aliases.findMany();
-
-  const recoveryRows = await db.query.recoveryAddresses.findMany({
-    orderBy: (r, { asc }) => [asc(r.createdAt)],
-  });
-
-  const passkeyRows = await db
-    .select({ userId: passkeys.userId })
-    .from(passkeys);
+  const [people, aliasRows, recoveryRows, passkeyRows] = await Promise.all([
+    db.query.users.findMany({
+      where: eq(users.kind, "person"),
+      orderBy: (u, { asc }) => [asc(u.name)],
+    }),
+    db.query.aliases.findMany(),
+    db.query.recoveryAddresses.findMany({
+      orderBy: (r, { asc }) => [asc(r.createdAt)],
+    }),
+    db.select({ userId: passkeys.userId }).from(passkeys),
+  ]);
 
   return people.map((p) => ({
     id: p.id,
@@ -87,7 +85,7 @@ export const mailboxAddress = (env: Env, typed: string): string => {
   return address;
 };
 
-const addressTaken = async (
+export const addressTaken = async (
   db: Database,
   address: string
 ): Promise<boolean> => {
@@ -183,7 +181,7 @@ export const changeAddress = async (
 ): Promise<{ address: string; hasPgpKey: boolean }> => {
   const person = await db.query.users.findFirst({ where: eq(users.id, id) });
 
-  if (!person || person.removingSince) {
+  if (!person || person.kind !== "person" || person.removingSince) {
     throw new PeopleError("There is no such person.");
   }
 
@@ -245,7 +243,8 @@ export const removePerson = async (
 
   const person = await db.query.users.findFirst({ where: eq(users.id, id) });
 
-  if (!person) {
+  // A group's row is a mailbox too, but Settings → Groups deletes it, not this.
+  if (!person || person.kind !== "person") {
     throw new PeopleError("There is no such person.");
   }
 

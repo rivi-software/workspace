@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Debug builds only: a development build opens the workspace on the Mac it runs beside (10.0.2.2
+     from an emulator, the Mac's Wi-Fi address from a phone), a local network address, which Android
+     16 and later keep behind this permission. Grant it on the emulator with
+     `adb shell pm grant software.rivi.workspace android.permission.ACCESS_LOCAL_NETWORK`.
+     A release build opens workspaces over HTTPS alone and needs no such thing. -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <uses-permission android:name="android.permission.ACCESS_LOCAL_NETWORK" />
+</manifest>

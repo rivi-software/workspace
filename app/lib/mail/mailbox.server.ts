@@ -24,8 +24,10 @@ import {
   messages,
   threadLabels,
   threads,
+  users,
 } from "~/db/schema";
 import type { Address, Message, Thread } from "~/db/schema";
+import { eachOf, throwFailures } from "~/lib/batch";
 import { defined, unreachable } from "~/lib/guards";
 
 import { parseJsonAddresses } from "./addresses";
@@ -469,10 +471,19 @@ const messageView = async (
     });
   }
 
+  // In a shared group inbox, the member who wrote it: the From names the group alone.
+  const author = m.sentBy
+    ? await db.query.users.findFirst({
+        columns: { name: true },
+        where: eq(users.id, m.sentBy),
+      })
+    : null;
+
   return {
     id: m.id,
     direction: m.direction,
     messageId: m.messageId,
+    sentBy: author?.name ?? null,
     from: { email: m.fromEmail, name: m.fromName },
     to: parseJsonAddresses(m.toJson),
     cc: parseJsonAddresses(m.ccJson),
@@ -611,37 +622,49 @@ export const deleteThreadForever = async (
   return true;
 };
 
-/** Delete for good what has been in the trash or the spam folder for `EXPIRY_DAYS`; a batch at a time. */
+/**
+ * What the cron prunes of every mailbox each minute (`pruneExpired`). The cron's D1 queries share one invocation's
+ * limit (1,000), and a conversation takes two for each of its messages, so a batch stays small; the next minute takes
+ * the next.
+ */
+export const MAIL_PRUNE_BATCH = 10;
+
+/**
+ * Delete for good what has been in the trash or the spam folder for `EXPIRY_DAYS`, in every mailbox, from the cron; a
+ * batch at a time.
+ */
 export const pruneExpired = async (
   db: Database,
   env: Env,
-  userId: string,
-  batch = 50
+  batch = MAIL_PRUNE_BATCH
 ): Promise<number> => {
   const cutoff = new Date(Date.now() - EXPIRY_DAYS * 86_400_000).toISOString();
 
-  const rows = await db.query.threads.findMany({
-    where: and(
-      eq(threads.userId, userId),
-      inArray(threads.folder, [...JUNK]),
-      or(
-        lt(threads.trashedAt, cutoff),
-        and(isNull(threads.trashedAt), lt(threads.lastMessageAt, cutoff))
+  // Every mailbox named, so the search runs on `threads_user_folder_idx`; without a `user_id` it scans every thread.
+  const rows = await db
+    .select({ id: threads.id, userId: threads.userId })
+    .from(threads)
+    .where(
+      and(
+        sql`${threads.userId} in (select id from users)`,
+        inArray(threads.folder, [...JUNK]),
+        or(
+          lt(threads.trashedAt, cutoff),
+          and(isNull(threads.trashedAt), lt(threads.lastMessageAt, cutoff))
+        )
       )
-    ),
-    limit: batch,
-  });
+    )
+    .limit(batch);
 
-  let n = 0;
+  // The stored objects go before their rows, so a conversation that fails still points at what remains, stays in the
+  // trash and is tried again next minute; the cron reports the failure.
+  const { done, failures } = await eachOf(rows, (t) =>
+    deleteThreadForever(db, env, t.userId, t.id)
+  );
 
-  for (const t of rows) {
-    // oxlint-disable-next-line eslint/no-await-in-loop -- one message, file or thread at a time: the stored objects go before their rows, so a failure leaves rows that still point at what remains
-    if (await deleteThreadForever(db, env, userId, t.id)) {
-      n += 1;
-    }
-  }
+  throwFailures("Mail's prune", failures);
 
-  return n;
+  return done;
 };
 
 /** Empty the trash or the spam folder: everything in it deleted for good. */

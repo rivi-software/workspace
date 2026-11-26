@@ -3,10 +3,15 @@
  * actions and their undo, the composer's start, sending, drafts, contacts and labels, over the same server modules
  * the console's mail routes and `app/lib/mail/actions.ts` call.
  */
-import type { Thread } from "~/db/schema";
-import { parseAddressList, parseJsonAddresses } from "~/lib/mail/addresses";
+import type { Thread, User } from "~/db/schema";
+import {
+  parseAddress,
+  parseAddressList,
+  parseJsonAddresses,
+} from "~/lib/mail/addresses";
 import { composeData } from "~/lib/mail/compose.server";
 import { searchContacts } from "~/lib/mail/contacts.server";
+import { MailboxError, mailboxFor } from "~/lib/mail/groups.server";
 import { createLabel } from "~/lib/mail/labels.server";
 import { emptyFolder } from "~/lib/mail/mailbox.server";
 import {
@@ -35,6 +40,37 @@ import type { JsonBody } from "./body.server";
 import { ApiRequestError, json } from "./routing.server";
 import type { ApiContext, ApiRoute } from "./routing.server";
 
+/**
+ * A Mail request's context: `user` is the mailbox it acts in, the person's own or the shared group inbox `?box=`
+ * names (`mailboxFor`, the console's gate, so a person outside the group gets `404`), and `person` who is signed in.
+ * Every Mail function scopes by `user`, as the console's `mailContext` has them.
+ */
+interface MailContext extends ApiContext {
+  person: User;
+}
+
+const inMailbox =
+  (handler: (context: MailContext) => Promise<Response>) =>
+  async (context: ApiContext): Promise<Response> => {
+    let mailbox: User;
+
+    try {
+      mailbox = await mailboxFor(
+        context.db,
+        context.user,
+        context.query.get("box")
+      );
+    } catch (error) {
+      if (error instanceof MailboxError) {
+        throw new ApiRequestError(error.message, 404);
+      }
+
+      throw error;
+    }
+
+    return handler({ ...context, user: mailbox, person: context.user });
+  };
+
 const threadView = (t: Thread) => ({
   id: t.id,
   subject: t.subject,
@@ -49,10 +85,10 @@ const threadView = (t: Thread) => ({
 });
 
 const list = async (context: ApiContext): Promise<Response> => {
-  const { db, env, user, query } = context;
+  const { db, user, query } = context;
 
   return json(
-    await listPage(db, env, user, {
+    await listPage(db, user, {
       folder: query.get("folder"),
       label: query.get("label"),
       q: query.get("q"),
@@ -95,6 +131,7 @@ const thread = async (context: ApiContext): Promise<Response> => {
       deliveryError: m.deliveryError,
       spam: m.spam !== null,
       pgp: m.pgp,
+      sentBy: m.sentBy,
       attachments: m.attachments,
     })),
   });
@@ -253,6 +290,13 @@ const addressLists = (body: JsonBody) => ({
   bcc: parseAddressList(field(body, "bcc")),
 });
 
+/**
+ * The address a send or a draft goes from, lower-cased: the address alone or its typed form (`Ada <ada@acme.com>`),
+ * which is what a client's From picker may hold; the person's own address when there is none.
+ */
+const fromOf = (body: JsonBody, fallback: string): string =>
+  parseAddress(field(body, "from") || fallback).email;
+
 /** A draft's recipients, refused by name as a send refuses them when one is not an address. */
 const recipients = (body: JsonBody) => checkedRecipients(addressLists(body));
 
@@ -263,12 +307,12 @@ const pgpOf = (body: JsonBody) => ({
 });
 
 /** The console's send (`sendComposed`): a SendError answers `400` with its words (`problemOf`). */
-const send = async (context: ApiContext): Promise<Response> => {
-  const { db, env, user, request } = context;
+const send = async (context: MailContext): Promise<Response> => {
+  const { db, env, user, person, request } = context;
   const body = await readBody(request);
 
   const sent = await sendComposed(env, db, user, {
-    from: (field(body, "from") || user.email).toLowerCase(),
+    from: fromOf(body, user.email),
     ...addressLists(body),
     subject: field(body, "subject"),
     text: field(body, "text"),
@@ -277,6 +321,8 @@ const send = async (context: ApiContext): Promise<Response> => {
     draftId: fieldOrNull(body, "draftId"),
     files: filesOf(body),
     pgp: pgpOf(body),
+    // In a shared group inbox, who of its members wrote it.
+    sentBy: person.id === user.id ? null : person.id,
   });
 
   return json({ ok: true, threadId: sent.threadId });
@@ -293,7 +339,7 @@ const saveDraftRoute = async (context: ApiContext): Promise<Response> => {
     threadId: fieldOrNull(body, "threadId"),
     inReplyToId: fieldOrNull(body, "inReplyToId"),
     mode: mode === "reply" || mode === "forward" ? mode : "new",
-    from: (field(body, "from") || user.email).toLowerCase(),
+    from: fromOf(body, user.email),
     to,
     cc,
     bcc,
@@ -333,7 +379,9 @@ const newLabel = async (context: ApiContext): Promise<Response> => {
   return json({ ok: true, label });
 };
 
-export const mailRoutes: ApiRoute[] = [
+const routes: (Omit<ApiRoute, "handler"> & {
+  handler: (context: MailContext) => Promise<Response>;
+})[] = [
   { method: "GET", path: "/mail/threads", handler: list },
   { method: "GET", path: "/mail/threads/:id", handler: thread },
   { method: "GET", path: "/mail/messages/:id/document", handler: document },
@@ -363,3 +411,9 @@ export const mailRoutes: ApiRoute[] = [
   { method: "GET", path: "/mail/contacts", handler: contacts },
   { method: "POST", path: "/mail/labels", writes: true, handler: newLabel },
 ];
+
+/** Every Mail route, in the mailbox `?box=` names (`inMailbox`). */
+export const mailRoutes: ApiRoute[] = routes.map((route) => ({
+  ...route,
+  handler: inMailbox(route.handler),
+}));

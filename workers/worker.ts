@@ -7,7 +7,11 @@ import { captureServerException } from "@rivi-software/posthog-tanstack-start/se
 import { createDb } from "~/db";
 import { handleApi, isApiPath } from "~/lib/api/api.server";
 import { authFor, isAuthPath } from "~/lib/auth.server";
+import { isBrandPath, serveBrand } from "~/lib/branding.server";
+import { DUO_CALLBACK_PATH, finishDuoSignIn } from "~/lib/duo.server";
 import { isWkdPath, serveWkd } from "~/lib/mail/pgp/wkd.server";
+import { isSsoPath } from "~/lib/sso/paths";
+import { handleSsoRequest } from "~/lib/sso/provider.server";
 
 import { handleInboundEmail } from "./email/inbound";
 import { handleScheduled } from "./scheduled";
@@ -57,9 +61,12 @@ const withSecurityHeaders = (res: Response, url: URL): Response => {
 };
 
 /**
- * The Web Key Directory (`/.well-known/openpgpkey/*`), Better Auth (`/api/auth/*`: the password sign-in, passkeys,
- * the second factor, sessions), the API for other clients (`/api/v1/*`, docs/API.md), then Start. Served here rather than by route files, so the tests reach them
- * through `exports.default.fetch` (`cloudflare:workers`) without the Vite build.
+ * The deployment's brand (`/brand/*`: the accent's stylesheet, the icon and the manifest an admin set under Settings →
+ * Branding), the Web Key Directory (`/.well-known/openpgpkey/*`), the identity provider of single sign-on (`/oauth/*`
+ * and the discovery document, docs/SSO.md), Duo's return to a password sign-in (`/auth/duo`), Better Auth
+ * (`/api/auth/*`: the password sign-in, passkeys, the second factor, sessions), the API for other clients (`/api/v1/*`,
+ * docs/API.md), then Start. Served here rather than by route files, so the tests reach them through
+ * `exports.default.fetch` (`cloudflare:workers`) without the Vite build.
  */
 const route = async (
   request: Request,
@@ -68,9 +75,21 @@ const route = async (
   url: URL,
   start: StartHandler
 ): Promise<Response> => {
+  if (isBrandPath(url.pathname)) {
+    return serveBrand(request, env, db);
+  }
+
   // The workspace's OpenPGP keys for other mail clients (WKD): `openpgpkey.<MAIL_DOMAIN>` routed here serves them.
   if (isWkdPath(url.pathname)) {
     return serveWkd(request, env);
+  }
+
+  if (isSsoPath(url.pathname)) {
+    return handleSsoRequest(request, env, db);
+  }
+
+  if (url.pathname === DUO_CALLBACK_PATH) {
+    return finishDuoSignIn(request, env, db);
   }
 
   if (isAuthPath(url.pathname)) {
@@ -132,9 +151,9 @@ export const createWorker = (start: StartHandler) =>
       }
     },
 
-    // Every minute: snoozed conversations that are due, scheduled messages that are due, and a batch of each running
-    // mailbox import.
-    async scheduled(_controller, env) {
-      await handleScheduled(env);
+    // Every minute, the cron's jobs, on the minute the run was scheduled for: a run that starts late still prunes the
+    // spam filter whose turn that minute was.
+    async scheduled(controller, env) {
+      await handleScheduled(env, new Date(controller.scheduledTime));
     },
   }) satisfies ExportedHandler<Env>;

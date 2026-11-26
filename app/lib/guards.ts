@@ -28,6 +28,10 @@ export const formText = (form: FormData, name: string): string => {
 export const field = (form: FormData, name: string, fallback = ""): string =>
   formText(form, name) || fallback;
 
+/** A form's text field, or null when it is missing or empty: an id a form may leave out. */
+export const optionalField = (form: FormData, name: string): string | null =>
+  formText(form, name) || null;
+
 /** The object a stored JSON text holds, or `{}` for text that is unreadable or holds no object. Its values stay `unknown` until a reader checks each one. */
 export const parseJsonObject = (json: string | null | undefined) => {
   try {

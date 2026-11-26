@@ -1,0 +1,8 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "plugins": {
+    "workspace": {
+      "url": "http://10.0.2.2:5174"
+    }
+  }
+}

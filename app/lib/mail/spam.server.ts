@@ -17,6 +17,7 @@ import {
   messages,
   senderRules,
   spamTokens as spamTokenRows,
+  users,
 } from "~/db/schema";
 import type { Address, Message, SenderRule, Thread, User } from "~/db/schema";
 
@@ -420,16 +421,21 @@ export const learntTotals = async (
   return { spam: row?.spam ?? 0, ham: row?.ham ?? 0 };
 };
 
+/** How long the filter keeps a word that came up in one message, counted from the last time it came up. */
+const IDLE_DAYS = 120;
+
 /**
- * Forget the words that say nothing: counted nowhere any more, or once and not seen for 120 days. Run with the
- * trash's pruning, every few hours per person.
+ * Forget the words in one person's filter that say nothing: counted nowhere any more, or once and not seen for
+ * `IDLE_DAYS` before `at`. It reads every word the person's filter knows. Answers how many it forgot.
  */
-export const pruneSpamTokens = async (
+export const forgetIdleWords = async (
   db: Database,
-  userId: string
-): Promise<void> => {
-  const cutoff = new Date(Date.now() - 120 * 86_400_000).toISOString();
-  await db
+  userId: string,
+  at = new Date()
+): Promise<number> => {
+  const cutoff = new Date(at.getTime() - IDLE_DAYS * 86_400_000).toISOString();
+
+  const result = await db
     .delete(spamTokenRows)
     .where(
       and(
@@ -441,6 +447,42 @@ export const pruneSpamTokens = async (
         )
       )
     );
+
+  return result.meta.changes;
+};
+
+/** The cron runs once a minute and prunes each mailbox's filter once a day: a day has this many turns. */
+const TURNS_A_DAY = 1440;
+
+/**
+ * The cron's prune of the spam filters (#4253), whether or not anyone opens Mail: one mailbox a run, the one whose
+ * place among everyone's, by id, is the minute of the day (UTC) the run was scheduled for. So each mailbox has its
+ * turn once a day, in the day's first minutes, and no run reads more than one mailbox's words, where pruning every
+ * mailbox each minute would read the whole table 1,440 times a day. With more mailboxes than a day has minutes, each
+ * has its turn once in as many minutes as there are mailboxes. Nothing is stored: the minute decides, and a mailbox
+ * whose prune fails is tried again on its turn the next day. Answers whose turn it was and how many of their words
+ * went, or null in a minute that is nobody's turn.
+ */
+export const pruneSpamTokens = async (
+  db: Database,
+  at: Date
+): Promise<{ userId: string; forgotten: number } | null> => {
+  const everyone = await db
+    .select({ id: users.id })
+    .from(users)
+    .orderBy(asc(users.id));
+
+  const minute = Math.floor(at.getTime() / 60_000);
+  const turn = everyone[minute % Math.max(TURNS_A_DAY, everyone.length)];
+
+  if (!turn) {
+    return null;
+  }
+
+  return {
+    userId: turn.id,
+    forgotten: await forgetIdleWords(db, turn.id, at),
+  };
 };
 
 /* ---------- blocked and allowed senders ---------- */

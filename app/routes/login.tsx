@@ -15,24 +15,39 @@ import {
   passkeysSupported,
 } from "~/lib/auth-client";
 import { getSessionUser } from "~/lib/auth.server";
+import { duoEnabled } from "~/lib/duo.server";
 import { stringOrNull } from "~/lib/guards";
+import { mobileAppStartPage, useMobileApp } from "~/lib/mobile-app";
 import { passwordSignIn, safeNext } from "~/lib/sign-in.server";
+import { applicationForNext } from "~/lib/sso/clients.server";
 
 const searchSchema = z.object({
   next: z.string().optional(),
-  error: z.enum(["invalid", "throttled", "inactive", "two-factor"]).optional(),
+  error: z
+    .enum([
+      "invalid",
+      "throttled",
+      "inactive",
+      "two-factor",
+      "duo",
+      "duo-unavailable",
+    ])
+    .optional()
+    .catch(undefined),
+  // An application asked for a fresh sign-in (`prompt=login`, docs/SSO.md): the form shows even to someone signed in.
+  reauth: z.coerce.string().optional(),
   // The person just chose a new password through a reset link (`/reset-password`).
   reset: z.coerce.string().optional(),
 });
 
 const getLogin = createServerFn()
-  .validator((data: { next?: string }) => data)
+  .validator((data: { next?: string; reauth?: string }) => data)
   .handler(async ({ data }) => {
     const db = createDb(env.DB);
     const request = getRequest();
     const current = await getSessionUser(request, env, db);
 
-    if (current) {
+    if (current && !data.reauth) {
       throw redirect({
         href: safeNext(data.next ?? "/mail", new URL(request.url).origin),
       });
@@ -43,6 +58,10 @@ const getLogin = createServerFn()
       appName: env.APP_NAME,
       mailDomain: env.MAIL_DOMAIN,
       dev: import.meta.env.DEV,
+      // Duo's prompt follows the password, so the button reads "Continue".
+      duo: duoEnabled(env),
+      // The application a single sign-on continues to, which the page names.
+      application: await applicationForNext(db, data.next),
     };
   });
 
@@ -56,6 +75,11 @@ const SIGN_IN_ERRORS: ReadonlyMap<string, string> = new Map([
   [
     "two-factor",
     "The code did not confirm the sign-in, or it took too long. Sign in again.",
+  ],
+  ["duo", "Duo did not confirm the sign-in. Sign in again."],
+  [
+    "duo-unavailable",
+    "Duo cannot confirm sign-ins right now. Try again in a few minutes.",
   ],
 ]);
 
@@ -130,16 +154,22 @@ const PasskeyButton = ({ next }: { next: string }) => {
 };
 
 const Login = () => {
-  const { appName, mailDomain, dev } = Route.useLoaderData();
-  const { next, error, reset } = Route.useSearch();
+  const { appName, mailDomain, dev, duo, application } = Route.useLoaderData();
+
+  const { next, error, reset, reauth } = Route.useSearch();
   const errorText = signInError(error);
   const [submitting, setSubmitting] = useState(false);
   const target = next ?? "/mail";
+  const inApp = useMobileApp();
 
   return (
     <AuthShell
       appName={appName}
-      subtitle={`Sign in with your ${mailDomain} address`}
+      subtitle={
+        application
+          ? `Sign in to ${application} with your ${mailDomain} address`
+          : `Sign in with your ${mailDomain} address`
+      }
     >
       <form
         method="post"
@@ -148,6 +178,7 @@ const Login = () => {
         className={authCardClass}
       >
         <input type="hidden" name="next" value={target} />
+        {reauth && <input type="hidden" name="reauth" value="1" />}
         <Field label="Email">
           <input
             name="email"
@@ -174,6 +205,12 @@ const Login = () => {
             with the new password.
           </Notice>
         )}
+        {reauth && !errorText && (
+          <Notice>
+            {application ?? "The application"} asks you to sign in again before
+            it goes on.
+          </Notice>
+        )}
         {errorText && <Notice tone="error">{errorText}</Notice>}
         <Button
           type="submit"
@@ -181,7 +218,7 @@ const Login = () => {
           className="h-8 w-full"
           loading={submitting}
         >
-          Sign in
+          {duo ? "Continue" : "Sign in"}
         </Button>
       </form>
       <PasskeyButton next={target} />
@@ -190,6 +227,14 @@ const Login = () => {
           Forgot your password?
         </Link>
       </p>
+      {inApp && (
+        <p className="mt-2 text-center text-sm">
+          {/* A plain link: the phone app's own start page, outside the router and this site. */}
+          <a href={mobileAppStartPage()} className="text-muted hover:text-fg">
+            Use another workspace
+          </a>
+        </p>
+      )}
       {dev && (
         <p className="text-subtle mt-4 text-center text-xs">
           Local seed account: admin@example.com / password
@@ -201,7 +246,7 @@ const Login = () => {
 
 export const Route = createFileRoute("/login")({
   validateSearch: searchSchema,
-  loaderDeps: ({ search }) => ({ next: search.next }),
+  loaderDeps: ({ search }) => ({ next: search.next, reauth: search.reauth }),
   loader: ({ deps }) => getLogin({ data: deps }),
   head: ({ loaderData }) => ({
     meta: [{ title: `Sign in · ${loaderData?.appName ?? "Workspace"}` }],
@@ -217,6 +262,7 @@ export const Route = createFileRoute("/login")({
           email: stringOrNull(form.get("email")) ?? "",
           password: stringOrNull(form.get("password")) ?? "",
           next: stringOrNull(form.get("next")) ?? "/mail",
+          reauth: form.get("reauth") === "1",
         });
       },
     },

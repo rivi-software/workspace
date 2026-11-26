@@ -112,8 +112,12 @@ Workspace is an open-source workspace that runs on Cloudflare: **Mail** (receivi
 </picture>
 
 - **A conversation** at `/assistant` (`⌘J`, or `g h`), the recent ones in the sidebar, each a document of your questions and the assistant's answers with the steps it took in between ("Searched mail for “the plan” · 3 conversations", with a link). Answers stream as they are written; **Stop** cuts one short; a conversation can be deleted for good.
-- **What it can do**: search mail in the search box's language over All mail or a folder, read a conversation, search Drive by name or list the recent files, read a text file (plain text, Markdown, CSV, JSON, code, up to 256 KB), and **prepare a draft**: a reply to a conversation or a new message, left in Drafts with a link to the composer. It never sends mail and changes nothing else. **Ask the assistant** in a conversation's menu in Mail opens it with a question about that conversation.
-- **The model**: `AI_PROVIDER` in `wrangler.jsonc` names it: `workers-ai` runs `AI_CHAT_MODEL` (Llama 3.3 70B by default) on Workers AI through AI Gateway, `anthropic` a Claude model through the gateway's provider-native endpoint (the gateway holds the key), `mock` a deterministic stand-in for the tests and local development. What the assistant reads to answer goes to that model; the gateway's log is off for every call.
+- **What it can do**: search mail in the search box's language over All mail or a folder, and **by what it is about** ("the dispute over the transmitter invoice" finds the conversation whose mail never says "dispute"), files in Drive the same way by their name and contents, both beside the words and each result marked with how it was found, read a conversation, search Drive by name or list the recent files, read a file in Drive or attached to a message: a text file (plain text, Markdown, CSV, JSON, code, up to 256 KB) as it is, and a PDF, a Word or OpenDocument text or a spreadsheet (Excel, OpenDocument, Numbers; up to 4 MB) through Workers AI's document conversion, with at most 80,000 characters of it going to the model (an image, a presentation and a scan without text it cannot read, and says so), and **prepare a draft**: a reply to a conversation or a new message, left in Drafts with a link to the composer. In **Calendar and Tasks** it reads the calendar between two days (your own events and your invitations, repeats written out, times on your clock), the open to-dos by when they are due with the GitHub issues assigned to you (it says so when GitHub is not connected or did not answer), and the to-dos that are done; and when asked it **adds a to-do** (a title, notes, a due day, a priority) or **an event** on your own calendar (a time or whole days, a place, a note). It invites nobody and changes no event, task or file that exists. In **Mail** it also **organises conversations** when asked: one of the list's own actions on up to 100 conversations it found, archive, back to the inbox, to the trash, star and unstar, read and unread, snooze until a day and time on your clock (08:00 without a time), end a snooze, and a label of yours on or off by its name. Its step on the page offers **Undo** for ten minutes, which puts back exactly what the action changed, once; after that the step reads "undone", to the model too. It never sends mail, never deletes for good, never mutes, and leaves Spam alone: it moves nothing into it or out of it, since the spam filter learns from your own moves. **Ask the assistant** in a conversation's menu in Mail opens it with a question about that conversation.
+- **In Mail itself**, where you read and write: **Summarize** in a conversation's menu writes a short summary above its messages (what it is about, what was decided, what is asked of you, what is open), streamed as the model writes it and gone when it is dismissed or another conversation opens; **Draft with AI** in the composer takes a line of what the message should say (or none, for a plain answer to the conversation) and puts a first version in the editor above the quote, for you to change and send. Both are one call of the Assistant's model without tools, over the conversation as the Assistant reads it. Nothing is stored and nothing is sent, and neither is offered where the Worker has no model.
+- **Search by meaning**: the `SEARCH` binding (`vectorize` in `wrangler.jsonc`) is the index `workspace-search`: one vector per conversation and per Drive file, made by Workers AI's `@cf/baai/bge-m3` (1024 dimensions, cosine) through the same gateway with its log off, filed under `mail:<owner>` or `drive:<owner>`. It holds a vector, an id and that namespace, never text. The cron reads a few conversations and files into it each minute (`search_entries` notes what it read, `search_state` where its walks are) and takes out the vectors of what is deleted for good. Every hit is read back through Mail's or Drive's gate, so the index never decides who sees what. Without the index (local dev, `AI_PROVIDER=mock`) the Assistant searches by words.
+- **Your clock**: the page sends the browser's time zone with each question, and the model reads every question under a line that says when it was asked there ("[Asked on Tuesday 17 November 2026 at 14:05, Europe/Amsterdam time]"), so "tomorrow at 14:00" is your tomorrow. A question without a zone is read in UTC.
+- **The model**: `AI_PROVIDER` in `wrangler.jsonc` names it: `workers-ai` runs a Workers AI model through AI Gateway (`AI_CHAT_MODEL` when it names an `@cf/` model, else Llama 3.3 70B), `anthropic` runs `AI_CHAT_MODEL` as a Claude model (Claude Sonnet 5.5 when it names none) through the gateway's provider-native endpoint on the Anthropic key the gateway holds, at a medium effort, with the request's prefix cached and a refusal retried on the model Anthropic picks for it (`claudeOptions`), and `mock` is a deterministic stand-in for local development and the smoke. Each provider keeps to a model of its own whatever `AI_CHAT_MODEL` names, so a switch between them is a change of `AI_PROVIDER` alone. Without the AI binding, `workers-ai` and `anthropic` fail the request rather than answer from the mock. What the assistant reads to answer goes to that model; the gateway's log is off for every call. A Claude model thinks before it answers: its thinking is handed back to it between the steps of a turn and kept nowhere else, so a stored conversation holds the text and the tool steps alone. A model that declines a question leaves an empty answer, which the page says it gave.
+- **Turning AI off**: `AI_FEATURES` in `wrangler.jsonc` is `on`; `off` turns every AI feature off at once. The Assistant's pages only say it is off, and its module, shortcuts, **Ask the assistant**, **Summarize** and **Draft with AI** disappear; the Assistant's routes (`/api/assistant/chat`, `/api/v1/assistant/*`) answer 404 and Mail's summary and draft refuse; and the cron stops reading mail and files into the search by meaning. Nothing a person keeps reaches a model. The conversations already kept stay in D1 and come back when it is on again.
 
 ## Calendar and Tasks
 
@@ -142,8 +146,16 @@ Workspace is an open-source workspace that runs on Cloudflare: **Mail** (receivi
 | Settings → Mail | The reading layout, the undo-send delay, the page size, labels, filters, the spam filter's blocked and allowed senders, the senders whose images always load, your OpenPGP key and the keys of the people you write to, the vacation responder, the Microsoft 365 import. |
 | Settings → Drive | Sharing outside the workspace on or off, and every link and invitation with who made it and how often it was opened (admins). |
 | Settings → Tasks | The GitHub connection. |
+| Settings → Groups | Group inboxes: a **distribution group** files its mail in each member's own inbox, a **shared inbox** is one mailbox every member opens in Mail. Admins make them, turn them off and delete a distribution group; admins and a group's owners add and remove its members. Everyone sees the groups they are in. |
 | Settings → People | Mailboxes, aliases, a new primary address, roles, one-time passwords, deactivation and removal for good, each person's passkeys, authenticator app, recovery addresses and sessions (admins). |
+| Settings → Applications | The apps that sign people in through the workspace (single sign-on): their redirect URIs, secrets and who may sign in to each, with a role; the signing key (admins). |
 
+## On a phone
+
+The console works on a phone screen, with a tab bar at the bottom, and installs as a web app from Safari's or Chrome's **Add to Home Screen**. There is also an app for iPhone and Android in [`mobile/`](mobile/README.md): a thin shell around the phone's own web view that opens your workspace, wherever it is deployed. The first time it opens, it asks for your workspace's address (such as `workspace.example.com`) and checks that a workspace answers there; **Use another workspace** under the sign-in form switches. Downloads go to the Files app on an iPhone and the Downloads folder on Android, and links to other sites open in the phone's browser. There is no published build: build it from Xcode or Android Studio, or take the debug package a pull request's run leaves, and a deployment can build it with its own address in it ([mobile/README.md](mobile/README.md)).
+
+
+On iOS 26 and later there is also a native iPhone app in [`ios/`](ios/README.md), in SwiftUI over the [Workspace API](docs/API.md): Mail with your shared inboxes, Drive, Calendar, Tasks and the Assistant. Its sign-in asks for your workspace's address beside your own and your password (and your authenticator's code where you have one), checks that a workspace answers there, and remembers it. It has no published build either: build it from Xcode.
 ## Sign-in and accounts
 
 Sign-in runs on [Better Auth](https://www.better-auth.com) (`app/lib/auth.server.ts`), served by the Worker at `/api/auth/*`.
@@ -151,11 +163,13 @@ Sign-in runs on [Better Auth](https://www.better-auth.com) (`app/lib/auth.server
 - **Accounts**: nobody signs up. An admin creates a mailbox under Settings → People, an address on the mail domain with a name and a one-time password shown once; the first admin comes from `pnpm run admin:create` ([Deploy](#deploy)). Everyone changes their own password, name and signatures under Settings → Account.
 - **Password**: at least 12 characters, kept as a PBKDF2 hash. The sign-in form only accepts posts from the workspace's own origin, and stops after 10 failed attempts per client and address for 15 minutes; Better Auth's own rate limits sit on `/api/auth/*` as well.
 - **Passkeys**: a sign-in of its own, with Touch ID, Windows Hello, a phone or a security key, added under Settings → Account. A passkey is bound to the workspace's address (`APP_URL`).
-- **Authenticator app**: the second factor of a password sign-in. Once set up under Settings → Account, a password sign-in continues on `/two-factor` with the app's six-digit code, or one of the backup codes shown once at setup; "Don't ask again on this browser for 30 days" trusts that browser.
+- **Duo** (optional): with the three `DUO_*` secrets set, Duo's Universal Prompt is the second factor of every password sign-in, in place of the authenticator app; a passkey still signs in on its own ([docs/SSO.md](docs/SSO.md#duo)). Without them, the authenticator app and passkeys are the second factor, as below.
+- **Authenticator app**: the second factor of a password sign-in while Duo is off (and while Duo cannot take sign-ins). Once set up under Settings → Account, a password sign-in continues on `/two-factor` with the app's six-digit code, or one of the backup codes shown once at setup; "Don't ask again on this browser for 30 days" trusts that browser.
 - **Sessions**: 14 days, kept in the database and read on every request. Settings → Account lists your sessions, signs one out, or signs out everywhere at once. A new password, however it is set, and a deactivation end every session of the person at once.
 - **Admins** (Settings → People) also reset a person's password to a new one-time password, remove their passkeys, reset their authenticator app (for a lost phone), add aliases, change roles, and deactivate a person (their mail stays, their sign-in stops). `pnpm run admin:create` does the same for a locked-out admin from the command line.
 - **Forgotten passwords**: under Settings → Account a person adds up to three personal recovery addresses outside the mail domain, each confirmed from a link mailed to it. **Forgot your password?** on the sign-in page mails a single-use link (30 minutes) to the confirmed ones; choosing a new password there signs out every session. A passkey or authenticator app still confirms the next sign-in.
 - **Other clients**: the Workspace API at `/api/v1` takes a Better Auth session token as a bearer token ([docs/API.md](docs/API.md)).
+- **Single sign-on**: the workspace is an OpenID Connect identity provider for other apps (and Cloudflare Access). An admin registers each app under Settings → Applications; people sign in with their mailbox and its second factor, and the ID token's `amr` says how ([docs/SSO.md](docs/SSO.md)).
 
 ## Run locally
 
@@ -173,7 +187,7 @@ The seed has two accounts, **admin@example.com** and **sam@example.com**, both w
 - `pnpm run email:simulate "Lunch on Friday?" "Are you free?"` delivers an inbound message to the dev server's `email()` handler (`TO=` and `FROM=` change the envelope).
 - Sent mail never leaves the machine: Miniflare writes each message under `.wrangler/tmp/email/`. Set `"remote": true` on the `send_email` binding in `wrangler.jsonc` to send real mail from local dev through your `wrangler login`.
 - The cron does not run by itself in dev; `curl "http://localhost:5174/cdn-cgi/handler/scheduled?cron=*+*+*+*+*"` runs it once (snoozes, scheduled messages, a batch of each import).
-- The Assistant answers from the mock model (`AI_PROVIDER=mock`): it calls its tools on a few phrasings ("search my mail for lunch", "find files named plan", "read the conversation th_…", "draft a reply to th_… saying …") and echoes anything else. Set `AI_PROVIDER=workers-ai` in `.dev.vars` to talk to the real model; the AI binding is remote even in local dev and needs `wrangler login`.
+- The Assistant answers from the mock model (`AI_PROVIDER=mock`, `app/lib/assistant/mock-model.server.ts`): it calls its tools on a few phrasings ("search my mail for lunch", "find files named plan", "read the conversation th_…", "draft a reply to th_… saying …") and echoes anything else. Set `AI_PROVIDER=anthropic` (or `workers-ai`) in `.dev.vars` to talk to a real model; the AI binding is remote even in local dev and needs `wrangler login`.
 - `pnpm run smoke` runs the whole flow against a running server (`BASE_URL`, default `http://localhost:5174`).
 
 ## Deploy
@@ -196,6 +210,8 @@ The [button](https://developers.cloudflare.com/workers/platform/deploy-buttons/)
 | `MAIL_DOMAIN` | The domain the mailboxes are on; it must be a zone on the same account. The other variables are in the table of step 3 below. |
 | Build and deploy commands | Keep `pnpm run build` and `pnpm run deploy` (step 6 below says what it does), and turn **preview builds** off: the workspace runs at one address, `APP_URL`. |
 
+The search by meaning needs a Vectorize index of its own, `workspace-search`: if the button's page does not offer to make it, make it once with `wrangler vectorize create workspace-search --dimensions=1024 --metric=cosine` before the deploy that binds it.
+
 Then clone the copy, run `pnpm install` and `wrangler login`, and continue with the mail domain (step 4 below) and the first admin (step 7). A later change to `wrangler.jsonc` in the copy, such as `addresses` or a custom domain in `routes`, deploys with the push that makes it.
 
 ### From the command line
@@ -209,9 +225,10 @@ Then clone the copy, run `pnpm install` and `wrangler login`, and continue with 
    wrangler kv namespace create workspace-previous-assets
    wrangler r2 bucket create workspace-mail
    wrangler r2 bucket create workspace-drive
+   wrangler vectorize create workspace-search --dimensions=1024 --metric=cosine
    ```
 
-   `wrangler deploy` fails on a binding whose bucket does not exist, so the buckets come first. The AI binding needs nothing made: AI Gateway creates the `default` gateway on the first call.
+   `wrangler deploy` fails on a binding whose bucket or index does not exist, so they come first. The Vectorize index is the Assistant's search by meaning ([Assistant](#assistant)). The AI binding needs nothing made: AI Gateway creates the `default` gateway on the first call.
 
 3. Settings in `wrangler.jsonc` (`vars`):
 
@@ -221,6 +238,7 @@ Then clone the copy, run `pnpm install` and `wrangler login`, and continue with 
    | `APP_URL` | The Worker's address, with scheme: the origin of every link in a mail, of every passkey and of the sign-in forms. A custom domain through `routes` (`"routes": [{ "pattern": "workspace.example.com", "custom_domain": true }]`; Wrangler creates the DNS record and certificate on deploy), or the Worker's workers.dev address with `"workers_dev": true`. One origin either way; preview URLs stay off. |
    | `MAIL_DOMAIN` | The domain every mailbox is an address on. |
    | `SES_REGION` | Amazon SES's region, when SES sends ([Amazon SES](#amazon-ses)). |
+   | `AI_FEATURES` | `off` turns every AI feature off: the Assistant, its API and every link to it, Mail's Summarize and Draft with AI, and the search by meaning ([Assistant](#assistant)). Anything else leaves them on. |
    | `AI_PROVIDER`, `AI_GATEWAY_ID`, `AI_CHAT_MODEL` | The Assistant's model ([Assistant](#assistant)). `mock` runs the workspace without a model. |
    | `AI_TEXT_ANALYTICS` | `on` sends the Assistant's prompts and answers to PostHog AI observability beside the counts; anything else sends counts only ([PostHog](#posthog)). |
    | `POSTHOG_PROJECT_TOKEN`, `POSTHOG_HOST` | PostHog, optional; an empty token keeps it off. |
@@ -237,7 +255,7 @@ Then clone the copy, run `pnpm install` and `wrangler login`, and continue with 
    | `SES_ACCESS_KEY_ID`, `SES_SECRET_ACCESS_KEY` | optional | Amazon SES ([Amazon SES](#amazon-ses)). |
    | `MICROSOFT_CLIENT_ID`, `MICROSOFT_CLIENT_SECRET`, `MICROSOFT_TENANT_ID` | optional | The Microsoft 365 import ([Microsoft 365 import](#microsoft-365-import)). |
 
-   `AI_PROVIDER=anthropic` needs no secret in the Worker: the AI Gateway holds the Anthropic key (BYOK, in the gateway's settings).
+   `AI_PROVIDER=anthropic` needs no secret in the Worker: the AI Gateway `AI_GATEWAY_ID` names holds the Anthropic key (AI Gateway → the gateway → Provider Keys). Make a gateway of the Workspace's own for it, with its log off, and set `AI_GATEWAY_ID` to its name: the `default` gateway Workers AI makes on its first call holds no key, and a Claude model's call fails without one.
 
 6. `pnpm run build`, then `pnpm run deploy`: the D1 migrations on the remote database, the build's client files into the `PREVIOUS_ASSETS` namespace, so a tab open on an earlier build can still load its chunks for seven days (`@rivi-software/cloudflare-deploy`), then `wrangler deploy`. Workers Builds runs the same two commands for a deploy made with the button.
 7. The first admin: `pnpm run admin:create --remote --email you@<MAIL_DOMAIN> --name "You"` prints a one-time password. Sign in, change it under Settings → Account, then add the team under Settings → People. The same command resets a locked-out admin (a new password, every session ended, the authenticator app reset).
@@ -246,8 +264,8 @@ Then clone the copy, run `pnpm install` and `wrangler login`, and continue with 
 
 Inbound mail only reaches the Worker through an Email Routing rule, and Wrangler owns the rules for the entries in `addresses`: it creates or updates them on every deploy. Two ways to route the mail:
 
-- **Literal addresses**: list every mailbox (`"ada@example.com"`), and deploy when one is added. Nothing else changes.
-- **The catch-all** `"*@example.com"`: every address without a rule of its own reaches the Worker, which delivers to the mailbox or alias and refuses the rest, so the sender gets a bounce.
+- **Literal addresses**: list every mailbox and group inbox (`"ada@example.com"`, `"support@example.com"`), and deploy when one is added. Nothing else changes.
+- **The catch-all** `"*@example.com"`: every address without a rule of its own reaches the Worker, which delivers to the mailbox, alias or group inbox and refuses the rest, so the sender gets a bounce.
 
 A rule or the catch-all made in the dashboard for the same address is a destructive change Wrangler applies only after an interactive yes, so a CI deploy fails until it is freed in the dashboard first. A `+tag` reaches the address before the plus. The raw message is kept as `.eml` in the `workspace-mail` bucket.
 
@@ -273,6 +291,15 @@ A person imports their own Microsoft 365 mailbox through Microsoft Graph: OAuth 
 4. The Worker's secrets: `MICROSOFT_CLIENT_ID` (the Application (client) ID), `MICROSOFT_CLIENT_SECRET` and `MICROSOFT_TENANT_ID` (the Directory (tenant) ID; empty lets any work account connect).
 
 Settings → Mail → Import then shows **Connect Microsoft 365**.
+
+### Branding
+
+An admin gives the workspace its owner's look under **Settings → Branding**, with no fork and no redeploy:
+
+- **Accent colour**: buttons, links, the selection and the focus ring, as any CSS colour. The light theme uses it as it is, darkened only as far as links need to read on the page; the dark theme a bright reading of the same hue. Text on the accent turns white or black, whichever reads.
+- **Icon**: a square PNG (at least 512 × 512), SVG, WebP or JPEG of at most 1 MB, for the tab, the Home Screen, the installed app, mail notifications and the sidebar. The Home Screen on iPhone and iPad reads a PNG only, so an SVG leaves the default tile there.
+
+The colour is kept in D1 and the icon in the `DRIVE` bucket (`branding/icon`); the Worker serves both under `/brand/` (`app/lib/branding.server.ts`). Every page load asks for them again, so a change shows on the next page anyone opens. Safari keeps a tab's icon in a store of its own, so a new icon can take a while to show there.
 
 ### PostHog
 

@@ -169,7 +169,7 @@ export const lightness = (c: Rgba): number => toOklab(c).L;
 const chroma = (lab: Lab): number => Math.hypot(lab.a, lab.b);
 
 /** The colour at another lightness, hue kept; the chroma shrinks until it fits in sRGB. */
-const withLightness = (c: Rgba, L: number, chromaScale = 1): Rgba => {
+export const withLightness = (c: Rgba, L: number, chromaScale = 1): Rgba => {
   const lab = toOklab(c);
 
   const fits = (k: number) =>
@@ -276,9 +276,11 @@ export const darkBorder = (c: Rgba): Rgba => {
   return withLightness(c, Math.max(L, 0.62 - 0.3 * L));
 };
 
-// url() and other functions are skipped whole, so a colour word inside an address or var(--red) stays as written.
+// url() and other functions are skipped whole, so a colour word inside an address or var(--red) stays as written. A
+// `url(` without its `)` runs to the end of the value, as CSS reads it: a search for the `)` from every `url(` took time
+// quadratic in the value's length (#3667).
 const VALUE_TOKEN =
-  /url\([^)]*\)|"[^"]*"|'[^']*'|(?:rgb|hsl)a?\([^()]*\)|-?[a-z][\w-]*\([^()]*\)|#[0-9a-f]{3,8}\b|-?[a-z][\w-]*/giu;
+  /url\([^)]*\)?|"[^"]*"|'[^']*'|(?:rgb|hsl)a?\([^()]*\)|-?[a-z][\w-]*\([^()]*\)|#[0-9a-f]{3,8}\b|-?[a-z][\w-]*/giu;
 
 /** Every colour in a CSS value, one by one; the rest of the value is left exactly as it was. */
 export const mapColors = (value: string, fn: (c: Rgba) => Rgba): string =>

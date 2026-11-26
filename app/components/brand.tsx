@@ -4,8 +4,9 @@ import type * as React from "react";
  * The mark: a rounded tile holding five level bars, the middle one lit like an on-air meter. Everything is geometry,
  * so no font or image loads for the logo. The tile and bars follow the theme through `--rivi-mark-tile` and
  * `--rivi-mark-bars` (ink tile on light grounds, paper tile on dark ones), and the lit bar through `--rivi-mark-peak`;
- * without them it draws the light-ground colours. Decorative unless given a `title`. Swap this component to brand a
- * workspace of your own; `public/favicon.svg` and `public/icons/` are the same drawing.
+ * without them it draws the light-ground colours. Decorative unless given a `title`. The pages show it through
+ * `BrandMark`, which gives way to the workspace's own icon (Settings → Branding); `public/favicon.svg` and `public/icons/`
+ * are the same drawing.
  */
 
 interface Bar {
@@ -67,4 +68,16 @@ export const RiviMark = ({
       ))}
     </g>
   </svg>
+);
+
+/**
+ * The workspace's mark: `RiviMark`, or the icon an admin uploaded under Settings → Branding. The page cannot know
+ * which, since no loader reads it, so both are drawn and the Worker's stylesheet (`/brand/theme.css`,
+ * `brandStylesheet`) shows the one that holds. The icon is a background, which a browser never fetches while hidden.
+ */
+export const BrandMark = ({ className }: { className?: string }) => (
+  <span className={`inline-flex ${className ?? ""}`}>
+    <RiviMark className="brand-mark-default" />
+    <span className="brand-mark-icon" aria-hidden />
+  </span>
 );

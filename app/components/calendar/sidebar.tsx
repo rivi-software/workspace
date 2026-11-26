@@ -17,6 +17,7 @@ import {
   isDayKey,
   monthGrid,
   parseDay,
+  SERVER_LOCALE,
   startOfMonth,
   todayKey,
 } from "~/lib/calendar/calendar";
@@ -44,6 +45,8 @@ const MiniMonth = ({
 }) => {
   const [month, setMonth] = useState(() => startOfMonth(anchor));
   const [seenAnchor, setSeenAnchor] = useState(anchor);
+  // The server renders the month too when the address names a day: its names stay in the server's locale until hydrated.
+  const locale = useHydrated() ? undefined : SERVER_LOCALE;
 
   // Moving the view to another day brings the month to it, however the person had paged.
   if (seenAnchor !== anchor) {
@@ -55,7 +58,7 @@ const MiniMonth = ({
   const today = todayKey();
   const p = defined(parseDay(month), "the result of parse day");
 
-  const title = new Date(`${month}T00:00:00Z`).toLocaleDateString(undefined, {
+  const title = new Date(`${month}T00:00:00Z`).toLocaleDateString(locale, {
     month: "long",
     year: "numeric",
     timeZone: "UTC",
@@ -85,7 +88,7 @@ const MiniMonth = ({
       <div className="text-2xs text-subtle grid grid-cols-7 text-center">
         {days.slice(0, 7).map((day) => (
           <span key={day} className="h-5 leading-5" aria-hidden>
-            {new Date(`${day}T00:00:00Z`).toLocaleDateString(undefined, {
+            {new Date(`${day}T00:00:00Z`).toLocaleDateString(locale, {
               weekday: "narrow",
               timeZone: "UTC",
             })}

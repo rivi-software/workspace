@@ -37,6 +37,10 @@ export const users = sqliteTable(
     role: text("role", { enum: ["admin", "member"] })
       .notNull()
       .default("member"),
+    // A person signs in; a group (`groups`) is a mailbox nobody signs in as: no password, no passkey, no session.
+    kind: text("kind", { enum: ["person", "group"] })
+      .notNull()
+      .default("person"),
     active: integer("active", { mode: "boolean" }).notNull().default(true),
     // When an admin removed the person (`removePerson`): from then on mail to them is refused, and the cron deletes
     // everything of theirs a batch at a time (`app/lib/removal.server.ts`), this row last, which frees the address.
@@ -86,6 +90,10 @@ export const sessions = sqliteTable(
     expiresAt: instant("expires_at").notNull(),
     ipAddress: text("ip_address"),
     userAgent: text("user_agent"),
+    // How the person signed in, as RFC 8176 names it (`pwd`, `otp`, `mfa`, `pop`), space-separated: what an
+    // application that signs in through the workspace reads from the ID token's `amr` (`sessionAmr`, docs/SSO.md).
+    // Null on a session from before it was kept, which says nothing about the sign-in.
+    amr: text("amr"),
     createdAt: instant("created_at")
       .notNull()
       .$defaultFn(() => new Date()),
@@ -219,6 +227,41 @@ export const aliases = sqliteTable(
     createdAt: text("created_at").notNull().default(now()),
   },
   (t) => [index("aliases_user_idx").on(t.userId)]
+);
+
+/**
+ * A group inbox: an address on `MAIL_DOMAIN` that several people answer. Its `users` row (kind `group`) carries the
+ * address, the name its mail goes out under and whether it takes mail (`active`). A `distribute` group files what
+ * arrives in each member's own mailbox; a `shared` group keeps one mailbox, the group's own, which every member opens.
+ * The mode never changes: a shared group's mail would have nowhere to go.
+ */
+export const groups = sqliteTable("groups", {
+  id: text("id")
+    .primaryKey()
+    .references(() => users.id),
+  mode: text("mode", { enum: ["distribute", "shared"] }).notNull(),
+  createdAt: text("created_at").notNull().default(now()),
+});
+
+/** A person in a group: an `owner` adds and removes the members, a `member` reads and sends as the group. */
+export const groupMembers = sqliteTable(
+  "group_members",
+  {
+    groupId: text("group_id")
+      .notNull()
+      .references(() => groups.id, { onDelete: "cascade" }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    role: text("role", { enum: ["owner", "member"] })
+      .notNull()
+      .default("member"),
+    createdAt: text("created_at").notNull().default(now()),
+  },
+  (t) => [
+    primaryKey({ columns: [t.groupId, t.userId] }),
+    index("group_members_user_idx").on(t.userId),
+  ]
 );
 
 /**
@@ -439,6 +482,8 @@ export const messages = sqliteTable(
       .notNull()
       .references(() => users.id),
     direction: text("direction", { enum: ["inbound", "outbound"] }).notNull(),
+    // Who wrote a message a shared group inbox sent: the member, since the From names the group. Null elsewhere.
+    sentBy: text("sent_by").references(() => users.id),
     // RFC 5322 Message-ID with its angle brackets: the sender's on inbound mail, Email Service's on sent mail.
     messageId: text("message_id").notNull(),
     inReplyTo: text("in_reply_to"),
@@ -1014,6 +1059,10 @@ export type DraftFile = typeof draftFiles.$inferSelect;
 
 export type Label = typeof labels.$inferSelect;
 
+export type Group = typeof groups.$inferSelect;
+
+export type GroupMember = typeof groupMembers.$inferSelect;
+
 export type Contact = typeof contacts.$inferSelect;
 
 export type Filter = typeof filters.$inferSelect;
@@ -1089,6 +1138,52 @@ export const assistantMessages = sqliteTable(
     ),
   ]
 );
+
+/**
+ * What a step of the Assistant changed in a person's mail, to put back: the sealed undo of one `organize_mail` call
+ * (Mail's own, purpose `mail-undo`), kept here and never in the answer, so neither the model nor the page ever holds
+ * it. The step's Undo is taken within ten minutes of `created_at` and once: `used_at` is set in the same statement
+ * that reads the undo. A person's rows older than a day go when they organise mail again.
+ */
+export const assistantUndos = sqliteTable(
+  "assistant_undos",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id),
+    undo: text("undo").notNull(),
+    createdAt: text("created_at").notNull().default(now()),
+    usedAt: text("used_at"),
+  },
+  (t) => [index("assistant_undos_user_idx").on(t.userId, t.createdAt)]
+);
+
+/**
+ * What the search by meaning holds: one row per conversation or Drive file whose text has a vector in the index
+ * (`app/lib/search/`), under its own id. `user_id` is the owner the vector is filed under, `source_at` the source's
+ * last change when it was read (a conversation's `last_message_at`, a file's `updated_at`), so the indexer reads a
+ * source again only when it changed. A row whose source is gone is what the sweep finds, to take its vector out.
+ */
+export const searchEntries = sqliteTable(
+  "search_entries",
+  {
+    id: text("id").primaryKey(),
+    kind: text("kind", { enum: ["mail", "drive"] }).notNull(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id),
+    sourceAt: text("source_at").notNull(),
+    indexedAt: text("indexed_at").notNull().default(now()),
+  },
+  (t) => [index("search_entries_kind_idx").on(t.kind, t.id)]
+);
+
+/** Where the indexer of the search by meaning is in its walks: a named cursor each, read and moved by the cron. */
+export const searchState = sqliteTable("search_state", {
+  key: text("key").primaryKey(),
+  value: text("value").notNull(),
+});
 
 /**
  * Calendar (#3111): an event on a person's calendar, theirs to change. A timed event runs from `starts_at` to
@@ -1211,3 +1306,103 @@ export type CalendarAttendee = typeof calendarAttendees.$inferSelect;
 export type Task = typeof tasks.$inferSelect;
 
 export type GithubConnection = typeof githubConnections.$inferSelect;
+
+/**
+ * An application that signs people in through the workspace (single sign-on, docs/SSO.md), registered by an admin
+ * under Settings → Applications. Its secret is kept as its SHA-256 and shown once; the redirect URIs are matched
+ * exactly. `access` is `everyone` (every active mailbox) or `listed` (only the people on `oauth_client_members`).
+ */
+export const oauthClients = sqliteTable("oauth_clients", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+  secretHash: text("secret_hash").notNull(),
+  // JSON `string[]`, each as `URL` serialises it.
+  redirectUrisJson: text("redirect_uris_json").notNull().default("[]"),
+  postLogoutRedirectUrisJson: text("post_logout_redirect_uris_json")
+    .notNull()
+    .default("[]"),
+  // Where the account menu's Apps opens it; none keeps it out of the menu.
+  launchUrl: text("launch_url"),
+  pkceRequired: integer("pkce_required", { mode: "boolean" })
+    .notNull()
+    .default(true),
+  access: text("access", { enum: ["everyone", "listed"] })
+    .notNull()
+    .default("everyone"),
+  active: integer("active", { mode: "boolean" }).notNull().default(true),
+  createdBy: text("created_by").references(() => users.id, {
+    onDelete: "set null",
+  }),
+  createdAt: text("created_at").notNull().default(now()),
+});
+
+/**
+ * A person on an application's list, with the role the application reads from the ID token's `role` claim (what a
+ * role means is the application's). On an application open to everyone the list only gives roles.
+ */
+export const oauthClientMembers = sqliteTable(
+  "oauth_client_members",
+  {
+    clientId: text("client_id")
+      .notNull()
+      .references(() => oauthClients.id, { onDelete: "cascade" }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    role: text("role"),
+    createdBy: text("created_by").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    createdAt: text("created_at").notNull().default(now()),
+  },
+  (t) => [
+    primaryKey({ columns: [t.clientId, t.userId] }),
+    index("oauth_client_members_user_idx").on(t.userId),
+  ]
+);
+
+/** An ES256 key the issuer signs ID and access tokens with; a retired key stays in the key set for a day. */
+export const oauthSigningKeys = sqliteTable("oauth_signing_keys", {
+  kid: text("kid").primaryKey(),
+  alg: text("alg").notNull().default("ES256"),
+  // Sealed (`sealSecret`, purpose `oauth-signing-key`): rotating SESSION_SECRET makes a new key on first use.
+  privateJwk: text("private_jwk").notNull(),
+  publicJwk: text("public_jwk").notNull(),
+  createdAt: text("created_at").notNull().default(now()),
+  retiredAt: text("retired_at"),
+});
+
+/**
+ * An authorization code: one person signed in to one application, redeemed once at the token endpoint within two
+ * minutes. Kept as its SHA-256, with what the ID token needs (`nonce`, `sid`, `auth_time`, `amr`, `role`) and what
+ * the token request must repeat (the redirect URI, the PKCE challenge).
+ */
+export const oauthCodes = sqliteTable(
+  "oauth_codes",
+  {
+    codeHash: text("code_hash").primaryKey(),
+    clientId: text("client_id")
+      .notNull()
+      .references(() => oauthClients.id, { onDelete: "cascade" }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    redirectUri: text("redirect_uri").notNull(),
+    scope: text("scope").notNull(),
+    nonce: text("nonce"),
+    codeChallenge: text("code_challenge"),
+    sid: text("sid"),
+    authTime: integer("auth_time").notNull(),
+    // JSON `string[]`: how the person signed in (RFC 8176), for the ID token's `amr`.
+    amrJson: text("amr_json").notNull().default("[]"),
+    // The person's role on the application's list, for the ID token's `role`.
+    role: text("role"),
+    expiresAt: text("expires_at").notNull(),
+    createdAt: text("created_at").notNull().default(now()),
+  },
+  (t) => [index("oauth_codes_expires_idx").on(t.expiresAt)]
+);
+
+export type OauthClient = typeof oauthClients.$inferSelect;
+
+export type OauthSigningKey = typeof oauthSigningKeys.$inferSelect;

@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover"
+    />
+    <meta name="color-scheme" content="light dark" />
+    <title>Workspace</title>
+    <link rel="stylesheet" href="start.css" />
+    <script type="module" src="start.js"></script>
+  </head>
+  <body>
+    <main>
+      <svg class="mark" viewBox="0 0 32 32" aria-hidden="true">
+        <rect class="tile" width="32" height="32" rx="6.4" />
+        <g class="tiles">
+          <rect class="lit" x="4" y="4" width="10" height="10" rx="2.5" />
+          <rect x="18" y="4" width="10" height="10" rx="2.5" />
+          <rect x="4" y="18" width="10" height="10" rx="2.5" />
+          <rect x="18" y="18" width="10" height="10" rx="2.5" />
+        </g>
+      </svg>
+      <h1 id="status" role="status">Opening your workspace…</h1>
+      <p id="detail" hidden>
+        Check your internet connection. The app opens your workspace as soon as
+        it can reach it.
+      </p>
+      <form id="choose" hidden novalidate>
+        <label for="address">Your workspace’s address</label>
+        <input
+          id="address"
+          name="address"
+          type="text"
+          inputmode="url"
+          autocomplete="url"
+          autocapitalize="off"
+          autocorrect="off"
+          spellcheck="false"
+          enterkeyhint="go"
+          placeholder="workspace.example.com"
+          aria-describedby="hint problem"
+        />
+        <p id="hint">The address you sign in to Workspace at in a browser.</p>
+        <p id="problem" class="problem" role="alert" hidden></p>
+        <button id="open" type="submit">Open</button>
+        <button id="cancel" class="quiet" type="button" hidden>Cancel</button>
+      </form>
+      <button id="retry" type="button" hidden>Try again</button>
+      <button id="change" class="quiet" type="button" hidden>
+        Use another workspace
+      </button>
+    </main>
+  </body>
+</html>

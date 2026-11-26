@@ -15,12 +15,30 @@ interface WorkspaceSecrets {
   // the mail domain in `SES_REGION` (a var). Empty: mail goes out through the EMAIL binding.
   SES_ACCESS_KEY_ID: string;
   SES_SECRET_ACCESS_KEY: string;
+  // Duo as the second factor of the password sign-in (docs/SSO.md, Second factor: Duo): the Web SDK application's
+  // Client ID, Client secret and API hostname. All three set: Duo's prompt follows every password; any empty: the
+  // authenticator app and passkeys, as without Duo.
+  DUO_CLIENT_ID: string;
+  DUO_CLIENT_SECRET: string;
+  DUO_API_HOST: string;
+}
+
+// What Workspace uses in place of a binding's own client, absent in production, where it is built from the binding
+// (`documentsFor`, `searchIndexFor`): a test lays its stand-in over `env`.
+interface WorkspacePorts {
+  // A test's stand-in for the document conversion (`documentsFor` in app/lib/documents.server.ts), which is Workers AI's.
+  // oxlint-disable-next-line typescript/consistent-type-imports -- this file is a global script: a top-level import would turn it into a module
+  DOCUMENTS?: import("./lib/documents.server").DocumentReader;
+  // A test's stand-in for the index of the search by meaning (`searchIndexFor` in app/lib/search/index.server.ts),
+  // which is Workers AI's embeddings in Vectorize.
+  // oxlint-disable-next-line typescript/consistent-type-imports -- this file is a global script: a top-level import would turn it into a module
+  SEARCH_INDEX?: import("./lib/search/index.server").SearchIndex;
 }
 
 // oxlint-disable-next-line typescript/no-empty-interface, typescript/no-empty-object-type -- declaration merging with ambient Env for Worker secrets
-interface Env extends WorkspaceSecrets {}
+interface Env extends WorkspaceSecrets, WorkspacePorts {}
 
 declare namespace Cloudflare {
   // oxlint-disable-next-line typescript/no-empty-interface, typescript/no-empty-object-type -- declaration merging with ambient Env for Worker secrets
-  interface Env extends WorkspaceSecrets {}
+  interface Env extends WorkspaceSecrets, WorkspacePorts {}
 }

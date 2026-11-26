@@ -9,6 +9,7 @@ import { stringOrNull } from "~/lib/guards";
 import { ingestInboundEmail } from "~/lib/mail/ingest.server";
 
 import { db, mail, mailbox } from "./fixtures";
+import { scriptedModel } from "./scripted-model";
 
 /** What the PostHog client was given to send. */
 const sent: {
@@ -20,6 +21,9 @@ const sent: {
 // What a correspondent wrote, which the Assistant's search reads back.
 const SUBJECT = "Quarterly figures for Breeze";
 const BODY = "Revenue grew 14 percent; the board meets on Thursday.";
+
+// What the model answers once the search came back.
+const ANSWER = "One conversation: Quarterly figures for Breeze.";
 
 // The properties PostHog keeps for 30 days: the only ones that may hold a word of the person's mail.
 const CONTENT = new Set([
@@ -38,7 +42,10 @@ const holding = (needle: string) =>
     )
   );
 
-/** A question to the Assistant, its answer read to the end and its turn stored, with the text switch as given. */
+/**
+ * A question to the Assistant on a model that searches the mail for "Quarterly" and then answers, its answer read to
+ * the end and its turn stored, with the text switch as given.
+ */
 const ask = async (user: User, text: string, switchOn: boolean) => {
   // SAFETY: test-only: the var is typed as `wrangler.jsonc`'s literal, and the module reads it as any string.
   const withSwitch = {
@@ -46,7 +53,12 @@ const ask = async (user: User, text: string, switchOn: boolean) => {
     AI_TEXT_ANALYTICS: switchOn ? "on" : "off",
   } as Env;
 
-  const answer = await answerChat(withSwitch, db, user, {
+  const model = scriptedModel([
+    { tool: "search_mail", input: { query: "Quarterly" } },
+    { text: ANSWER },
+  ]);
+
+  const answer = await answerChat(withSwitch, db, user, model, {
     conversationId: null,
     message: { role: "user", parts: [{ type: "text", text }] },
   });
@@ -100,11 +112,7 @@ describe("the Assistant in PostHog AI observability", () => {
   afterAll(() => installPostHogForTests(null));
 
   it("reports a turn as one trace on the person: each step's generation and the search under the step that called it", async () => {
-    const conversationId = await ask(
-      ann,
-      "search my mail for Quarterly",
-      false
-    );
+    const conversationId = await ask(ann, "What about the quarter?", false);
 
     const trace = sent.find((e) => e.event === "$ai_trace")?.properties;
 
@@ -142,7 +150,7 @@ describe("the Assistant in PostHog AI observability", () => {
   });
 
   it("leaves without a word of the mail while the switch is off", async () => {
-    await ask(ann, "search my mail for Quarterly", false);
+    await ask(ann, "What about the quarter?", false);
 
     expect([
       ...holding(SUBJECT),
@@ -152,7 +160,7 @@ describe("the Assistant in PostHog AI observability", () => {
   });
 
   it("carries the question, the steps and the search's result where it is on, only in the properties kept 30 days", async () => {
-    await ask(ann, "search my mail for Quarterly", true);
+    await ask(ann, "What about the quarter?", true);
 
     const trace = sent.find((e) => e.event === "$ai_trace")?.properties;
 
@@ -162,7 +170,10 @@ describe("the Assistant in PostHog AI observability", () => {
         (key) => !CONTENT.has(key)
       )
     ).toStrictEqual([]);
-    expect(trace?.$ai_input_state).toBe("search my mail for Quarterly");
-    expect(trace?.$ai_output_state).toContain("search_mail answered");
+    // What the model read: the question under the line that says when it was asked.
+    expect(trace?.$ai_input_state).toMatch(
+      /^\[Asked on [^\]]+\]\nWhat about the quarter\?$/u
+    );
+    expect(trace?.$ai_output_state).toContain(ANSWER);
   });
 });
