@@ -1,0 +1,80 @@
+# The Xcode project is generated from this file: `xcodegen generate` after adding or moving a
+# file, and commit RIVIWorkspace.xcodeproj with it (README).
+name: RIVIWorkspace
+options:
+  bundleIdPrefix: software.rivi
+  deploymentTarget:
+    iOS: "26.0"
+  createIntermediateGroups: true
+  generateEmptyDirectories: false
+  groupSortPosition: top
+packages:
+  WorkspaceKit:
+    path: WorkspaceKit
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    SWIFT_STRICT_CONCURRENCY: complete
+    ENABLE_USER_SCRIPT_SANDBOXING: YES
+    # No team: a simulator build needs none, and a device build takes yours in Xcode (never commit it).
+    CODE_SIGN_STYLE: Automatic
+    DEVELOPMENT_TEAM: ""
+targets:
+  Workspace:
+    type: application
+    platform: iOS
+    deploymentTarget: "26.0"
+    sources:
+      - path: Workspace
+    dependencies:
+      - package: WorkspaceKit
+    # No entitlement yet: the workspace's Worker sends no push, and the reminders are local.
+    entitlements:
+      path: Workspace/Workspace.entitlements
+      properties: {}
+    info:
+      path: Workspace/Info.plist
+      properties:
+        # The Home Screen label; the app's full name is the product name everywhere else.
+        CFBundleDisplayName: Workspace
+        LSRequiresIPhoneOS: true
+        UILaunchScreen:
+          UIColorName: Canvas
+        # HTTPS alone: App Store Connect asks about encryption on every upload otherwise.
+        ITSAppUsesNonExemptEncryption: false
+        # A debug build reaches the local workspace on http://localhost:5174.
+        NSAppTransportSecurity:
+          NSAllowsLocalNetworking: true
+        UIApplicationSupportsIndirectInputEvents: true
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        UISupportedInterfaceOrientations~ipad:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationPortraitUpsideDown
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+    settings:
+      base:
+        PRODUCT_NAME: RIVI Workspace
+        PRODUCT_BUNDLE_IDENTIFIER: software.rivi.workspace
+        TARGETED_DEVICE_FAMILY: "1,2"
+        MARKETING_VERSION: 0.1.0
+        CURRENT_PROJECT_VERSION: 1
+        GENERATE_INFOPLIST_FILE: NO
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+        SUPPORTS_MACCATALYST: NO
+        SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD: NO
+        SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD: NO
+        ENABLE_PREVIEWS: YES
+    scheme:
+      testTargets:
+        - package: WorkspaceKit/WorkspaceKitTests
+      # A debug build's sign-in screen starts with this address while the variable is on (Edit
+      # Scheme > Run > Arguments); the README has the local setup.
+      environmentVariables:
+        - variable: WORKSPACE_URL
+          value: http://localhost:5174
+          isEnabled: false

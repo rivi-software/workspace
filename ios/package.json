@@ -1,0 +1,14 @@
+{
+  "name": "@rivi/workspace-ios",
+  "version": "0.1.0",
+  "private": true,
+  "license": "UNLICENSED",
+  "description": "RIVI Workspace for iPhone: the workspace as a native SwiftUI app on iOS 26 with Liquid Glass, over the Workspace API for native clients",
+  "type": "module",
+  "scripts": {
+    "project": "xcodegen generate",
+    "kit:test": "cd WorkspaceKit && swift build && swift test",
+    "ios:build": "xcodebuild -project RIVIWorkspace.xcodeproj -scheme Workspace -destination 'generic/platform=iOS Simulator' -configuration Debug CODE_SIGNING_ALLOWED=NO -quiet build",
+    "verify": "pnpm run project && git diff --exit-code --stat -- RIVIWorkspace.xcodeproj && pnpm run kit:test && pnpm run ios:build"
+  }
+}

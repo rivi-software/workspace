@@ -1,0 +1,794 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		023F84D9022B8633B3EB1569 /* NotificationsModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF948DF873A51391135F657E /* NotificationsModel.swift */; };
+		024CB922EF70FE76533AB2A2 /* DrivePicked.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6E7697FDCC0E01C1DF80CB15 /* DrivePicked.swift */; };
+		0370BF7409C3D964C3809C26 /* Glass.swift in Sources */ = {isa = PBXBuildFile; fileRef = A7D2A3D7D5E68058EED711BD /* Glass.swift */; };
+		0497126CBFC2575A4B1206E4 /* MailHTMLView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3BDE8CF4DFA19344709D6EC3 /* MailHTMLView.swift */; };
+		098C9544E6E0C6F933A4CC07 /* DriveMoveSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 66227C54BDDE3EEDF3A0E11F /* DriveMoveSheet.swift */; };
+		099623449968C40CCD7877E7 /* SignInView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E61EAC204D4D8E9BA734724C /* SignInView.swift */; };
+		0A080433E4928ADEC35C9AEE /* DriveRootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8DCC918C61F4213667AE8407 /* DriveRootView.swift */; };
+		137151058A3A76D30BB65283 /* PlannerItems.swift in Sources */ = {isa = PBXBuildFile; fileRef = A995BE8F94B95641BAE342CA /* PlannerItems.swift */; };
+		15AB8AFFBE9CA636B2B9663F /* MailFolderMenu.swift in Sources */ = {isa = PBXBuildFile; fileRef = 827279FB7D72B06FCEC96C30 /* MailFolderMenu.swift */; };
+		18AAC5BA55B5E73AB8C153FD /* MailRecipientField.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0904DC28F14566A42B33EE38 /* MailRecipientField.swift */; };
+		1DA18CA3395814BBF9E137E6 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 09E38B42B963B29CD090BA91 /* SettingsView.swift */; };
+		1EF4FA0A4A2C46537B0B1CF6 /* DriveListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 56078A31439F5DD5ED419F78 /* DriveListView.swift */; };
+		2229E83689CAF414F4B0E17E /* MailLabelPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6CB034100EC2CB38139D3D20 /* MailLabelPicker.swift */; };
+		2504FD6F6089B625BB081D30 /* ChangeSignal.swift in Sources */ = {isa = PBXBuildFile; fileRef = 09089BA17012E4E13995989D /* ChangeSignal.swift */; };
+		262FB8FD59F810097ABBE1D0 /* AppModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0E20978CF5A0F16783C7625 /* AppModel.swift */; };
+		271B6A926CB2EF37083A8AFC /* CalendarEventEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = A67DE6B9752EC355B2932553 /* CalendarEventEditor.swift */; };
+		2845BFA2F12758AF0DD47D93 /* LoadState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87D04ED67BBC60AFAF537C24 /* LoadState.swift */; };
+		287121CABACB07EADFB345ED /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE66F016384D459AA4D4E0A8 /* Theme.swift */; };
+		2B0AA0283F34B5134839AE75 /* Server.swift in Sources */ = {isa = PBXBuildFile; fileRef = 94A0A812472524A3315DAE92 /* Server.swift */; };
+		339DDDB14352C5CBAA191F49 /* TasksRootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 82F0FC5BE547645FAAE1AB7D /* TasksRootView.swift */; };
+		357E404D2F1EA06FE97EC73F /* CalendarModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D805ED5E91EDE88C8A1FEBC /* CalendarModel.swift */; };
+		3932DF159FAF8BDF3BDE672B /* DriveModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2DF4CA9B3F7213F0E91EBD9E /* DriveModel.swift */; };
+		3B5280B562254A4DE56F3526 /* AssistantMarkdown.swift in Sources */ = {isa = PBXBuildFile; fileRef = 29D1506BCF3145246BC619DB /* AssistantMarkdown.swift */; };
+		3D18D190701C2F1C96A10258 /* MailMessageCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3150C47A3B72F96B0B9D6DA0 /* MailMessageCard.swift */; };
+		3FE0B5597199960F5215786A /* MailRows.swift in Sources */ = {isa = PBXBuildFile; fileRef = AD97F47B480B2509587A15BE /* MailRows.swift */; };
+		4A0EDCD721B92EF6F891C56A /* DriveNodeSections.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7AA79158C92CACBEC6E868BD /* DriveNodeSections.swift */; };
+		4B2035B9D2D3D1E56DCAB58A /* NotificationSettingsSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2B5ABA3DBF6BD89B81ABD33 /* NotificationSettingsSection.swift */; };
+		4E3E0AFD0B89DB007A6047C9 /* MailComposeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9EAA6705B7B403186C20091 /* MailComposeView.swift */; };
+		4EF805BDEBB38733FA8A9C45 /* DriveUploads.swift in Sources */ = {isa = PBXBuildFile; fileRef = EC106E5F5C06E1E029D1C644 /* DriveUploads.swift */; };
+		50040C738FDC49050C595A03 /* DriveListDialogs.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2494D8B9A89B9269C565BB0A /* DriveListDialogs.swift */; };
+		5A14CF7C9E20B06D44EE84EB /* AvatarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 80B8D8102FCBC88813C68339 /* AvatarView.swift */; };
+		5AC5969A6789EA69C10056E5 /* DriveFolderView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C9725D0E42E6220683E5FDC /* DriveFolderView.swift */; };
+		5BAAD944B2415A6DE892DF32 /* EmptyState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 04176B4F3D989A078B091981 /* EmptyState.swift */; };
+		5D6B3573A736A3ADC3F3FC77 /* WorkspaceKit in Frameworks */ = {isa = PBXBuildFile; productRef = 99F57F38FDD0299F8E8CBCB4 /* WorkspaceKit */; };
+		5E19FB2E2208AA7186BB9A22 /* PlannerChips.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12C1B8FF0FEAE0074A83E77F /* PlannerChips.swift */; };
+		603EE209D0160A8354E76C04 /* DriveIcons.swift in Sources */ = {isa = PBXBuildFile; fileRef = CF526F237DA1472A4462E203 /* DriveIcons.swift */; };
+		611C84EFA89112DB17543335 /* AssistantRootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE267608AED544B5FFA089E6 /* AssistantRootView.swift */; };
+		6157BACE138331A11416ADB9 /* ReloadWhileOpen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C3DE510C060C673F63FC868 /* ReloadWhileOpen.swift */; };
+		62C583462291B08112E51A1A /* ErrorBanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 58D294F0A28A1FC14BF4DEC0 /* ErrorBanner.swift */; };
+		67C3450158E0D139B29BD3F6 /* MailThreadModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7407F676ED035FC16E816BD8 /* MailThreadModel.swift */; };
+		68E2BFF94B6D7E72D5215570 /* WorkspaceApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5BFF1FAF27297B94A2D72964 /* WorkspaceApp.swift */; };
+		69D019B128492FB7BD5C8F10 /* TabToolbar.swift in Sources */ = {isa = PBXBuildFile; fileRef = E063E06401F221C233A42059 /* TabToolbar.swift */; };
+		6C49A82B51BECC4AD921125A /* MailSelectionBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = CCD218BC97F9A6931DE7B107 /* MailSelectionBar.swift */; };
+		6EA8BAD5EDA2BBBB949A00D5 /* PlannerDates.swift in Sources */ = {isa = PBXBuildFile; fileRef = D7FB7E8FA02E1791A74CD6F6 /* PlannerDates.swift */; };
+		704DF4DC6353679B1430302D /* AssistantChatView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 56B74440F2E19E11F1B41C48 /* AssistantChatView.swift */; };
+		73519679ADE6FAD053F4DDDE /* CalendarEventView.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABF65229AA96A27D8E2D4851 /* CalendarEventView.swift */; };
+		74AFC235A59BD78D591D2F58 /* DriveRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A311E0418DEE7D02E27D255E /* DriveRowView.swift */; };
+		75A0177E9B4D4608DCA97BA9 /* MailRootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F2717DB40475D7033ED19690 /* MailRootView.swift */; };
+		761C1FCC43E0B62AA164F331 /* MailComposeModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 39A620E979793FB4C6522532 /* MailComposeModel.swift */; };
+		79FBD19F8AFA56B612289B66 /* CalendarAgendaSections.swift in Sources */ = {isa = PBXBuildFile; fileRef = F708511F221376BE5C5D810A /* CalendarAgendaSections.swift */; };
+		7EF75714B4B23561D4A0435E /* CreateFlows.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E4F06EB2180A877A5E24355 /* CreateFlows.swift */; };
+		7F599B003FD57959AE53911F /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 29EC738D17553BA3CBE93916 /* RootView.swift */; };
+		860E5577D33CE5C8EE0BB220 /* MailThreadView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B5D33F6454FC2A819C2A6A2D /* MailThreadView.swift */; };
+		891385F2A03BA7D9C70A6062 /* CalendarMonthGrid.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5D93449903B7B26DFD53C72 /* CalendarMonthGrid.swift */; };
+		89B57AE08C5DA59CE5D42779 /* MailSnooze.swift in Sources */ = {isa = PBXBuildFile; fileRef = 04D607855E5707331944F1D4 /* MailSnooze.swift */; };
+		91B41950D76BF3D72861B6AF /* DriveNodeModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 760690EB119AF83E05F1B660 /* DriveNodeModel.swift */; };
+		95B3AB9CFD89C03E9A9F4D12 /* PersonChip.swift in Sources */ = {isa = PBXBuildFile; fileRef = 146F05FD7E5A82BBE61B3EE0 /* PersonChip.swift */; };
+		9B43097A1B482E0D2F76CD70 /* MailViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 84466A873157719478B336FE /* MailViews.swift */; };
+		A4B4EBB77C1174D7479CD81E /* AssistantMessageViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE2166563E92DAF44A384451 /* AssistantMessageViews.swift */; };
+		ABF894ED5284DE63186F0865 /* CalendarRootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D3E2745970BCF41BF80BC146 /* CalendarRootView.swift */; };
+		AC6A85C2EDE5D946AE19EB8D /* BrandMarks.swift in Sources */ = {isa = PBXBuildFile; fileRef = E140105F0691E38C2EF6C1B5 /* BrandMarks.swift */; };
+		ADFBEB5EF842D55CFD1C267D /* CreateMenu.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E0660A8702245F421E9D8C0 /* CreateMenu.swift */; };
+		AE99AFC87DC47EB0B697EC2C /* TaskEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 433A9EE034393A082CF6987E /* TaskEditor.swift */; };
+		B1E5649230DF63033ADE1B80 /* DriveNodeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DC7B7BA211A57641257FA028 /* DriveNodeView.swift */; };
+		B525810699070979A8CEB450 /* LoadStateView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D992683B826DF51969A64787 /* LoadStateView.swift */; };
+		B70645120770B08E4307311C /* TaskRowViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2EA2E0A594BAE090C551B8FA /* TaskRowViews.swift */; };
+		B987E81F778A65957680C9C1 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 5619135D9BC66C42B1C10026 /* Assets.xcassets */; };
+		BA5311AECD233B1B9514B0BE /* DriveAddFlows.swift in Sources */ = {isa = PBXBuildFile; fileRef = 04987A8CE50A2BD2EC23311E /* DriveAddFlows.swift */; };
+		D350D83E08195EB63D8FEA85 /* DriveImageViewer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3A4744DFCCC0018398FCB0DE /* DriveImageViewer.swift */; };
+		D7E2A4CF688BBBE33F9918FA /* MailAttachmentPreview.swift in Sources */ = {isa = PBXBuildFile; fileRef = 67C52C60DE3A80D0E53CC48D /* MailAttachmentPreview.swift */; };
+		D8AB6D59A1BEE95099DE2500 /* AssistantSafariView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 78678CA6E10F7B46864DCEFD /* AssistantSafariView.swift */; };
+		DCF2A33E6C59FC791002031D /* Environment.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9F6D507CC27E5950ABF3450D /* Environment.swift */; };
+		DCF9B5E49D52413F5B2BA2C4 /* MailSnoozePicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7B631681A78C60074B24AAFE /* MailSnoozePicker.swift */; };
+		DF001598206ED0406C41FF04 /* MailThreadMenuItems.swift in Sources */ = {isa = PBXBuildFile; fileRef = 66BE96CC71C31B9BD82CEB08 /* MailThreadMenuItems.swift */; };
+		E4527897619266777F885AFA /* MailModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 065417FE8DBD7F7012248BED /* MailModel.swift */; };
+		E731417C7BA75ECC909DEC59 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 712042EA7BCAE2AB82ACA5A8 /* AppDelegate.swift */; };
+		E7AB0812048F0407DC66ABB1 /* DriveShareSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 39581CD7BCA13E0B0FFE6027 /* DriveShareSheet.swift */; };
+		E93F2CFA6B73405523E47B46 /* MainTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6E0779CAD0BA7A6E6D8E51AD /* MainTabView.swift */; };
+		EACE8A36A2D611A676755A13 /* AssistantChatModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A2F51EDBA910C2560C928C1 /* AssistantChatModel.swift */; };
+		EB1E628556B4CAD65FBC4306 /* DriveFiles.swift in Sources */ = {isa = PBXBuildFile; fileRef = C60838355312F9BF08A0171A /* DriveFiles.swift */; };
+		FC526F66894C2F683C725603 /* TasksModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB4E41F4522EFC6A2121BDBF /* TasksModel.swift */; };
+		FFA7E3AEB4BA4FA4224AC31A /* RelativeDateText.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAA8E3F04032247EA5DC50D7 /* RelativeDateText.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		04176B4F3D989A078B091981 /* EmptyState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmptyState.swift; sourceTree = "<group>"; };
+		04987A8CE50A2BD2EC23311E /* DriveAddFlows.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DriveAddFlows.swift; sourceTree = "<group>"; };
+		04D607855E5707331944F1D4 /* MailSnooze.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MailSnooze.swift; sourceTree = "<group>"; };
+		065417FE8DBD7F7012248BED /* MailModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MailModel.swift; sourceTree = "<group>"; };
+		0904DC28F14566A42B33EE38 /* MailRecipientField.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MailRecipientField.swift; sourceTree = "<group>"; };
+		09089BA17012E4E13995989D /* ChangeSignal.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChangeSignal.swift; sourceTree = "<group>"; };
+		09E38B42B963B29CD090BA91 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		0A2F51EDBA910C2560C928C1 /* AssistantChatModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistantChatModel.swift; sourceTree = "<group>"; };
+		12C1B8FF0FEAE0074A83E77F /* PlannerChips.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlannerChips.swift; sourceTree = "<group>"; };
+		146F05FD7E5A82BBE61B3EE0 /* PersonChip.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PersonChip.swift; sourceTree = "<group>"; };
+		1D799165D5D686B4BB9235D7 /* Workspace.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Workspace.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		2494D8B9A89B9269C565BB0A /* DriveListDialogs.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DriveListDialogs.swift; sourceTree = "<group>"; };
+		29D1506BCF3145246BC619DB /* AssistantMarkdown.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistantMarkdown.swift; sourceTree = "<group>"; };
+		29EC738D17553BA3CBE93916 /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
+		2DF4CA9B3F7213F0E91EBD9E /* DriveModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DriveModel.swift; sourceTree = "<group>"; };
+		2EA2E0A594BAE090C551B8FA /* TaskRowViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaskRowViews.swift; sourceTree = "<group>"; };
+		3150C47A3B72F96B0B9D6DA0 /* MailMessageCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MailMessageCard.swift; sourceTree = "<group>"; };
+		39581CD7BCA13E0B0FFE6027 /* DriveShareSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DriveShareSheet.swift; sourceTree = "<group>"; };
+		39A620E979793FB4C6522532 /* MailComposeModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MailComposeModel.swift; sourceTree = "<group>"; };
+		3A4744DFCCC0018398FCB0DE /* DriveImageViewer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DriveImageViewer.swift; sourceTree = "<group>"; };
+		3BDE8CF4DFA19344709D6EC3 /* MailHTMLView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MailHTMLView.swift; sourceTree = "<group>"; };
+		433A9EE034393A082CF6987E /* TaskEditor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaskEditor.swift; sourceTree = "<group>"; };
+		4C9725D0E42E6220683E5FDC /* DriveFolderView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DriveFolderView.swift; sourceTree = "<group>"; };
+		56078A31439F5DD5ED419F78 /* DriveListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DriveListView.swift; sourceTree = "<group>"; };
+		5619135D9BC66C42B1C10026 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		56B74440F2E19E11F1B41C48 /* AssistantChatView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistantChatView.swift; sourceTree = "<group>"; };
+		58D294F0A28A1FC14BF4DEC0 /* ErrorBanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ErrorBanner.swift; sourceTree = "<group>"; };
+		5BFF1FAF27297B94A2D72964 /* WorkspaceApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkspaceApp.swift; sourceTree = "<group>"; };
+		5D805ED5E91EDE88C8A1FEBC /* CalendarModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarModel.swift; sourceTree = "<group>"; };
+		5E4F06EB2180A877A5E24355 /* CreateFlows.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreateFlows.swift; sourceTree = "<group>"; };
+		66227C54BDDE3EEDF3A0E11F /* DriveMoveSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DriveMoveSheet.swift; sourceTree = "<group>"; };
+		66BE96CC71C31B9BD82CEB08 /* MailThreadMenuItems.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MailThreadMenuItems.swift; sourceTree = "<group>"; };
+		67C52C60DE3A80D0E53CC48D /* MailAttachmentPreview.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MailAttachmentPreview.swift; sourceTree = "<group>"; };
+		6CB034100EC2CB38139D3D20 /* MailLabelPicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MailLabelPicker.swift; sourceTree = "<group>"; };
+		6E0779CAD0BA7A6E6D8E51AD /* MainTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainTabView.swift; sourceTree = "<group>"; };
+		6E7697FDCC0E01C1DF80CB15 /* DrivePicked.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DrivePicked.swift; sourceTree = "<group>"; };
+		712042EA7BCAE2AB82ACA5A8 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
+		7407F676ED035FC16E816BD8 /* MailThreadModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MailThreadModel.swift; sourceTree = "<group>"; };
+		760690EB119AF83E05F1B660 /* DriveNodeModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DriveNodeModel.swift; sourceTree = "<group>"; };
+		78678CA6E10F7B46864DCEFD /* AssistantSafariView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistantSafariView.swift; sourceTree = "<group>"; };
+		7AA79158C92CACBEC6E868BD /* DriveNodeSections.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DriveNodeSections.swift; sourceTree = "<group>"; };
+		7B631681A78C60074B24AAFE /* MailSnoozePicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MailSnoozePicker.swift; sourceTree = "<group>"; };
+		7E0660A8702245F421E9D8C0 /* CreateMenu.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreateMenu.swift; sourceTree = "<group>"; };
+		80B8D8102FCBC88813C68339 /* AvatarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AvatarView.swift; sourceTree = "<group>"; };
+		827279FB7D72B06FCEC96C30 /* MailFolderMenu.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MailFolderMenu.swift; sourceTree = "<group>"; };
+		82F0FC5BE547645FAAE1AB7D /* TasksRootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TasksRootView.swift; sourceTree = "<group>"; };
+		84466A873157719478B336FE /* MailViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MailViews.swift; sourceTree = "<group>"; };
+		87D04ED67BBC60AFAF537C24 /* LoadState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoadState.swift; sourceTree = "<group>"; };
+		8C3DE510C060C673F63FC868 /* ReloadWhileOpen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReloadWhileOpen.swift; sourceTree = "<group>"; };
+		8DCC918C61F4213667AE8407 /* DriveRootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DriveRootView.swift; sourceTree = "<group>"; };
+		94A0A812472524A3315DAE92 /* Server.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Server.swift; sourceTree = "<group>"; };
+		953629E1C1C355EEFE63EBA0 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		9F6D507CC27E5950ABF3450D /* Environment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Environment.swift; sourceTree = "<group>"; };
+		A2B5ABA3DBF6BD89B81ABD33 /* NotificationSettingsSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationSettingsSection.swift; sourceTree = "<group>"; };
+		A311E0418DEE7D02E27D255E /* DriveRowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DriveRowView.swift; sourceTree = "<group>"; };
+		A5D93449903B7B26DFD53C72 /* CalendarMonthGrid.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarMonthGrid.swift; sourceTree = "<group>"; };
+		A67DE6B9752EC355B2932553 /* CalendarEventEditor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarEventEditor.swift; sourceTree = "<group>"; };
+		A7D2A3D7D5E68058EED711BD /* Glass.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Glass.swift; sourceTree = "<group>"; };
+		A995BE8F94B95641BAE342CA /* PlannerItems.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlannerItems.swift; sourceTree = "<group>"; };
+		AB4E41F4522EFC6A2121BDBF /* TasksModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TasksModel.swift; sourceTree = "<group>"; };
+		ABF65229AA96A27D8E2D4851 /* CalendarEventView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarEventView.swift; sourceTree = "<group>"; };
+		AD97F47B480B2509587A15BE /* MailRows.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MailRows.swift; sourceTree = "<group>"; };
+		B5D33F6454FC2A819C2A6A2D /* MailThreadView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MailThreadView.swift; sourceTree = "<group>"; };
+		B67712B916DC8BE577F8DF95 /* Workspace.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Workspace.entitlements; sourceTree = "<group>"; };
+		B9EAA6705B7B403186C20091 /* MailComposeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MailComposeView.swift; sourceTree = "<group>"; };
+		BDE734D0E2CAD83F567A986D /* WorkspaceKit */ = {isa = PBXFileReference; lastKnownFileType = folder; name = WorkspaceKit; path = WorkspaceKit; sourceTree = SOURCE_ROOT; };
+		C60838355312F9BF08A0171A /* DriveFiles.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DriveFiles.swift; sourceTree = "<group>"; };
+		CCD218BC97F9A6931DE7B107 /* MailSelectionBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MailSelectionBar.swift; sourceTree = "<group>"; };
+		CE66F016384D459AA4D4E0A8 /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
+		CF526F237DA1472A4462E203 /* DriveIcons.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DriveIcons.swift; sourceTree = "<group>"; };
+		D0E20978CF5A0F16783C7625 /* AppModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppModel.swift; sourceTree = "<group>"; };
+		D3E2745970BCF41BF80BC146 /* CalendarRootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarRootView.swift; sourceTree = "<group>"; };
+		D7FB7E8FA02E1791A74CD6F6 /* PlannerDates.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlannerDates.swift; sourceTree = "<group>"; };
+		D992683B826DF51969A64787 /* LoadStateView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoadStateView.swift; sourceTree = "<group>"; };
+		DC7B7BA211A57641257FA028 /* DriveNodeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DriveNodeView.swift; sourceTree = "<group>"; };
+		DE2166563E92DAF44A384451 /* AssistantMessageViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistantMessageViews.swift; sourceTree = "<group>"; };
+		E063E06401F221C233A42059 /* TabToolbar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TabToolbar.swift; sourceTree = "<group>"; };
+		E140105F0691E38C2EF6C1B5 /* BrandMarks.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrandMarks.swift; sourceTree = "<group>"; };
+		E61EAC204D4D8E9BA734724C /* SignInView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SignInView.swift; sourceTree = "<group>"; };
+		EC106E5F5C06E1E029D1C644 /* DriveUploads.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DriveUploads.swift; sourceTree = "<group>"; };
+		EE267608AED544B5FFA089E6 /* AssistantRootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistantRootView.swift; sourceTree = "<group>"; };
+		EF948DF873A51391135F657E /* NotificationsModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationsModel.swift; sourceTree = "<group>"; };
+		F2717DB40475D7033ED19690 /* MailRootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MailRootView.swift; sourceTree = "<group>"; };
+		F708511F221376BE5C5D810A /* CalendarAgendaSections.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarAgendaSections.swift; sourceTree = "<group>"; };
+		FAA8E3F04032247EA5DC50D7 /* RelativeDateText.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RelativeDateText.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		4A7B6CA87310C32D6265C35C /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				5D6B3573A736A3ADC3F3FC77 /* WorkspaceKit in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		097069568823449169E972B8 /* Assistant */ = {
+			isa = PBXGroup;
+			children = (
+				0A2F51EDBA910C2560C928C1 /* AssistantChatModel.swift */,
+				56B74440F2E19E11F1B41C48 /* AssistantChatView.swift */,
+				29D1506BCF3145246BC619DB /* AssistantMarkdown.swift */,
+				DE2166563E92DAF44A384451 /* AssistantMessageViews.swift */,
+				EE267608AED544B5FFA089E6 /* AssistantRootView.swift */,
+				78678CA6E10F7B46864DCEFD /* AssistantSafariView.swift */,
+			);
+			path = Assistant;
+			sourceTree = "<group>";
+		};
+		0D511C1F6E4E6731F13F94DA /* Features */ = {
+			isa = PBXGroup;
+			children = (
+				097069568823449169E972B8 /* Assistant */,
+				1579DA68260C5545EF4A929F /* Calendar */,
+				3FD38AEA69165E8D585ADD73 /* Drive */,
+				CA6CB7EF6ED16DA0E5DB4EA8 /* Mail */,
+				CCB5946A632AB6ACFB6EF98F /* Notifications */,
+				BF1631E69B172C6F66EB995D /* Settings */,
+				7BDF2108BFC906D7C8AC808C /* SignIn */,
+				203A491EA3A30E2833154FFD /* Tasks */,
+			);
+			path = Features;
+			sourceTree = "<group>";
+		};
+		153FA7D2E919D6074EB2A285 /* Packages */ = {
+			isa = PBXGroup;
+			children = (
+				BDE734D0E2CAD83F567A986D /* WorkspaceKit */,
+			);
+			name = Packages;
+			sourceTree = "<group>";
+		};
+		1579DA68260C5545EF4A929F /* Calendar */ = {
+			isa = PBXGroup;
+			children = (
+				F708511F221376BE5C5D810A /* CalendarAgendaSections.swift */,
+				A67DE6B9752EC355B2932553 /* CalendarEventEditor.swift */,
+				ABF65229AA96A27D8E2D4851 /* CalendarEventView.swift */,
+				5D805ED5E91EDE88C8A1FEBC /* CalendarModel.swift */,
+				A5D93449903B7B26DFD53C72 /* CalendarMonthGrid.swift */,
+				D3E2745970BCF41BF80BC146 /* CalendarRootView.swift */,
+				12C1B8FF0FEAE0074A83E77F /* PlannerChips.swift */,
+				D7FB7E8FA02E1791A74CD6F6 /* PlannerDates.swift */,
+				A995BE8F94B95641BAE342CA /* PlannerItems.swift */,
+			);
+			path = Calendar;
+			sourceTree = "<group>";
+		};
+		203A491EA3A30E2833154FFD /* Tasks */ = {
+			isa = PBXGroup;
+			children = (
+				433A9EE034393A082CF6987E /* TaskEditor.swift */,
+				2EA2E0A594BAE090C551B8FA /* TaskRowViews.swift */,
+				AB4E41F4522EFC6A2121BDBF /* TasksModel.swift */,
+				82F0FC5BE547645FAAE1AB7D /* TasksRootView.swift */,
+			);
+			path = Tasks;
+			sourceTree = "<group>";
+		};
+		2EC9D6C48C74E8B405A8C2C4 /* Design */ = {
+			isa = PBXGroup;
+			children = (
+				BBC39E3CAB1918D6B85F8AAA /* Components */,
+				A7D2A3D7D5E68058EED711BD /* Glass.swift */,
+				CE66F016384D459AA4D4E0A8 /* Theme.swift */,
+			);
+			path = Design;
+			sourceTree = "<group>";
+		};
+		3FD38AEA69165E8D585ADD73 /* Drive */ = {
+			isa = PBXGroup;
+			children = (
+				04987A8CE50A2BD2EC23311E /* DriveAddFlows.swift */,
+				C60838355312F9BF08A0171A /* DriveFiles.swift */,
+				4C9725D0E42E6220683E5FDC /* DriveFolderView.swift */,
+				CF526F237DA1472A4462E203 /* DriveIcons.swift */,
+				3A4744DFCCC0018398FCB0DE /* DriveImageViewer.swift */,
+				2494D8B9A89B9269C565BB0A /* DriveListDialogs.swift */,
+				56078A31439F5DD5ED419F78 /* DriveListView.swift */,
+				2DF4CA9B3F7213F0E91EBD9E /* DriveModel.swift */,
+				66227C54BDDE3EEDF3A0E11F /* DriveMoveSheet.swift */,
+				760690EB119AF83E05F1B660 /* DriveNodeModel.swift */,
+				7AA79158C92CACBEC6E868BD /* DriveNodeSections.swift */,
+				DC7B7BA211A57641257FA028 /* DriveNodeView.swift */,
+				6E7697FDCC0E01C1DF80CB15 /* DrivePicked.swift */,
+				8DCC918C61F4213667AE8407 /* DriveRootView.swift */,
+				A311E0418DEE7D02E27D255E /* DriveRowView.swift */,
+				39581CD7BCA13E0B0FFE6027 /* DriveShareSheet.swift */,
+				EC106E5F5C06E1E029D1C644 /* DriveUploads.swift */,
+			);
+			path = Drive;
+			sourceTree = "<group>";
+		};
+		4993F3BE84A5D2013CF43947 /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				5619135D9BC66C42B1C10026 /* Assets.xcassets */,
+			);
+			path = Resources;
+			sourceTree = "<group>";
+		};
+		70DA716172411F127E0338BC /* App */ = {
+			isa = PBXGroup;
+			children = (
+				712042EA7BCAE2AB82ACA5A8 /* AppDelegate.swift */,
+				D0E20978CF5A0F16783C7625 /* AppModel.swift */,
+				09089BA17012E4E13995989D /* ChangeSignal.swift */,
+				5E4F06EB2180A877A5E24355 /* CreateFlows.swift */,
+				7E0660A8702245F421E9D8C0 /* CreateMenu.swift */,
+				9F6D507CC27E5950ABF3450D /* Environment.swift */,
+				6E0779CAD0BA7A6E6D8E51AD /* MainTabView.swift */,
+				8C3DE510C060C673F63FC868 /* ReloadWhileOpen.swift */,
+				29EC738D17553BA3CBE93916 /* RootView.swift */,
+				94A0A812472524A3315DAE92 /* Server.swift */,
+				E063E06401F221C233A42059 /* TabToolbar.swift */,
+				5BFF1FAF27297B94A2D72964 /* WorkspaceApp.swift */,
+			);
+			path = App;
+			sourceTree = "<group>";
+		};
+		7BDF2108BFC906D7C8AC808C /* SignIn */ = {
+			isa = PBXGroup;
+			children = (
+				E61EAC204D4D8E9BA734724C /* SignInView.swift */,
+			);
+			path = SignIn;
+			sourceTree = "<group>";
+		};
+		804A6C80A195029D97A6FA02 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				1D799165D5D686B4BB9235D7 /* Workspace.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		8392D00B3E902FEC64C4C211 /* Workspace */ = {
+			isa = PBXGroup;
+			children = (
+				70DA716172411F127E0338BC /* App */,
+				2EC9D6C48C74E8B405A8C2C4 /* Design */,
+				0D511C1F6E4E6731F13F94DA /* Features */,
+				4993F3BE84A5D2013CF43947 /* Resources */,
+				953629E1C1C355EEFE63EBA0 /* Info.plist */,
+				B67712B916DC8BE577F8DF95 /* Workspace.entitlements */,
+			);
+			path = Workspace;
+			sourceTree = "<group>";
+		};
+		BBC39E3CAB1918D6B85F8AAA /* Components */ = {
+			isa = PBXGroup;
+			children = (
+				80B8D8102FCBC88813C68339 /* AvatarView.swift */,
+				E140105F0691E38C2EF6C1B5 /* BrandMarks.swift */,
+				04176B4F3D989A078B091981 /* EmptyState.swift */,
+				58D294F0A28A1FC14BF4DEC0 /* ErrorBanner.swift */,
+				87D04ED67BBC60AFAF537C24 /* LoadState.swift */,
+				D992683B826DF51969A64787 /* LoadStateView.swift */,
+				146F05FD7E5A82BBE61B3EE0 /* PersonChip.swift */,
+				FAA8E3F04032247EA5DC50D7 /* RelativeDateText.swift */,
+			);
+			path = Components;
+			sourceTree = "<group>";
+		};
+		BF1631E69B172C6F66EB995D /* Settings */ = {
+			isa = PBXGroup;
+			children = (
+				09E38B42B963B29CD090BA91 /* SettingsView.swift */,
+			);
+			path = Settings;
+			sourceTree = "<group>";
+		};
+		CA6CB7EF6ED16DA0E5DB4EA8 /* Mail */ = {
+			isa = PBXGroup;
+			children = (
+				67C52C60DE3A80D0E53CC48D /* MailAttachmentPreview.swift */,
+				39A620E979793FB4C6522532 /* MailComposeModel.swift */,
+				B9EAA6705B7B403186C20091 /* MailComposeView.swift */,
+				827279FB7D72B06FCEC96C30 /* MailFolderMenu.swift */,
+				3BDE8CF4DFA19344709D6EC3 /* MailHTMLView.swift */,
+				6CB034100EC2CB38139D3D20 /* MailLabelPicker.swift */,
+				3150C47A3B72F96B0B9D6DA0 /* MailMessageCard.swift */,
+				065417FE8DBD7F7012248BED /* MailModel.swift */,
+				0904DC28F14566A42B33EE38 /* MailRecipientField.swift */,
+				F2717DB40475D7033ED19690 /* MailRootView.swift */,
+				AD97F47B480B2509587A15BE /* MailRows.swift */,
+				CCD218BC97F9A6931DE7B107 /* MailSelectionBar.swift */,
+				04D607855E5707331944F1D4 /* MailSnooze.swift */,
+				7B631681A78C60074B24AAFE /* MailSnoozePicker.swift */,
+				66BE96CC71C31B9BD82CEB08 /* MailThreadMenuItems.swift */,
+				7407F676ED035FC16E816BD8 /* MailThreadModel.swift */,
+				B5D33F6454FC2A819C2A6A2D /* MailThreadView.swift */,
+				84466A873157719478B336FE /* MailViews.swift */,
+			);
+			path = Mail;
+			sourceTree = "<group>";
+		};
+		CCB5946A632AB6ACFB6EF98F /* Notifications */ = {
+			isa = PBXGroup;
+			children = (
+				A2B5ABA3DBF6BD89B81ABD33 /* NotificationSettingsSection.swift */,
+				EF948DF873A51391135F657E /* NotificationsModel.swift */,
+			);
+			path = Notifications;
+			sourceTree = "<group>";
+		};
+		FD105E0A73A4A103C1689655 = {
+			isa = PBXGroup;
+			children = (
+				153FA7D2E919D6074EB2A285 /* Packages */,
+				8392D00B3E902FEC64C4C211 /* Workspace */,
+				804A6C80A195029D97A6FA02 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		B0323B8AC93C4E3452B87CE6 /* Workspace */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 31ADDAA85CB3AFECC760E4F3 /* Build configuration list for PBXNativeTarget "Workspace" */;
+			buildPhases = (
+				B66ACC05ACA1584252BB2570 /* Sources */,
+				F238E0B5B634317B9E63D78B /* Resources */,
+				4A7B6CA87310C32D6265C35C /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = Workspace;
+			packageProductDependencies = (
+				99F57F38FDD0299F8E8CBCB4 /* WorkspaceKit */,
+			);
+			productName = Workspace;
+			productReference = 1D799165D5D686B4BB9235D7 /* Workspace.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		16464B0390E627F42532CA97 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1430;
+				TargetAttributes = {
+					B0323B8AC93C4E3452B87CE6 = {
+						DevelopmentTeam = "";
+						ProvisioningStyle = Automatic;
+					};
+				};
+			};
+			buildConfigurationList = 4BA1618D7006404A0D311C35 /* Build configuration list for PBXProject "RIVIWorkspace" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+			);
+			mainGroup = FD105E0A73A4A103C1689655;
+			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				F271E850F11BC77A1A74A1B5 /* XCLocalSwiftPackageReference "WorkspaceKit" */,
+			);
+			preferredProjectObjectVersion = 77;
+			productRefGroup = 804A6C80A195029D97A6FA02 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				B0323B8AC93C4E3452B87CE6 /* Workspace */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		F238E0B5B634317B9E63D78B /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				B987E81F778A65957680C9C1 /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		B66ACC05ACA1584252BB2570 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				E731417C7BA75ECC909DEC59 /* AppDelegate.swift in Sources */,
+				262FB8FD59F810097ABBE1D0 /* AppModel.swift in Sources */,
+				EACE8A36A2D611A676755A13 /* AssistantChatModel.swift in Sources */,
+				704DF4DC6353679B1430302D /* AssistantChatView.swift in Sources */,
+				3B5280B562254A4DE56F3526 /* AssistantMarkdown.swift in Sources */,
+				A4B4EBB77C1174D7479CD81E /* AssistantMessageViews.swift in Sources */,
+				611C84EFA89112DB17543335 /* AssistantRootView.swift in Sources */,
+				D8AB6D59A1BEE95099DE2500 /* AssistantSafariView.swift in Sources */,
+				5A14CF7C9E20B06D44EE84EB /* AvatarView.swift in Sources */,
+				AC6A85C2EDE5D946AE19EB8D /* BrandMarks.swift in Sources */,
+				79FBD19F8AFA56B612289B66 /* CalendarAgendaSections.swift in Sources */,
+				271B6A926CB2EF37083A8AFC /* CalendarEventEditor.swift in Sources */,
+				73519679ADE6FAD053F4DDDE /* CalendarEventView.swift in Sources */,
+				357E404D2F1EA06FE97EC73F /* CalendarModel.swift in Sources */,
+				891385F2A03BA7D9C70A6062 /* CalendarMonthGrid.swift in Sources */,
+				ABF894ED5284DE63186F0865 /* CalendarRootView.swift in Sources */,
+				2504FD6F6089B625BB081D30 /* ChangeSignal.swift in Sources */,
+				7EF75714B4B23561D4A0435E /* CreateFlows.swift in Sources */,
+				ADFBEB5EF842D55CFD1C267D /* CreateMenu.swift in Sources */,
+				BA5311AECD233B1B9514B0BE /* DriveAddFlows.swift in Sources */,
+				EB1E628556B4CAD65FBC4306 /* DriveFiles.swift in Sources */,
+				5AC5969A6789EA69C10056E5 /* DriveFolderView.swift in Sources */,
+				603EE209D0160A8354E76C04 /* DriveIcons.swift in Sources */,
+				D350D83E08195EB63D8FEA85 /* DriveImageViewer.swift in Sources */,
+				50040C738FDC49050C595A03 /* DriveListDialogs.swift in Sources */,
+				1EF4FA0A4A2C46537B0B1CF6 /* DriveListView.swift in Sources */,
+				3932DF159FAF8BDF3BDE672B /* DriveModel.swift in Sources */,
+				098C9544E6E0C6F933A4CC07 /* DriveMoveSheet.swift in Sources */,
+				91B41950D76BF3D72861B6AF /* DriveNodeModel.swift in Sources */,
+				4A0EDCD721B92EF6F891C56A /* DriveNodeSections.swift in Sources */,
+				B1E5649230DF63033ADE1B80 /* DriveNodeView.swift in Sources */,
+				024CB922EF70FE76533AB2A2 /* DrivePicked.swift in Sources */,
+				0A080433E4928ADEC35C9AEE /* DriveRootView.swift in Sources */,
+				74AFC235A59BD78D591D2F58 /* DriveRowView.swift in Sources */,
+				E7AB0812048F0407DC66ABB1 /* DriveShareSheet.swift in Sources */,
+				4EF805BDEBB38733FA8A9C45 /* DriveUploads.swift in Sources */,
+				5BAAD944B2415A6DE892DF32 /* EmptyState.swift in Sources */,
+				DCF2A33E6C59FC791002031D /* Environment.swift in Sources */,
+				62C583462291B08112E51A1A /* ErrorBanner.swift in Sources */,
+				0370BF7409C3D964C3809C26 /* Glass.swift in Sources */,
+				2845BFA2F12758AF0DD47D93 /* LoadState.swift in Sources */,
+				B525810699070979A8CEB450 /* LoadStateView.swift in Sources */,
+				D7E2A4CF688BBBE33F9918FA /* MailAttachmentPreview.swift in Sources */,
+				761C1FCC43E0B62AA164F331 /* MailComposeModel.swift in Sources */,
+				4E3E0AFD0B89DB007A6047C9 /* MailComposeView.swift in Sources */,
+				15AB8AFFBE9CA636B2B9663F /* MailFolderMenu.swift in Sources */,
+				0497126CBFC2575A4B1206E4 /* MailHTMLView.swift in Sources */,
+				2229E83689CAF414F4B0E17E /* MailLabelPicker.swift in Sources */,
+				3D18D190701C2F1C96A10258 /* MailMessageCard.swift in Sources */,
+				E4527897619266777F885AFA /* MailModel.swift in Sources */,
+				18AAC5BA55B5E73AB8C153FD /* MailRecipientField.swift in Sources */,
+				75A0177E9B4D4608DCA97BA9 /* MailRootView.swift in Sources */,
+				3FE0B5597199960F5215786A /* MailRows.swift in Sources */,
+				6C49A82B51BECC4AD921125A /* MailSelectionBar.swift in Sources */,
+				89B57AE08C5DA59CE5D42779 /* MailSnooze.swift in Sources */,
+				DCF9B5E49D52413F5B2BA2C4 /* MailSnoozePicker.swift in Sources */,
+				DF001598206ED0406C41FF04 /* MailThreadMenuItems.swift in Sources */,
+				67C3450158E0D139B29BD3F6 /* MailThreadModel.swift in Sources */,
+				860E5577D33CE5C8EE0BB220 /* MailThreadView.swift in Sources */,
+				9B43097A1B482E0D2F76CD70 /* MailViews.swift in Sources */,
+				E93F2CFA6B73405523E47B46 /* MainTabView.swift in Sources */,
+				4B2035B9D2D3D1E56DCAB58A /* NotificationSettingsSection.swift in Sources */,
+				023F84D9022B8633B3EB1569 /* NotificationsModel.swift in Sources */,
+				95B3AB9CFD89C03E9A9F4D12 /* PersonChip.swift in Sources */,
+				5E19FB2E2208AA7186BB9A22 /* PlannerChips.swift in Sources */,
+				6EA8BAD5EDA2BBBB949A00D5 /* PlannerDates.swift in Sources */,
+				137151058A3A76D30BB65283 /* PlannerItems.swift in Sources */,
+				FFA7E3AEB4BA4FA4224AC31A /* RelativeDateText.swift in Sources */,
+				6157BACE138331A11416ADB9 /* ReloadWhileOpen.swift in Sources */,
+				7F599B003FD57959AE53911F /* RootView.swift in Sources */,
+				2B0AA0283F34B5134839AE75 /* Server.swift in Sources */,
+				1DA18CA3395814BBF9E137E6 /* SettingsView.swift in Sources */,
+				099623449968C40CCD7877E7 /* SignInView.swift in Sources */,
+				69D019B128492FB7BD5C8F10 /* TabToolbar.swift in Sources */,
+				AE99AFC87DC47EB0B697EC2C /* TaskEditor.swift in Sources */,
+				B70645120770B08E4307311C /* TaskRowViews.swift in Sources */,
+				FC526F66894C2F683C725603 /* TasksModel.swift in Sources */,
+				339DDDB14352C5CBAA191F49 /* TasksRootView.swift in Sources */,
+				287121CABACB07EADFB345ED /* Theme.swift in Sources */,
+				68E2BFF94B6D7E72D5215570 /* WorkspaceApp.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		2A28B79BC639F1FACFCD5D82 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = Workspace/Workspace.entitlements;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				CURRENT_PROJECT_VERSION = 1;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = Workspace/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 0.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = software.rivi.workspace;
+				PRODUCT_NAME = "RIVI Workspace";
+				SDKROOT = iphoneos;
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		3737494D554DB8F3E6ADF458 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				CODE_SIGN_STYLE = Automatic;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEVELOPMENT_TEAM = "";
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_STRICT_CONCURRENCY = complete;
+				SWIFT_VERSION = 6.0;
+			};
+			name = Debug;
+		};
+		BDAEF07788135998AEEE101E /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = Workspace/Workspace.entitlements;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				CURRENT_PROJECT_VERSION = 1;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = Workspace/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 0.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = software.rivi.workspace;
+				PRODUCT_NAME = "RIVI Workspace";
+				SDKROOT = iphoneos;
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		F67D71B82DACD99A61FF4543 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				CODE_SIGN_STYLE = Automatic;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_TEAM = "";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_STRICT_CONCURRENCY = complete;
+				SWIFT_VERSION = 6.0;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		31ADDAA85CB3AFECC760E4F3 /* Build configuration list for PBXNativeTarget "Workspace" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				BDAEF07788135998AEEE101E /* Debug */,
+				2A28B79BC639F1FACFCD5D82 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		4BA1618D7006404A0D311C35 /* Build configuration list for PBXProject "RIVIWorkspace" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				3737494D554DB8F3E6ADF458 /* Debug */,
+				F67D71B82DACD99A61FF4543 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+
+/* Begin XCLocalSwiftPackageReference section */
+		F271E850F11BC77A1A74A1B5 /* XCLocalSwiftPackageReference "WorkspaceKit" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = WorkspaceKit;
+		};
+/* End XCLocalSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		99F57F38FDD0299F8E8CBCB4 /* WorkspaceKit */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = WorkspaceKit;
+		};
+/* End XCSwiftPackageProductDependency section */
+	};
+	rootObject = 16464B0390E627F42532CA97 /* Project object */;
+}

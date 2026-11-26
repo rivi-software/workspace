@@ -186,6 +186,8 @@ workers/
                           mailbox (`pruneDrive`, `pruneExpired`), then the idle words of the spam filter whose turn the
                           minute is, each once a day (`pruneSpamTokens`), each part failing on its own
 test/                     Vitest (@cloudflare/vitest-plugin) running inside workerd; fixtures.ts signs people in (sessionFor)
+ios/                      the native iPhone app: WorkspaceKit (the API's shapes, the sign-in, the client) and the SwiftUI app
+                          over the Workspace API (ios/AGENTS.md)
 mobile/                   the phone app: a Tauri shell for iPhone and Android around the system's web view, which opens the workspace
                           the person names on its start page (mobile/AGENTS.md)
 scripts/                  the smoke test, inbound simulation, the admin bootstrap, the seed renderer, the migration check
