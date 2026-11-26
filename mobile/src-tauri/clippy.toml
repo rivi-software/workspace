@@ -1,0 +1,2 @@
+# Names the docs use as words, not code (`..` keeps Clippy's own list).
+doc-valid-idents = ["WebKit", "WebView", "WKWebView", "iPhone", "iOS", ".."]

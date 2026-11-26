@@ -1,0 +1,9 @@
+<resources>
+    <!-- The launcher's label; the app's full name is RIVI Workspace everywhere else. -->
+    <string name="app_name">"Workspace"</string>
+    <string name="main_activity_title">"RIVI Workspace"</string>
+    <!-- Shown for a moment when a download starts or cannot start (Downloads.kt); the system's
+         download notification follows the download itself. -->
+    <string name="download_started">Downloading %1$s…</string>
+    <string name="download_failed">Can’t download %1$s</string>
+</resources>

@@ -16,6 +16,7 @@ import {
 } from "~/lib/auth-client";
 import { getSessionUser } from "~/lib/auth.server";
 import { stringOrNull } from "~/lib/guards";
+import { mobileAppStartPage, useMobileApp } from "~/lib/mobile-app";
 import { passwordSignIn, safeNext } from "~/lib/sign-in.server";
 
 const searchSchema = z.object({
@@ -135,6 +136,7 @@ const Login = () => {
   const errorText = signInError(error);
   const [submitting, setSubmitting] = useState(false);
   const target = next ?? "/mail";
+  const inApp = useMobileApp();
 
   return (
     <AuthShell
@@ -190,6 +192,14 @@ const Login = () => {
           Forgot your password?
         </Link>
       </p>
+      {inApp && (
+        <p className="mt-2 text-center text-sm">
+          {/* A plain link: the phone app's own start page, outside the router and this site. */}
+          <a href={mobileAppStartPage()} className="text-muted hover:text-fg">
+            Use another workspace
+          </a>
+        </p>
+      )}
       {dev && (
         <p className="text-subtle mt-4 text-center text-xs">
           Local seed account: admin@example.com / password

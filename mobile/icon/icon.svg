@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 40 40">
+  <title>RIVI Workspace</title>
+  <rect id="tile" width="40" height="40" fill="#15171a" />
+  <g id="glyph" fill="#f5f6f7">
+    <rect x="9" y="9" width="9.5" height="9.5" rx="3" fill="#3be08a" />
+    <rect x="21.5" y="9" width="9.5" height="9.5" rx="3" />
+    <rect x="9" y="21.5" width="9.5" height="9.5" rx="3" />
+    <rect x="21.5" y="21.5" width="9.5" height="9.5" rx="3" />
+  </g>
+</svg>

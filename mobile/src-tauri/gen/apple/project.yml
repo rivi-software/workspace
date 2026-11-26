@@ -1,0 +1,111 @@
+name: workspace-mobile
+options:
+  bundleIdPrefix: software.rivi.workspace
+  deploymentTarget:
+    iOS: 16.4
+fileGroups: [../../src]
+configs:
+  debug: debug
+  release: release
+settingGroups:
+  app:
+    base:
+      PRODUCT_NAME: RIVI Workspace
+      PRODUCT_BUNDLE_IDENTIFIER: software.rivi.workspace
+targetTemplates:
+  app:
+    type: application
+    sources:
+      - path: Sources
+    scheme:
+      environmentVariables:
+        RUST_BACKTRACE: full
+        RUST_LOG: info
+    settings:
+      groups: [app]
+targets:
+  workspace-mobile_iOS:
+    type: application
+    platform: iOS
+    sources:
+      - path: Sources
+      - path: Assets.xcassets
+      # Exclude built static libs: regenerating with xcodegen after a build
+      # otherwise turns the per-configuration libapp.a copies into colliding
+      # resources ("Multiple commands produce …/libapp.a"). They are linked
+      # via LIBRARY_SEARCH_PATHS, never bundled as resources.
+      - path: Externals
+        excludes: ["**/*.a"]
+      - path: workspace-mobile_iOS
+      - path: assets
+        buildPhase: resources
+        type: folder
+      - path: LaunchScreen.storyboard
+    info:
+      path: workspace-mobile_iOS/Info.plist
+      properties:
+        # The Home Screen label; the app's full name is the product name everywhere else.
+        CFBundleDisplayName: Workspace
+        LSRequiresIPhoneOS: true
+        UILaunchStoryboardName: LaunchScreen
+        # The status bar follows the phone's appearance over the web view (window.rs).
+        UIViewControllerBasedStatusBarAppearance: false
+        UIStatusBarStyle: UIStatusBarStyleDefault
+        # Downloads land in the app's Documents folder (window.rs), which the Files app shows under
+        # On My iPhone › Workspace.
+        UIFileSharingEnabled: true
+        LSSupportsOpeningDocumentsInPlace: true
+        # Attaching a photo to a message or a file offers the camera; iOS needs the reasons.
+        NSCameraUsageDescription: RIVI Workspace takes a photo when you choose to attach one.
+        NSMicrophoneUsageDescription: RIVI Workspace records sound when you choose to attach a video.
+        # HTTPS alone: App Store Connect asks about encryption on every upload otherwise.
+        ITSAppUsesNonExemptEncryption: false
+        # A development build may open the workspace on the Mac's own address over Wi-Fi (plain HTTP).
+        NSAppTransportSecurity:
+          NSAllowsLocalNetworking: true
+        UIRequiredDeviceCapabilities: [arm64, metal]
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        UISupportedInterfaceOrientations~ipad:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationPortraitUpsideDown
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        CFBundleShortVersionString: 0.1.0
+        CFBundleVersion: "0.1.0"
+    entitlements:
+      path: workspace-mobile_iOS/workspace-mobile_iOS.entitlements
+    scheme:
+      environmentVariables:
+        RUST_BACKTRACE: full
+        RUST_LOG: info
+    settings:
+      base:
+        ENABLE_BITCODE: false
+        ARCHS: [arm64]
+        VALID_ARCHS: arm64
+        LIBRARY_SEARCH_PATHS[arch=x86_64]: $(inherited) $(PROJECT_DIR)/Externals/x86_64/$(CONFIGURATION) $(SDKROOT)/usr/lib/swift $(DEVELOPER_DIR)/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/$(PLATFORM_NAME) $(DEVELOPER_DIR)/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift-5.0/$(PLATFORM_NAME)
+        LIBRARY_SEARCH_PATHS[arch=arm64]: $(inherited) $(PROJECT_DIR)/Externals/arm64/$(CONFIGURATION) $(SDKROOT)/usr/lib/swift $(DEVELOPER_DIR)/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/$(PLATFORM_NAME) $(DEVELOPER_DIR)/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift-5.0/$(PLATFORM_NAME)
+        ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES: true
+        EXCLUDED_ARCHS[sdk=iphoneos*]: x86_64
+      groups: [app]
+    dependencies:
+      - framework: libapp.a
+        embed: false
+      - sdk: CoreGraphics.framework
+      - sdk: Metal.framework
+      - sdk: MetalKit.framework
+      - sdk: QuartzCore.framework
+      - sdk: Security.framework
+      - sdk: UIKit.framework
+      - sdk: WebKit.framework
+    preBuildScripts:
+      - script: |
+          pnpm tauri ios xcode-script -v --platform "${PLATFORM_DISPLAY_NAME:?}" --sdk-root "${SDKROOT:?}" --framework-search-paths "${FRAMEWORK_SEARCH_PATHS:?}" --header-search-paths "${HEADER_SEARCH_PATHS:?}" --gcc-preprocessor-definitions "${GCC_PREPROCESSOR_DEFINITIONS:-}" --configuration "${CONFIGURATION:?}" ${FORCE_COLOR} ${ARCHS:?}
+        name: Build Rust Code
+        basedOnDependencyAnalysis: false
+        outputFiles:
+          - $(SRCROOT)/Externals/x86_64/${CONFIGURATION}/libapp.a
+          - $(SRCROOT)/Externals/arm64/${CONFIGURATION}/libapp.a

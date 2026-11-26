@@ -158,7 +158,7 @@ app/
   routes/forgot-password.tsx, reset-password.tsx, confirm-recovery.tsx   a forgotten password, signed out
   routes/s.$token.tsx, s.$token_.file.$nodeId.ts   a Drive link outside the workspace: its page and its files, no session
   routes/s.sign.$token.tsx, s.sign.$token_.document.ts   a customer's signing page and its PDF, no session
-  routes/api/*            health, signed file downloads, the raw .eml of a message, connecting a Microsoft 365 mailbox, Drive's
+  routes/api/*            health (readable from any origin, for the phone app), signed file downloads, the raw .eml of a message, connecting a Microsoft 365 mailbox, Drive's
                           uploads and files (session-gated, with Range), a signing request's PDF, the Assistant's chat
   components/passkeys.tsx   Settings → Account → Passkeys: added and removed through the browser client (only the browser can make the prompt)
   components/two-factor.tsx Settings → Account → Two-factor authentication: the authenticator app set up, new backup codes, turned off,
@@ -180,6 +180,8 @@ workers/
                           mailbox (`pruneDrive`, `pruneExpired`), then the idle words of the spam filter whose turn the
                           minute is, each once a day (`pruneSpamTokens`), each part failing on its own
 test/                     Vitest (@cloudflare/vitest-plugin) running inside workerd; fixtures.ts signs people in (sessionFor)
+mobile/                   the phone app: a Tauri shell for iPhone and Android around the system's web view, which opens the workspace
+                          the person names on its start page (mobile/AGENTS.md)
 scripts/                  the smoke test, inbound simulation, the admin bootstrap, the seed renderer, the migration check
 ```
 

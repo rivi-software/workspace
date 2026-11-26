@@ -1,0 +1,53 @@
+[package]
+name = "workspace-mobile"
+# The app's version is `version` in ../package.json, which tauri.conf.json reads; this one is never
+# shown or published.
+version = "0.0.0"
+description = "Workspace for iPhone and Android"
+edition = "2024"
+rust-version = "1.88"
+publish = false
+license = "MIT"
+default-run = "rivi-workspace"
+
+# iOS links the app as a static library and Android loads it as a shared one; the binary is the
+# desktop window `tauri dev` opens on a Mac.
+[lib]
+name = "workspace_mobile_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[[bin]]
+name = "rivi-workspace"
+path = "src/main.rs"
+
+[build-dependencies]
+tauri-build = { version = "=2.7.4", features = [] }
+
+# Pinned exactly, each at least a week old when it was taken (the Dependabot cooldown in
+# .github/dependabot.yml): a Tauri crate update is a change to review, not a lockfile refresh.
+[dependencies]
+tauri = { version = "=2.12.5", features = [] }
+tauri-plugin-opener = "=2.7.2"
+serde_json = "1"
+url = "2"
+
+# On an iPhone the app asks the web view for the edge swipe, the page under the status bar and
+# its own user agent (src/window.rs); the versions are the ones wry builds with.
+[target.'cfg(target_os = "ios")'.dependencies]
+objc2 = "0.6"
+objc2-foundation = { version = "0.3", features = ["NSString"] }
+
+[profile.release]
+codegen-units = 1
+lto = true
+opt-level = "s"
+panic = "abort"
+strip = true
+
+[lints.rust]
+# `deny`, not `forbid`: the one message to the iPhone's web view (src/window.rs) allows it.
+unsafe_code = "deny"
+
+[lints.clippy]
+pedantic = { level = "warn", priority = -1 }
+needless_pass_by_value = "allow"

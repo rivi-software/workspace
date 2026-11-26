@@ -1,0 +1,30 @@
+{
+  "name": "rivi-workspace-mobile",
+  "version": "0.1.0",
+  "private": true,
+  "license": "MIT",
+  "description": "Workspace for iPhone and Android: a workspace in an app of its own, a Tauri shell around the system's web view that opens the workspace the person names",
+  "type": "module",
+  "scripts": {
+    "tauri": "tauri",
+    "app:dev": "tauri dev --no-dev-server --config src-tauri/tauri.local.conf.json",
+    "ios:dev": "tauri ios dev --config src-tauri/tauri.local.conf.json",
+    "ios:build": "tauri ios build",
+    "android:dev": "tauri android dev --config src-tauri/tauri.emulator.conf.json",
+    "android:build": "tauri android build",
+    "icons": "tsx scripts/icons.ts",
+    "check": "tsc -p tsconfig.json",
+    "lint": "oxlint",
+    "test": "vitest run",
+    "rust:check": "cd src-tauri && cargo fmt --check && cargo clippy --all-targets --locked -- -D warnings && cargo test --locked",
+    "verify": "pnpm run check && pnpm run lint && pnpm run test && pnpm run rust:check"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "2.12.5",
+    "@types/node": "26.6.6",
+    "sharp": "0.35.5",
+    "tsx": "4.23.15",
+    "typescript": "7.0.2",
+    "vitest": "5.1.0"
+  }
+}

@@ -1,3 +1,7 @@
+# The phone app (mobile/) is a package of its own: its scripts, the Tauri CLI and its tests.
+packages:
+  - mobile
+
 # Dependency build scripts are blocked unless listed here (pnpm 12).
 allowBuilds:
   esbuild: true

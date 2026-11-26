@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- The workspace's canvas, dark (the dark reading in app/app.css). -->
+    <color name="canvas">#FF191A1B</color>
+</resources>
