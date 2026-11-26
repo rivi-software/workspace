@@ -227,6 +227,7 @@ Then clone the copy, run `pnpm install` and `wrangler login`, and continue with 
    | `APP_NAME` | What the pages, the mails and the passkeys call the workspace. |
    | `APP_URL` | The Worker's address, with scheme: the origin of every link in a mail, of every passkey and of the sign-in forms. A custom domain through `routes` (`"routes": [{ "pattern": "workspace.example.com", "custom_domain": true }]`; Wrangler creates the DNS record and certificate on deploy), or the Worker's workers.dev address with `"workers_dev": true`. One origin either way; preview URLs stay off. |
    | `MAIL_DOMAIN` | The domain every mailbox is an address on. |
+   | `BRAND_COLOR`, `BRAND_ICON_URL` | The workspace's own accent and icon, optional ([Branding](#branding)). |
    | `SES_REGION` | Amazon SES's region, when SES sends ([Amazon SES](#amazon-ses)). |
    | `AI_FEATURES` | `off` turns every AI feature off: the Assistant, its API and every link to it, Mail's Summarize and Draft with AI, and the search by meaning ([Assistant](#assistant)). Anything else leaves them on. |
    | `AI_PROVIDER`, `AI_GATEWAY_ID`, `AI_CHAT_MODEL` | The Assistant's model ([Assistant](#assistant)). `mock` runs the workspace without a model. |
@@ -281,6 +282,15 @@ A person imports their own Microsoft 365 mailbox through Microsoft Graph: OAuth 
 4. The Worker's secrets: `MICROSOFT_CLIENT_ID` (the Application (client) ID), `MICROSOFT_CLIENT_SECRET` and `MICROSOFT_TENANT_ID` (the Directory (tenant) ID; empty lets any work account connect).
 
 Settings → Mail → Import then shows **Connect Microsoft 365**.
+
+### Branding
+
+Optional, and no fork needed: two variables in `wrangler.jsonc` (or on the button's page) give the workspace its owner's look.
+
+- `BRAND_COLOR`: the accent of buttons, links, the selection and the focus ring, as a CSS colour (`#e11d48`, `rgb(…)`, a colour name). The light theme uses it as it is, darkened only as far as links need to read on the page; the dark theme a bright reading of the same hue. Text on the accent turns white or black, whichever reads.
+- `BRAND_ICON_URL`: the https address of a square icon, an SVG or a PNG of at least 512 × 512, for the tab, the Home Screen, the installed app, mail notifications and the sidebar. The Worker redirects `/brand/icon` to it, so it stays where you keep it.
+
+The Worker serves both under `/brand/` (`app/lib/branding.server.ts`); empty, the workspace keeps its green and its mark. A change reaches open tabs within five minutes. Safari keeps a tab's icon until its own cache lets it go, so a new icon can take a while to show there.
 
 ### PostHog
 

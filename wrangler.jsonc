@@ -17,6 +17,8 @@
     // origin the sign-in forms must post from. Set it to the Worker's address: the custom domain in `routes` below,
     // or its workers.dev address.
     "APP_URL": "https://workspace.example.com",
+    "BRAND_COLOR": "",
+    "BRAND_ICON_URL": "",
     // Every mailbox is an address on this domain: onboarded in Email Service → Email Sending (DKIM, SPF, DMARC), so
     // the Worker sends as <mailbox>@<domain>, and in Email Routing (the MX), so inbound mail reaches `email()`.
     "MAIL_DOMAIN": "example.com",

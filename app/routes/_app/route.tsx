@@ -41,7 +41,7 @@ import {
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 
 import { AssistantSidebar } from "~/components/assistant/sidebar";
-import { RiviMark } from "~/components/brand";
+import { BrandMark } from "~/components/brand";
 import { PlannerSidebar } from "~/components/calendar/sidebar";
 import { DriveSidebar } from "~/components/drive/sidebar";
 import { UploadPanel, UploadProvider } from "~/components/drive/uploads";
@@ -563,7 +563,7 @@ const AccountMenu = ({
           open && "bg-hover"
         )}
       >
-        <RiviMark className="shrink-0 text-[20px]" />
+        <BrandMark className="shrink-0 text-[20px]" />
         <span className="truncate">{appName}</span>
         <ChevronsUpDown className="text-subtle ml-auto h-3.5 w-3.5 shrink-0" />
       </button>

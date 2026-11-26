@@ -7,7 +7,7 @@ import type { ReactNode } from "react";
 import { z } from "zod";
 
 import { AuthShell, authCardClass } from "~/components/auth-shell";
-import { RiviMark } from "~/components/brand";
+import { BrandMark } from "~/components/brand";
 import { KindIcon } from "~/components/drive/icons";
 import { FilePreview } from "~/components/drive/preview";
 import {
@@ -174,7 +174,7 @@ const SharedView = ({
   return (
     <div className="bg-bg flex min-h-dvh flex-col">
       <header className="border-line flex h-12 shrink-0 items-center gap-2.5 border-b px-4">
-        <RiviMark className="text-[22px]" />
+        <BrandMark className="text-[22px]" />
         <span className="text-base font-medium">{appName}</span>
         <span className="text-muted ml-auto truncate text-sm">
           Shared by {page.sharedBy}

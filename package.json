@@ -139,6 +139,12 @@
       "APP_NAME": {
         "description": "What the pages, the mails and the passkeys call the workspace."
       },
+      "BRAND_COLOR": {
+        "description": "Optional: the accent of buttons, links and the selection, as a CSS colour such as `#e11d48`. The dark theme gets a bright reading of the same hue, and either is darkened or lightened as far as it needs to read. Empty keeps the green."
+      },
+      "BRAND_ICON_URL": {
+        "description": "Optional: the https address of a square icon (SVG, or a PNG of at least 512 × 512) for the tab, the Home Screen, notifications and the sidebar. Empty keeps the default mark."
+      },
       "APP_URL": {
         "description": "The workspace's address, with `https://`: the project name above on your subdomain (the subdomain is on **Workers & Pages**), or a custom domain. Sign-in and passkeys work at this address only."
       },
