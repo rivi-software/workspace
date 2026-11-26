@@ -136,6 +136,15 @@
       "SES_SECRET_ACCESS_KEY": {
         "description": "Optional, for Amazon SES: the IAM user's secret access key."
       },
+      "DUO_CLIENT_ID": {
+        "description": "Optional, for [Duo](https://github.com/rivi-software/workspace/blob/main/docs/SSO.md#second-factor-duo) as the second factor of every password sign-in: the Web SDK application's Client ID. Leave the three Duo secrets empty to use the authenticator app and passkeys instead."
+      },
+      "DUO_CLIENT_SECRET": {
+        "description": "Optional, for Duo: the Web SDK application's Client secret."
+      },
+      "DUO_API_HOST": {
+        "description": "Optional, for Duo: the API hostname, `api-xxxxxxxx.duosecurity.com`."
+      },
       "APP_NAME": {
         "description": "What the pages, the mails and the passkeys call the workspace."
       },
@@ -147,6 +156,9 @@
       },
       "SES_REGION": {
         "description": "Amazon SES's region, used only once the two SES secrets are set."
+      },
+      "DUO_FAIL_OPEN": {
+        "description": "`true` lets the password alone in while Duo cannot take sign-ins, for someone without an authenticator app. Anything else refuses them until Duo answers."
       },
       "AI_FEATURES": {
         "description": "`off` turns every AI feature off: the Assistant, its API and every link to it, Mail's summary and draft, and the search by meaning. Anything else leaves them on."

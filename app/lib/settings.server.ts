@@ -14,6 +14,7 @@ import { mailSettings } from "./mail/settings.server";
 import { signatureSettings } from "./mail/signature-settings.server";
 import { peopleSettings } from "./people.server";
 import { openTab } from "./settings";
+import { applicationsSettings } from "./sso/settings.server";
 import { tasksSettings } from "./tasks/settings.server";
 
 /** The tab an address's `tab` opens for the person, with what it shows. `request` carries their session. */
@@ -53,6 +54,14 @@ export const loadSettings = async (
 
     case "branding": {
       return { tab, me, branding: await brandingSettings(db, user) };
+    }
+
+    case "applications": {
+      return {
+        tab,
+        me,
+        applications: await applicationsSettings(db, env, user),
+      };
     }
 
     case "account": {

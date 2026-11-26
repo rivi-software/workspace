@@ -8,7 +8,10 @@ import { createDb } from "~/db";
 import { handleApi, isApiPath } from "~/lib/api/api.server";
 import { authFor, isAuthPath } from "~/lib/auth.server";
 import { isBrandPath, serveBrand } from "~/lib/branding.server";
+import { DUO_CALLBACK_PATH, finishDuoSignIn } from "~/lib/duo.server";
 import { isWkdPath, serveWkd } from "~/lib/mail/pgp/wkd.server";
+import { isSsoPath } from "~/lib/sso/paths";
+import { handleSsoRequest } from "~/lib/sso/provider.server";
 
 import { handleInboundEmail } from "./email/inbound";
 import { handleScheduled } from "./scheduled";
@@ -59,9 +62,11 @@ const withSecurityHeaders = (res: Response, url: URL): Response => {
 
 /**
  * The deployment's brand (`/brand/*`: the accent's stylesheet, the icon and the manifest an admin set under Settings →
- * Branding), the Web Key Directory (`/.well-known/openpgpkey/*`), Better Auth (`/api/auth/*`: the password sign-in, passkeys,
- * the second factor, sessions), the API for other clients (`/api/v1/*`, docs/API.md), then Start. Served here rather than by route files, so the tests reach them
- * through `exports.default.fetch` (`cloudflare:workers`) without the Vite build.
+ * Branding), the Web Key Directory (`/.well-known/openpgpkey/*`), the identity provider of single sign-on (`/oauth/*`
+ * and the discovery document, docs/SSO.md), Duo's return to a password sign-in (`/auth/duo`), Better Auth
+ * (`/api/auth/*`: the password sign-in, passkeys, the second factor, sessions), the API for other clients (`/api/v1/*`,
+ * docs/API.md), then Start. Served here rather than by route files, so the tests reach them through
+ * `exports.default.fetch` (`cloudflare:workers`) without the Vite build.
  */
 const route = async (
   request: Request,
@@ -77,6 +82,14 @@ const route = async (
   // The workspace's OpenPGP keys for other mail clients (WKD): `openpgpkey.<MAIL_DOMAIN>` routed here serves them.
   if (isWkdPath(url.pathname)) {
     return serveWkd(request, env);
+  }
+
+  if (isSsoPath(url.pathname)) {
+    return handleSsoRequest(request, env, db);
+  }
+
+  if (url.pathname === DUO_CALLBACK_PATH) {
+    return finishDuoSignIn(request, env, db);
   }
 
   if (isAuthPath(url.pathname)) {

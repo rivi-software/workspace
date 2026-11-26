@@ -13,6 +13,7 @@ export const SETTINGS_TABS = [
   "people",
   "drive",
   "branding",
+  "applications",
 ] as const;
 
 export type SettingsTab = (typeof SETTINGS_TABS)[number];
@@ -22,6 +23,7 @@ const ADMIN_TABS: ReadonlySet<SettingsTab> = new Set([
   "people",
   "drive",
   "branding",
+  "applications",
 ]);
 
 /** The tabs a person with this role sees, in the header's order. */
@@ -39,7 +41,10 @@ export const openTab = (
   role: User["role"]
 ): SettingsTab => tabsFor(role).find((tab) => tab === asked) ?? "account";
 
-/** What an Account or People form answers: what went wrong, or what happened and a one-time password to show. */
+/**
+ * What an Account, People or Applications form answers: what went wrong, or what happened and a one-time value to
+ * show (a person's one-time password, an application's new secret).
+ */
 export interface SettingsResult {
   error?: string;
   message?: string;

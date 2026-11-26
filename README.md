@@ -147,6 +147,7 @@ Workspace is an open-source workspace that runs on Cloudflare: **Mail** (receivi
 | Settings → Drive | Sharing outside the workspace on or off, and every link and invitation with who made it and how often it was opened (admins). |
 | Settings → Tasks | The GitHub connection. |
 | Settings → People | Mailboxes, aliases, roles, one-time passwords, deactivation, each person's passkeys, authenticator app, recovery addresses and sessions (admins). |
+| Settings → Applications | The apps that sign people in through the workspace (single sign-on): their redirect URIs, secrets and who may sign in to each, with a role; the signing key (admins). |
 
 ## On a phone
 
@@ -159,11 +160,13 @@ Sign-in runs on [Better Auth](https://www.better-auth.com) (`app/lib/auth.server
 - **Accounts**: nobody signs up. An admin creates a mailbox under Settings → People, an address on the mail domain with a name and a one-time password shown once; the first admin comes from `pnpm run admin:create` ([Deploy](#deploy)). Everyone changes their own password, name and signatures under Settings → Account.
 - **Password**: at least 12 characters, kept as a PBKDF2 hash. The sign-in form only accepts posts from the workspace's own origin, and stops after 10 failed attempts per client and address for 15 minutes; Better Auth's own rate limits sit on `/api/auth/*` as well.
 - **Passkeys**: a sign-in of its own, with Touch ID, Windows Hello, a phone or a security key, added under Settings → Account. A passkey is bound to the workspace's address (`APP_URL`).
-- **Authenticator app**: the second factor of a password sign-in. Once set up under Settings → Account, a password sign-in continues on `/two-factor` with the app's six-digit code, or one of the backup codes shown once at setup; "Don't ask again on this browser for 30 days" trusts that browser.
+- **Duo** (optional): with the three `DUO_*` secrets set, Duo's Universal Prompt is the second factor of every password sign-in, in place of the authenticator app; a passkey still signs in on its own ([docs/SSO.md](docs/SSO.md#duo)). Without them, the authenticator app and passkeys are the second factor, as below.
+- **Authenticator app**: the second factor of a password sign-in while Duo is off (and while Duo cannot take sign-ins). Once set up under Settings → Account, a password sign-in continues on `/two-factor` with the app's six-digit code, or one of the backup codes shown once at setup; "Don't ask again on this browser for 30 days" trusts that browser.
 - **Sessions**: 14 days, kept in the database and read on every request. Settings → Account lists your sessions, signs one out, or signs out everywhere at once. A new password, however it is set, and a deactivation end every session of the person at once.
 - **Admins** (Settings → People) also reset a person's password to a new one-time password, remove their passkeys, reset their authenticator app (for a lost phone), add aliases, change roles, and deactivate a person (their mail stays, their sign-in stops). `pnpm run admin:create` does the same for a locked-out admin from the command line.
 - **Forgotten passwords**: under Settings → Account a person adds up to three personal recovery addresses outside the mail domain, each confirmed from a link mailed to it. **Forgot your password?** on the sign-in page mails a single-use link (30 minutes) to the confirmed ones; choosing a new password there signs out every session. A passkey or authenticator app still confirms the next sign-in.
 - **Other clients**: the Workspace API at `/api/v1` takes a Better Auth session token as a bearer token ([docs/API.md](docs/API.md)).
+- **Single sign-on**: the workspace is an OpenID Connect identity provider for other apps (and Cloudflare Access). An admin registers each app under Settings → Applications; people sign in with their mailbox and its second factor, and the ID token's `amr` says how ([docs/SSO.md](docs/SSO.md)).
 
 ## Run locally
 

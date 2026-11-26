@@ -83,6 +83,10 @@ export const sessions = sqliteTable(
     expiresAt: instant("expires_at").notNull(),
     ipAddress: text("ip_address"),
     userAgent: text("user_agent"),
+    // How the person signed in, as RFC 8176 names it (`pwd`, `otp`, `mfa`, `pop`), space-separated: what an
+    // application that signs in through the workspace reads from the ID token's `amr` (`sessionAmr`, docs/SSO.md).
+    // Null on a session from before it was kept, which says nothing about the sign-in.
+    amr: text("amr"),
     createdAt: instant("created_at")
       .notNull()
       .$defaultFn(() => new Date()),
@@ -1254,3 +1258,103 @@ export type CalendarAttendee = typeof calendarAttendees.$inferSelect;
 export type Task = typeof tasks.$inferSelect;
 
 export type GithubConnection = typeof githubConnections.$inferSelect;
+
+/**
+ * An application that signs people in through the workspace (single sign-on, docs/SSO.md), registered by an admin
+ * under Settings → Applications. Its secret is kept as its SHA-256 and shown once; the redirect URIs are matched
+ * exactly. `access` is `everyone` (every active mailbox) or `listed` (only the people on `oauth_client_members`).
+ */
+export const oauthClients = sqliteTable("oauth_clients", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+  secretHash: text("secret_hash").notNull(),
+  // JSON `string[]`, each as `URL` serialises it.
+  redirectUrisJson: text("redirect_uris_json").notNull().default("[]"),
+  postLogoutRedirectUrisJson: text("post_logout_redirect_uris_json")
+    .notNull()
+    .default("[]"),
+  // Where the account menu's Apps opens it; none keeps it out of the menu.
+  launchUrl: text("launch_url"),
+  pkceRequired: integer("pkce_required", { mode: "boolean" })
+    .notNull()
+    .default(true),
+  access: text("access", { enum: ["everyone", "listed"] })
+    .notNull()
+    .default("everyone"),
+  active: integer("active", { mode: "boolean" }).notNull().default(true),
+  createdBy: text("created_by").references(() => users.id, {
+    onDelete: "set null",
+  }),
+  createdAt: text("created_at").notNull().default(now()),
+});
+
+/**
+ * A person on an application's list, with the role the application reads from the ID token's `role` claim (what a
+ * role means is the application's). On an application open to everyone the list only gives roles.
+ */
+export const oauthClientMembers = sqliteTable(
+  "oauth_client_members",
+  {
+    clientId: text("client_id")
+      .notNull()
+      .references(() => oauthClients.id, { onDelete: "cascade" }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    role: text("role"),
+    createdBy: text("created_by").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    createdAt: text("created_at").notNull().default(now()),
+  },
+  (t) => [
+    primaryKey({ columns: [t.clientId, t.userId] }),
+    index("oauth_client_members_user_idx").on(t.userId),
+  ]
+);
+
+/** An ES256 key the issuer signs ID and access tokens with; a retired key stays in the key set for a day. */
+export const oauthSigningKeys = sqliteTable("oauth_signing_keys", {
+  kid: text("kid").primaryKey(),
+  alg: text("alg").notNull().default("ES256"),
+  // Sealed (`sealSecret`, purpose `oauth-signing-key`): rotating SESSION_SECRET makes a new key on first use.
+  privateJwk: text("private_jwk").notNull(),
+  publicJwk: text("public_jwk").notNull(),
+  createdAt: text("created_at").notNull().default(now()),
+  retiredAt: text("retired_at"),
+});
+
+/**
+ * An authorization code: one person signed in to one application, redeemed once at the token endpoint within two
+ * minutes. Kept as its SHA-256, with what the ID token needs (`nonce`, `sid`, `auth_time`, `amr`, `role`) and what
+ * the token request must repeat (the redirect URI, the PKCE challenge).
+ */
+export const oauthCodes = sqliteTable(
+  "oauth_codes",
+  {
+    codeHash: text("code_hash").primaryKey(),
+    clientId: text("client_id")
+      .notNull()
+      .references(() => oauthClients.id, { onDelete: "cascade" }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    redirectUri: text("redirect_uri").notNull(),
+    scope: text("scope").notNull(),
+    nonce: text("nonce"),
+    codeChallenge: text("code_challenge"),
+    sid: text("sid"),
+    authTime: integer("auth_time").notNull(),
+    // JSON `string[]`: how the person signed in (RFC 8176), for the ID token's `amr`.
+    amrJson: text("amr_json").notNull().default("[]"),
+    // The person's role on the application's list, for the ID token's `role`.
+    role: text("role"),
+    expiresAt: text("expires_at").notNull(),
+    createdAt: text("created_at").notNull().default(now()),
+  },
+  (t) => [index("oauth_codes_expires_idx").on(t.expiresAt)]
+);
+
+export type OauthClient = typeof oauthClients.$inferSelect;
+
+export type OauthSigningKey = typeof oauthSigningKeys.$inferSelect;
