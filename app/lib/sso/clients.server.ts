@@ -280,7 +280,8 @@ export const setClientMember = async (
 
   const person = await db.query.users.findFirst({
     columns: { id: true },
-    where: eq(users.id, userId),
+    // A group inbox never signs in, so no application is ever its.
+    where: and(eq(users.id, userId), eq(users.kind, "person")),
   });
 
   if (!person) {

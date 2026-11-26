@@ -38,6 +38,7 @@ import {
   Star,
   Sun,
   Trash2,
+  UsersRound,
 } from "lucide-react";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 
@@ -70,6 +71,7 @@ import { isJsonObject, stringOrNull } from "~/lib/guards";
 import { FAVICON_HREF } from "~/lib/icons";
 import { keepShown } from "~/lib/keep-shown";
 import type { Folder, LabelRef } from "~/lib/mail/folders";
+import { sharedMailboxes } from "~/lib/mail/groups.server";
 import { listLabels } from "~/lib/mail/labels.server";
 import { folderCounts, newestUnread } from "~/lib/mail/mailbox.server";
 import { parsePreferences } from "~/lib/mail/preferences";
@@ -92,6 +94,7 @@ const getLayout = createServerFn().handler(async () => {
     people,
     github,
     apps,
+    shared,
   ] = await Promise.all([
     folderCounts(db, user.id),
     listLabels(db, user.id),
@@ -106,12 +109,25 @@ const getLayout = createServerFn().handler(async () => {
     githubConnection(db, user.id),
     // The applications the person signs in to through the workspace, under Apps in the account menu.
     listApps(db, user.id),
+    // The shared group inboxes the person is in, each with its own counts and labels for the sidebar.
+    sharedMailboxes(db, user.id).then((boxes) =>
+      Promise.all(
+        boxes.map(async (box) => ({
+          id: box.id,
+          name: box.name,
+          email: box.email,
+          counts: await folderCounts(db, box.id),
+          labels: await listLabels(db, box.id),
+        }))
+      )
+    ),
   ]);
 
   return {
     user: { id: user.id, name: user.name, email: user.email, role: user.role },
     counts,
     labels,
+    shared,
     // The newest unread conversation, so a tab can tell of new mail.
     newest: newest
       ? {
@@ -728,20 +744,88 @@ const TabBar = ({
   </nav>
 );
 
+/** The mailboxes a person reads in Mail: their own, then each shared group inbox, with its unread count. */
+const MailboxSwitcher = ({
+  onMail,
+  box,
+  own,
+  shared,
+}: {
+  onMail: boolean;
+  box: string | undefined;
+  own: { name: string; counts: Layout["counts"] };
+  shared: Layout["shared"];
+}) => (
+  <>
+    <div className="text-subtle mb-1 px-2 text-xs font-medium">Mailboxes</div>
+    <ul className="mb-4 space-y-px">
+      {[
+        {
+          id: undefined,
+          name: own.name,
+          unread: own.counts.inboxUnread,
+          icon: Inbox,
+        },
+        ...shared.map((g) => ({
+          id: g.id,
+          name: g.name,
+          unread: g.counts.inboxUnread,
+          icon: UsersRound,
+        })),
+      ].map(({ id, name, unread, icon: Icon }) => {
+        const active = onMail && box === id;
+
+        return (
+          <li key={id ?? "own"}>
+            <Link
+              to="/mail"
+              search={id ? { box: id } : {}}
+              className={cx(
+                "flex h-7 items-center gap-2 rounded-md px-2 text-base transition-colors duration-100",
+                active
+                  ? "bg-active text-fg"
+                  : "text-muted hover:bg-hover hover:text-fg"
+              )}
+              aria-current={active ? "page" : undefined}
+            >
+              <Icon className="h-4 w-4 shrink-0" />
+              <span className="flex-1 truncate">{name}</span>
+              {unread > 0 && (
+                <span
+                  className="tnum text-2xs text-subtle font-semibold"
+                  aria-label={`${unread} unread`}
+                >
+                  {unread}
+                </span>
+              )}
+            </Link>
+          </li>
+        );
+      })}
+    </ul>
+  </>
+);
+
 const MailSidebar = ({
   onMail,
   folder: searchedFolder,
   label: searchedLabel,
-  counts,
-  labels,
+  box: searchedBox,
+  own,
+  shared,
 }: {
   onMail: boolean;
   folder: string | null;
   label: string | null;
-  counts: Layout["counts"];
-  labels: Layout["labels"];
+  box: string | null;
+  own: { name: string; counts: Layout["counts"]; labels: Layout["labels"] };
+  shared: Layout["shared"];
 }) => {
   const activeFolder = searchedLabel ? null : (searchedFolder ?? "inbox");
+  // A shared group inbox the person is in shows its own folders' counts and labels; any other box, their own.
+  const group = onMail ? shared.find((g) => g.id === searchedBox) : undefined;
+  const box = group?.id;
+  const { counts, labels } = group ?? own;
 
   const badges: Partial<Record<Folder, number>> = {
     inbox: counts.inboxUnread,
@@ -764,7 +848,7 @@ const MailSidebar = ({
       <div className="px-3 pb-3">
         <Link
           to="/mail/compose"
-          search={{}}
+          search={box ? { box } : {}}
           className="bg-accent text-accent-fg hover:bg-accent-hover flex h-7 w-full items-center justify-center gap-1.5 rounded-md px-2.5 text-base font-medium shadow-[inset_0_1px_0_rgb(255_255_255/0.12),0_1px_1px_rgb(0_0_0/0.08)] transition-colors"
           title="Compose (c)"
         >
@@ -774,7 +858,17 @@ const MailSidebar = ({
       </div>
 
       <nav className="flex-1 overflow-y-auto px-2 pb-2" aria-label="Mail">
-        <div className="text-subtle mb-1 px-2 text-xs font-medium">Mail</div>
+        {shared.length > 0 && (
+          <MailboxSwitcher
+            onMail={onMail}
+            box={box}
+            own={own}
+            shared={shared}
+          />
+        )}
+        <div className="text-subtle mb-1 px-2 text-xs font-medium">
+          {group ? group.name : "Mail"}
+        </div>
         <ul className="space-y-px">
           {folders.map(({ folder, label, icon: Icon }) => {
             const active = onMail && activeFolder === folder;
@@ -784,7 +878,10 @@ const MailSidebar = ({
               <li key={folder}>
                 <Link
                   to="/mail"
-                  search={folder === "inbox" ? {} : { folder }}
+                  search={{
+                    box,
+                    folder: folder === "inbox" ? undefined : folder,
+                  }}
                   className={cx(
                     "flex h-7 items-center gap-2 rounded-md px-2 text-base transition-colors duration-100",
                     active
@@ -834,7 +931,7 @@ const MailSidebar = ({
               <li key={l.id}>
                 <Link
                   to="/mail"
-                  search={{ label: l.id }}
+                  search={{ box, label: l.id }}
                   className={cx(
                     "flex h-7 items-center gap-2 rounded-md px-2 text-base transition-colors duration-100",
                     active
@@ -883,12 +980,14 @@ const ModuleSidebar = ({
   pathname,
   folder,
   label,
+  box,
 }: {
   layout: Layout;
   current: ShellModule | null;
   pathname: string;
   folder: string | null;
   label: string | null;
+  box: string | null;
 }) => {
   if (current === "drive") {
     return <DriveSidebar used={layout.driveUsed} />;
@@ -921,8 +1020,13 @@ const ModuleSidebar = ({
       onMail={current === "mail"}
       folder={folder}
       label={label}
-      counts={layout.counts}
-      labels={layout.labels}
+      box={box}
+      own={{
+        name: layout.user.name,
+        counts: layout.counts,
+        labels: layout.labels,
+      }}
+      shared={layout.shared}
     />
   );
 };
@@ -1086,6 +1190,7 @@ const AppShell = () => {
           pathname={pathname}
           folder={searchParam(search, "folder")}
           label={searchParam(search, "label")}
+          box={searchParam(search, "box")}
         />
 
         <SidebarFooter

@@ -44,6 +44,7 @@ import {
 import { accountIntent } from "~/lib/account.server";
 import { useAction } from "~/lib/action";
 import { formData, formPost } from "~/lib/forms";
+import { groupsIntent } from "~/lib/groups.server";
 import { unreachable } from "~/lib/guards";
 import { keepShown } from "~/lib/keep-shown";
 import { signatureIntent } from "~/lib/mail/signature-settings.server";
@@ -124,6 +125,15 @@ const peopleAction = createServerFn({ method: "POST" })
     const { db, env, user } = await appContext();
 
     return peopleIntent(db, env, user, data);
+  });
+
+const groupsAction = createServerFn({ method: "POST" })
+  .middleware([formPost])
+  .validator(formData)
+  .handler(async ({ data }): Promise<SettingsResult> => {
+    const { db, env, user } = await appContext();
+
+    return groupsIntent(db, env, user, data);
   });
 
 const Feedback = ({
@@ -1161,11 +1171,329 @@ const People = ({
   );
 };
 
+/** What a group's mode means, in a line, for the list and the form that makes one. */
+const MODE_LINE: Record<GroupRow["mode"], string> = {
+  distribute: "Each member gets a copy in their own inbox.",
+  shared: "One inbox the members share in Mail.",
+};
+
+/** A confirmation before a submit that cannot be undone; the submit goes on only when the person agrees. */
+const confirmFirst =
+  (question: string) => (e: { preventDefault: () => void }) => {
+    // oxlint-disable-next-line eslint/no-alert -- destructive action requires user confirmation
+    if (!confirm(question)) {
+      e.preventDefault();
+    }
+  };
+
+/** One group: its address and mode, its members, and what the person may change of it. */
+const GroupItem = ({
+  group: g,
+  people,
+  isAdmin,
+}: {
+  group: GroupRow;
+  people: GroupsData["people"];
+  isAdmin: boolean;
+}) => {
+  const act = useAction(groupsAction, { id: g.id });
+  const [renaming, setRenaming] = useState(false);
+  const inGroup = new Set(g.members.map((m) => m.id));
+  const addable = people.filter((p) => !inGroup.has(p.id));
+
+  return (
+    <li className={cx("space-y-2 p-4", !g.active && "opacity-60")}>
+      <div className="flex items-center gap-3">
+        <Avatar name={g.name} size={28} />
+        <div className="min-w-0 flex-1">
+          {renaming ? (
+            <act.Form
+              className="flex items-center gap-1"
+              onSubmit={() => setRenaming(false)}
+            >
+              <input
+                name="name"
+                autoFocus
+                required
+                defaultValue={g.name}
+                aria-label="Group name"
+                className={cx(inputClass, "h-6 w-56 text-sm")}
+              />
+              <Button size="sm" type="submit" name="intent" value="rename">
+                Save
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => setRenaming(false)}
+              >
+                Cancel
+              </Button>
+            </act.Form>
+          ) : (
+            <div className="flex items-center gap-2 text-base font-medium">
+              <span className="truncate">{g.name}</span>
+              <Pill tone={g.mode === "shared" ? "accent" : "neutral"}>
+                {g.mode === "shared" ? "Shared inbox" : "Distribution"}
+              </Pill>
+              {!g.active && <Pill tone="amber">Off</Pill>}
+              {g.myRole === "owner" && (
+                <span className="text-subtle text-xs">you own it</span>
+              )}
+            </div>
+          )}
+          <div className="text-muted truncate text-sm">
+            {g.email}
+            <span className="text-subtle">
+              {" · "}
+              {MODE_LINE[g.mode]}
+            </span>
+          </div>
+        </div>
+        {g.canManage && (
+          <act.Form className="flex flex-wrap items-center gap-1">
+            {!renaming && (
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => setRenaming(true)}
+              >
+                <Pencil className="h-3.5 w-3.5" />
+                Rename
+              </Button>
+            )}
+            {isAdmin && (
+              <Button
+                size="sm"
+                variant="ghost"
+                type="submit"
+                name="intent"
+                value={g.active ? "deactivate" : "activate"}
+                onClick={
+                  g.active
+                    ? confirmFirst(
+                        `Turn ${g.email} off? Mail to it bounces until it is on again.`
+                      )
+                    : undefined
+                }
+              >
+                {g.active ? "Turn off" : "Turn on"}
+              </Button>
+            )}
+            {isAdmin && g.mode === "distribute" && (
+              <Button
+                size="sm"
+                variant="ghost"
+                type="submit"
+                name="intent"
+                value="delete"
+                title="Delete group"
+                aria-label={`Delete ${g.name}`}
+                onClick={confirmFirst(
+                  `Delete ${g.email}? Mail to it bounces from now on; what its members received stays with them.`
+                )}
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+              </Button>
+            )}
+          </act.Form>
+        )}
+      </div>
+      <ul className="space-y-1 pl-10">
+        {g.members.map((m) => (
+          <li key={m.id} className="flex items-center gap-2 text-sm">
+            <span className={cx("min-w-0 truncate", !m.active && "opacity-60")}>
+              {m.name} <span className="text-subtle">{m.email}</span>
+            </span>
+            {m.role === "owner" && <Pill tone="accent">Owner</Pill>}
+            {!m.active && <Pill tone="amber">Deactivated</Pill>}
+            {g.canManage && (
+              <act.Form className="ml-auto flex items-center gap-1">
+                <input type="hidden" name="userId" value={m.id} />
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  type="submit"
+                  name="intent"
+                  value={m.role === "owner" ? "member" : "owner"}
+                >
+                  {m.role === "owner" ? "Make member" : "Make owner"}
+                </Button>
+                <button
+                  type="submit"
+                  name="intent"
+                  value="remove"
+                  aria-label={`Remove ${m.name} from ${g.name}`}
+                  className="text-subtle hover:bg-hover hover:text-fg rounded-full p-0.5"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              </act.Form>
+            )}
+          </li>
+        ))}
+        {!g.members.length && (
+          <li className="text-subtle text-sm">
+            {g.mode === "distribute"
+              ? "No members yet: mail to it bounces."
+              : "No members yet: its mail waits for someone to read it."}
+          </li>
+        )}
+      </ul>
+      {g.canManage && addable.length > 0 && (
+        <act.Form className="flex flex-wrap items-center gap-1 pl-10">
+          <select
+            name="email"
+            required
+            defaultValue=""
+            aria-label={`Add someone to ${g.name}`}
+            className={cx(selectClass, "h-6 text-sm")}
+          >
+            <option value="" disabled>
+              Add someone…
+            </option>
+            {addable.map((p) => (
+              <option key={p.id} value={p.email}>
+                {p.name} ({p.email})
+              </option>
+            ))}
+          </select>
+          <select
+            name="role"
+            defaultValue="member"
+            aria-label="Their role in the group"
+            className={cx(selectClass, "h-6 text-sm")}
+          >
+            <option value="member">Member</option>
+            <option value="owner">Owner</option>
+          </select>
+          <Button size="sm" type="submit" name="intent" value="add">
+            <Plus className="h-3 w-3" />
+            Add
+          </Button>
+        </act.Form>
+      )}
+      <div className="pl-10">
+        <Feedback result={act.data} error={act.error} />
+      </div>
+    </li>
+  );
+};
+
+/** Settings → Groups: every group for an admin, the ones a person is in for anyone else. */
+const Groups = ({ groups, people, canCreate, mailDomain }: GroupsData) => {
+  const create = useAction(groupsAction);
+  const [adding, setAdding] = useState(false);
+
+  return (
+    <Section
+      title="Groups"
+      actions={
+        canCreate && (
+          <Button
+            size="sm"
+            onClick={() => setAdding((a) => !a)}
+            aria-expanded={adding}
+          >
+            <Plus className="h-3.5 w-3.5" />
+            New group
+          </Button>
+        )
+      }
+    >
+      {adding && (
+        <create.Form className="border-line bg-sidebar space-y-3 border-b p-4">
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Field label="Name" hint="Its mail goes out under this name.">
+              <input name="name" required className={inputClass} />
+            </Field>
+            <Field
+              label="Address"
+              hint={`Before the @; the address is on ${mailDomain}.`}
+            >
+              <div className="flex items-center">
+                <input
+                  name="email"
+                  required
+                  pattern="[^@\s]+"
+                  className={cx(inputClass, "rounded-r-none")}
+                />
+                <span className="border-line bg-hover text-muted flex h-7 items-center rounded-r-md border border-l-0 px-2 text-sm">
+                  @{mailDomain}
+                </span>
+              </div>
+            </Field>
+          </div>
+          <fieldset className="space-y-1">
+            <legend className="text-muted mb-1 text-sm font-medium">
+              Kind
+            </legend>
+            <label className="flex items-start gap-2 text-sm">
+              <input
+                type="radio"
+                name="mode"
+                value="distribute"
+                defaultChecked
+                className="mt-0.5"
+              />
+              <span>
+                Distribution group{" "}
+                <span className="text-muted">{MODE_LINE.distribute}</span>
+              </span>
+            </label>
+            <label className="flex items-start gap-2 text-sm">
+              <input
+                type="radio"
+                name="mode"
+                value="shared"
+                className="mt-0.5"
+              />
+              <span>
+                Shared inbox{" "}
+                <span className="text-muted">{MODE_LINE.shared}</span>
+              </span>
+            </label>
+          </fieldset>
+          <Feedback result={create.data} error={create.error} />
+          <div className="flex gap-2">
+            <Button
+              type="submit"
+              name="intent"
+              value="create"
+              variant="primary"
+              loading={create.state === "submitting"}
+            >
+              Create group
+            </Button>
+            <Button variant="ghost" onClick={() => setAdding(false)}>
+              Cancel
+            </Button>
+          </div>
+        </create.Form>
+      )}
+      <ul className="divide-line divide-y">
+        {groups.map((g) => (
+          <GroupItem key={g.id} group={g} people={people} isAdmin={canCreate} />
+        ))}
+      </ul>
+      {!groups.length && (
+        <div className="text-muted p-6 text-center text-base">
+          <Users className="mx-auto mb-2 h-4 w-4" />
+          {canCreate
+            ? "No groups yet. A group gives several people one address."
+            : "You are not in any group."}
+        </div>
+      )}
+    </Section>
+  );
+};
+
 /** Each tab's name in the header. */
 const TAB_LABELS: Record<SettingsTab, string> = {
   account: "Account",
   mail: "Mail",
   tasks: "Tasks",
+  groups: "Groups",
   people: "People",
   drive: "Drive",
   branding: "Branding",
@@ -1191,6 +1519,10 @@ const TabBody = ({
 
     case "tasks": {
       return <TasksSettings github={settings.tasks.github} />;
+    }
+
+    case "groups": {
+      return <Groups {...settings.groups} />;
     }
 
     case "people": {
@@ -1291,5 +1623,9 @@ type RecoveryRow = AccountData["recoveryAddresses"][number];
 type SignatureRow = TabData<"account">["signatures"][number];
 
 type Person = TabData<"people">["people"]["people"][number];
+
+type GroupsData = TabData<"groups">["groups"];
+
+type GroupRow = GroupsData["groups"][number];
 
 type SessionRow = AccountData["sessions"][number];

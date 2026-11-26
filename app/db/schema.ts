@@ -37,6 +37,10 @@ export const users = sqliteTable(
     role: text("role", { enum: ["admin", "member"] })
       .notNull()
       .default("member"),
+    // A person signs in; a group (`groups`) is a mailbox nobody signs in as: no password, no passkey, no session.
+    kind: text("kind", { enum: ["person", "group"] })
+      .notNull()
+      .default("person"),
     active: integer("active", { mode: "boolean" }).notNull().default(true),
     // Whether a password sign-in asks for the code of an authenticator app (Better Auth's two-factor plugin).
     twoFactorEnabled: integer("two_factor_enabled", { mode: "boolean" })
@@ -220,6 +224,41 @@ export const aliases = sqliteTable(
     createdAt: text("created_at").notNull().default(now()),
   },
   (t) => [index("aliases_user_idx").on(t.userId)]
+);
+
+/**
+ * A group inbox: an address on `MAIL_DOMAIN` that several people answer. Its `users` row (kind `group`) carries the
+ * address, the name its mail goes out under and whether it takes mail (`active`). A `distribute` group files what
+ * arrives in each member's own mailbox; a `shared` group keeps one mailbox, the group's own, which every member opens.
+ * The mode never changes: a shared group's mail would have nowhere to go.
+ */
+export const groups = sqliteTable("groups", {
+  id: text("id")
+    .primaryKey()
+    .references(() => users.id),
+  mode: text("mode", { enum: ["distribute", "shared"] }).notNull(),
+  createdAt: text("created_at").notNull().default(now()),
+});
+
+/** A person in a group: an `owner` adds and removes the members, a `member` reads and sends as the group. */
+export const groupMembers = sqliteTable(
+  "group_members",
+  {
+    groupId: text("group_id")
+      .notNull()
+      .references(() => groups.id, { onDelete: "cascade" }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    role: text("role", { enum: ["owner", "member"] })
+      .notNull()
+      .default("member"),
+    createdAt: text("created_at").notNull().default(now()),
+  },
+  (t) => [
+    primaryKey({ columns: [t.groupId, t.userId] }),
+    index("group_members_user_idx").on(t.userId),
+  ]
 );
 
 /**
@@ -440,6 +479,8 @@ export const messages = sqliteTable(
       .notNull()
       .references(() => users.id),
     direction: text("direction", { enum: ["inbound", "outbound"] }).notNull(),
+    // Who wrote a message a shared group inbox sent: the member, since the From names the group. Null elsewhere.
+    sentBy: text("sent_by").references(() => users.id),
     // RFC 5322 Message-ID with its angle brackets: the sender's on inbound mail, Email Service's on sent mail.
     messageId: text("message_id").notNull(),
     inReplyTo: text("in_reply_to"),
@@ -1014,6 +1055,10 @@ export type Draft = typeof drafts.$inferSelect;
 export type DraftFile = typeof draftFiles.$inferSelect;
 
 export type Label = typeof labels.$inferSelect;
+
+export type Group = typeof groups.$inferSelect;
+
+export type GroupMember = typeof groupMembers.$inferSelect;
 
 export type Contact = typeof contacts.$inferSelect;
 

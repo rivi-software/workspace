@@ -43,6 +43,10 @@ export interface DraftRow {
 
 /** A page of a list: a view or a label, with a search over it; drafts instead of threads under Drafts and Scheduled. */
 export interface MailListData {
+  /** The shared group inbox this list is of (`mailboxFor`); absent for the person's own. */
+  box?: string;
+  /** That inbox's name and address, for the list's header. */
+  mailbox?: { name: string; email: string };
   folder: Folder;
   q: string;
   page: number;
@@ -68,6 +72,8 @@ export interface AttachmentView {
 export interface MessageView {
   id: string;
   direction: "inbound" | "outbound";
+  /** The member of a shared group inbox who wrote it; null for every other message. */
+  sentBy: string | null;
   messageId: string;
   from: Address;
   to: Address[];

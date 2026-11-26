@@ -34,6 +34,7 @@ import { openSecret, sealSecret } from "../secret-box.server";
 import { snippetOf } from "../text";
 import { parseJsonAddresses } from "./addresses";
 import type { Place } from "./folders";
+import { distributionAddresses } from "./groups.server";
 import { deleteThreadForever, inIds, listWhere } from "./mailbox.server";
 import type { ListOptions } from "./mailbox.server";
 import { senderRuleMatches } from "./spam";
@@ -752,7 +753,10 @@ export const settleThread = async (
 
 /* ---------- counters and the owner ---------- */
 
-/** A person's own addresses: their mailbox first, then their aliases. */
+/**
+ * A mailbox's own addresses: its address first, then its aliases, then the distribution groups' addresses its
+ * owner is in (their mail lands here, and the owner sends from them).
+ */
 export const ownAddresses = async (
   db: Database,
   user: Pick<User, "id" | "email">
@@ -763,6 +767,10 @@ export const ownAddresses = async (
     where: eq(aliases.userId, user.id),
   })) {
     own.add(a.address);
+  }
+
+  for (const g of await distributionAddresses(db, user.id)) {
+    own.add(g.email);
   }
 
   return own;

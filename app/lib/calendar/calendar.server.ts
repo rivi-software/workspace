@@ -212,7 +212,8 @@ const cleanAttendees = async (
     const rows = await db.query.users.findMany({
       where: and(
         inArray(users.id, wanted.slice(i, i + 90)),
-        eq(users.active, true)
+        eq(users.active, true),
+        eq(users.kind, "person")
       ),
     });
 

@@ -319,7 +319,7 @@ export const requestPasswordReset = async (
     where: eq(users.email, email),
   });
 
-  if (!user?.active) {
+  if (!user?.active || user.kind !== "person") {
     return;
   }
 

@@ -20,6 +20,10 @@
     {
       "name": "0004_single_sign_on.sql",
       "sha256": "eba78e6227c45d3deb17abbee461e6c51d0dcdcb769f0a852d8e73d7fd2f2f71"
+    },
+    {
+      "name": "0005_groups.sql",
+      "sha256": "3711cf3d19f4f29cbda19e3617cae1f39d8704e99563fcca190c3c40ae153309"
     }
   ]
 }

@@ -11,6 +11,7 @@ import { leavesView } from "~/lib/mail/views";
 import type { ThreadAction } from "~/lib/mail/views";
 
 import { useLeaving } from "./mail-leaving";
+import { inMailbox, useMailbox } from "./mailbox";
 import { useToast } from "./toast";
 
 const describe = (action: ThreadAction, count: number): string | null => {
@@ -81,11 +82,12 @@ export const useThreadActions = () => {
   const { hide } = useLeaving();
   const act = useServerFn(threadsAction);
   const undo = useServerFn(undoAction);
+  const box = useMailbox();
 
   // The toast that offered the undo is gone once it is pressed, so a failure gets a toast of its own.
   const revert = useCallback(
     async (token: string) => {
-      const fd = new FormData();
+      const fd = inMailbox(new FormData(), box);
       fd.set("undo", token);
 
       try {
@@ -101,7 +103,7 @@ export const useThreadActions = () => {
 
       await router.invalidate();
     },
-    [undo, router, toast]
+    [undo, router, toast, box]
   );
 
   return useCallback(
@@ -114,7 +116,7 @@ export const useThreadActions = () => {
         return null;
       }
 
-      const fd = new FormData();
+      const fd = inMailbox(new FormData(), box);
       fd.set("ids", JSON.stringify(ids));
       fd.set("intent", action.intent);
 
@@ -178,6 +180,6 @@ export const useThreadActions = () => {
         return result;
       }, show);
     },
-    [act, router, toast, revert, list, hide]
+    [act, router, toast, revert, list, hide, box]
   );
 };

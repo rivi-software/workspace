@@ -12,11 +12,13 @@ import { useShortcuts } from "~/components/keyboard";
 import { MailLeavingProvider } from "~/components/mail-leaving";
 import { MailList } from "~/components/mail-list";
 import { MailSelectionProvider } from "~/components/mail-selection";
+import { MailboxProvider } from "~/components/mailbox";
 import { SectionError } from "~/components/section-error";
 import { cx } from "~/components/ui";
 import { isJsonObject, numberOr } from "~/lib/guards";
 import { keepShown } from "~/lib/keep-shown";
 import { FOLDER_LABEL } from "~/lib/mail/folders";
+import { mailboxFor } from "~/lib/mail/groups.server";
 import { parsePreferences } from "~/lib/mail/preferences";
 import type { MailListData } from "~/lib/mail/reads";
 import { listPage } from "~/lib/mail/reads.server";
@@ -25,6 +27,8 @@ import { serverFnFetch } from "~/lib/server-fn-fetch";
 
 // The router keeps search values as strings; `q` and `page` can look like numbers, so they are coerced back.
 const searchSchema = z.object({
+  // A shared group inbox the person is in (`mailboxFor`); none for their own mailbox.
+  box: z.string().optional(),
   folder: z.string().optional(),
   q: z.coerce.string().optional(),
   page: z.coerce.string().optional(),
@@ -38,16 +42,32 @@ const getMail = createServerFn()
   .handler(
     async ({ data }): Promise<MailListData & { layout: "split" | "full" }> => {
       const { db, user } = await appContext();
+      const mailbox = await mailboxFor(db, user, data.box);
 
-      // The page size is the person's preference: the console never asks for another.
-      const list = await listPage(db, user, {
-        folder: data.folder,
-        label: data.label,
-        q: data.q,
-        page: data.page,
-      });
+      // The page size is the person's preference, in a group inbox too: the console never asks for another.
+      const list = await listPage(
+        db,
+        { ...mailbox, preferencesJson: user.preferencesJson },
+        {
+          folder: data.folder,
+          label: data.label,
+          q: data.q,
+          page: data.page,
+        }
+      );
 
-      return { ...list, layout: parsePreferences(user.preferencesJson).layout };
+      const answer: MailListData & { layout: "split" | "full" } = {
+        ...list,
+        layout: parsePreferences(user.preferencesJson).layout,
+      };
+
+      // A shared group inbox names itself, for the links that keep it and the list's header.
+      if (mailbox.id !== user.id) {
+        answer.box = mailbox.id;
+        answer.mailbox = { name: mailbox.name, email: mailbox.email };
+      }
+
+      return answer;
     }
   );
 
@@ -77,11 +97,17 @@ const listName = (data: MailListData | undefined): string => {
     return "Mail";
   }
 
-  if (data.label) {
-    return data.label.name;
+  let name: string = FOLDER_LABEL[data.folder];
+
+  const { label } = data;
+
+  if (label) {
+    ({ name } = label);
+  } else if (data.q) {
+    name = "Search";
   }
 
-  return data.q ? "Search" : FOLDER_LABEL[data.folder];
+  return data.mailbox ? `${name} · ${data.mailbox.name}` : name;
 };
 
 /** "(3) Inbox · Workspace": the unread count first, as mail tabs do. */
@@ -134,36 +160,42 @@ const MailLayout = () => {
   ]);
 
   return (
-    <MailLeavingProvider>
-      <MailSelectionProvider>
-        <div className="flex min-h-0 flex-1 print:block">
-          <section
-            aria-label="Conversations"
-            className={cx(
-              "flex min-w-0 flex-col",
-              isIndex ? "flex-1" : "hidden",
-              split &&
-                !isIndex &&
-                "xl:flex xl:w-[400px] xl:flex-none xl:border-r xl:border-line 2xl:w-[440px]",
-              split &&
-                isIndex &&
-                "xl:w-[400px] xl:flex-none xl:border-r xl:border-line 2xl:w-[440px]"
-            )}
-          >
-            <MailList data={data} activeId={activeId} navigation={!activeId} />
-          </section>
-          <section
-            aria-label="Conversation"
-            className={cx(
-              "flex min-w-0 flex-1 flex-col",
-              isIndex && (split ? "max-xl:hidden" : "hidden")
-            )}
-          >
-            <Outlet />
-          </section>
-        </div>
-      </MailSelectionProvider>
-    </MailLeavingProvider>
+    <MailboxProvider box={data.box}>
+      <MailLeavingProvider>
+        <MailSelectionProvider>
+          <div className="flex min-h-0 flex-1 print:block">
+            <section
+              aria-label="Conversations"
+              className={cx(
+                "flex min-w-0 flex-col",
+                isIndex ? "flex-1" : "hidden",
+                split &&
+                  !isIndex &&
+                  "xl:flex xl:w-[400px] xl:flex-none xl:border-r xl:border-line 2xl:w-[440px]",
+                split &&
+                  isIndex &&
+                  "xl:w-[400px] xl:flex-none xl:border-r xl:border-line 2xl:w-[440px]"
+              )}
+            >
+              <MailList
+                data={data}
+                activeId={activeId}
+                navigation={!activeId}
+              />
+            </section>
+            <section
+              aria-label="Conversation"
+              className={cx(
+                "flex min-w-0 flex-1 flex-col",
+                isIndex && (split ? "max-xl:hidden" : "hidden")
+              )}
+            >
+              <Outlet />
+            </section>
+          </div>
+        </MailSelectionProvider>
+      </MailLeavingProvider>
+    </MailboxProvider>
   );
 };
 
@@ -175,6 +207,7 @@ const MailError = ({ error }: ErrorComponentProps) => (
 export const Route = createFileRoute("/_app/mail")({
   validateSearch: searchSchema,
   loaderDeps: ({ search }) => ({
+    box: search.box,
     folder: search.folder,
     q: search.q,
     page: search.page,

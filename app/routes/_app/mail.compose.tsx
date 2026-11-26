@@ -9,6 +9,7 @@ import { ViewHeader } from "~/components/ui";
 import { keepShown } from "~/lib/keep-shown";
 import { composeData, ComposeNotFound } from "~/lib/mail/compose.server";
 import type { ComposeData } from "~/lib/mail/compose.server";
+import { mailboxFor } from "~/lib/mail/groups.server";
 import { appContext } from "~/lib/request.server";
 import { serverFnFetch } from "~/lib/server-fn-fetch";
 
@@ -20,9 +21,11 @@ const searchSchema = z.object({
 });
 
 const getCompose = createServerFn()
-  .validator((d: z.infer<typeof searchSchema>) => d)
+  .validator((d: z.infer<typeof searchSchema> & { box?: string }) => d)
   .handler(async ({ data }): Promise<ComposeData> => {
-    const { db, user } = await appContext();
+    const { db, user: person } = await appContext();
+    // A message from a shared group inbox is written as the group: its address, its drafts.
+    const user = await mailboxFor(db, person, data.box);
 
     try {
       return await composeData(db, user, data);
@@ -78,6 +81,7 @@ const ComposeError = ({ error }: ErrorComponentProps) => (
 export const Route = createFileRoute("/_app/mail/compose")({
   validateSearch: searchSchema,
   loaderDeps: ({ search }) => ({
+    box: search.box,
     draft: search.draft,
     reply: search.reply,
     mode: search.mode,

@@ -146,6 +146,7 @@ Workspace is an open-source workspace that runs on Cloudflare: **Mail** (receivi
 | Settings → Mail | The reading layout, the undo-send delay, the page size, labels, filters, the spam filter's blocked and allowed senders, the senders whose images always load, your OpenPGP key and the keys of the people you write to, the vacation responder, the Microsoft 365 import. |
 | Settings → Drive | Sharing outside the workspace on or off, and every link and invitation with who made it and how often it was opened (admins). |
 | Settings → Tasks | The GitHub connection. |
+| Settings → Groups | Group inboxes: a **distribution group** files its mail in each member's own inbox, a **shared inbox** is one mailbox every member opens in Mail. Admins make them, turn them off and delete a distribution group; admins and a group's owners add and remove its members. Everyone sees the groups they are in. |
 | Settings → People | Mailboxes, aliases, roles, one-time passwords, deactivation, each person's passkeys, authenticator app, recovery addresses and sessions (admins). |
 | Settings → Applications | The apps that sign people in through the workspace (single sign-on): their redirect URIs, secrets and who may sign in to each, with a role; the signing key (admins). |
 
@@ -261,8 +262,8 @@ Then clone the copy, run `pnpm install` and `wrangler login`, and continue with 
 
 Inbound mail only reaches the Worker through an Email Routing rule, and Wrangler owns the rules for the entries in `addresses`: it creates or updates them on every deploy. Two ways to route the mail:
 
-- **Literal addresses**: list every mailbox (`"ada@example.com"`), and deploy when one is added. Nothing else changes.
-- **The catch-all** `"*@example.com"`: every address without a rule of its own reaches the Worker, which delivers to the mailbox or alias and refuses the rest, so the sender gets a bounce.
+- **Literal addresses**: list every mailbox and group inbox (`"ada@example.com"`, `"support@example.com"`), and deploy when one is added. Nothing else changes.
+- **The catch-all** `"*@example.com"`: every address without a rule of its own reaches the Worker, which delivers to the mailbox, alias or group inbox and refuses the rest, so the sender gets a bounce.
 
 A rule or the catch-all made in the dashboard for the same address is a destructive change Wrangler applies only after an interactive yes, so a CI deploy fails until it is freed in the dashboard first. A `+tag` reaches the address before the plus. The raw message is kept as `.eml` in the `workspace-mail` bucket.
 
