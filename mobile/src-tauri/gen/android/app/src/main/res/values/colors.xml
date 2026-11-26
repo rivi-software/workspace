@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- The workspace's canvas, light (the bg token in app/app.css); values-night has the dark one. -->
+    <color name="canvas">#FFFCFCFC</color>
+</resources>

@@ -1,0 +1,7 @@
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <!-- The window behind the web view, in the workspace's canvas colour of the phone's reading, so the
+         app opens in it and the system bars sit on it (MainActivity.kt). -->
+    <style name="Theme.workspace_mobile" parent="Theme.Material3.DayNight.NoActionBar">
+        <item name="android:windowBackground">@color/canvas</item>
+    </style>
+</resources>

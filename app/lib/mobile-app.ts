@@ -36,3 +36,13 @@ export const useAndroidApp = (): boolean => {
 
   return hydrated && inAndroidApp();
 };
+
+/**
+ * The app's own start page with its form for another workspace's address (`?change`, mobile/src/start.js): the
+ * sign-in page links it, since the app opens one workspace and a page of it is the only way back. WebKit (iPhone)
+ * serves the start page from `tauri://localhost`, the Android System WebView from `http://tauri.localhost`.
+ */
+export const mobileAppStartPage = (): string =>
+  inAndroidApp()
+    ? "http://tauri.localhost/index.html?change"
+    : "tauri://localhost/index.html?change";

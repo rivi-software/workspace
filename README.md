@@ -148,6 +148,10 @@ Workspace is an open-source workspace that runs on Cloudflare: **Mail** (receivi
 | Settings → Tasks | The GitHub connection. |
 | Settings → People | Mailboxes, aliases, roles, one-time passwords, deactivation, each person's passkeys, authenticator app, recovery addresses and sessions (admins). |
 
+## On a phone
+
+The console works on a phone screen, with a tab bar at the bottom, and installs as a web app from Safari's or Chrome's **Add to Home Screen**. There is also an app for iPhone and Android in [`mobile/`](mobile/README.md): a thin shell around the phone's own web view that opens your workspace, wherever it is deployed. The first time it opens, it asks for your workspace's address (such as `workspace.example.com`) and checks that a workspace answers there; **Use another workspace** under the sign-in form switches. Downloads go to the Files app on an iPhone and the Downloads folder on Android, and links to other sites open in the phone's browser. There is no published build: build it from Xcode or Android Studio, or take the debug package a pull request's run leaves, and a deployment can build it with its own address in it ([mobile/README.md](mobile/README.md)).
+
 ## Sign-in and accounts
 
 Sign-in runs on [Better Auth](https://www.better-auth.com) (`app/lib/auth.server.ts`), served by the Worker at `/api/auth/*`.

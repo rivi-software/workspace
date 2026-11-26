@@ -1,0 +1,123 @@
+# Workspace for iPhone and Android (mobile/), on a pull request that changes it: the start page's and the icon
+# script's checks and the Rust shell's format, Clippy and tests on Linux; Clippy for the iPhone and a build for the
+# iOS Simulator (unsigned, as Xcode runs it there) on a Mac; and an Android debug package on Linux, whose `.apk` is
+# the run's `apk-test` artifact for three days, then the Kotlin's JUnit tests. Nothing is signed or published
+# (mobile/README.md, Releases).
+name: Mobile
+
+on:
+  pull_request:
+    paths:
+      - "mobile/**"
+      - "!mobile/**/*.md"
+      - ".github/workflows/mobile.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mobile-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  checks:
+    name: Checks
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      # The desktop build the Rust tests link against needs WebKitGTK (Tauri's Linux prerequisites).
+      - name: Install WebKitGTK
+        run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev librsvg2-dev
+      # The version and targets in mobile/src-tauri/rust-toolchain.toml.
+      - name: Install the pinned Rust toolchain
+        working-directory: mobile/src-tauri
+        run: rustup toolchain install
+      # The root's types for the lint config the app's extends.
+      - run: pnpm run types
+      # TypeScript, Oxlint and Vitest over the scripts and the start page, then rustfmt, Clippy and the Rust tests.
+      - working-directory: mobile
+        run: pnpm run verify
+
+  ios:
+    name: Build for the iOS Simulator
+    runs-on: macos-15
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Install the pinned Rust toolchain
+        working-directory: mobile/src-tauri
+        run: rustup toolchain install
+      - name: Lint for the iPhone
+        working-directory: mobile/src-tauri
+        run: cargo clippy --target aarch64-apple-ios --locked -- -D warnings
+      # The Tauri CLI drives Xcode: the project's Rust build phase calls it back, so it must be the one that runs
+      # xcodebuild. A simulator build is unsigned.
+      - name: Build for the iOS Simulator
+        working-directory: mobile
+        run: pnpm exec tauri ios build --debug --target aarch64-sim --ci
+
+  android:
+    name: Build the Android debug package
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Install the pinned Rust toolchain
+        working-directory: mobile/src-tauri
+        run: rustup toolchain install
+      # Gradle's JVM, then the SDK and the NDK the Gradle project and Tauri's Rust build read (ANDROID_HOME, NDK_HOME).
+      - uses: actions/setup-java@77dd5b2ce225ea11469928ac317850245a74ae78 # v6.2.0
+        with:
+          distribution: temurin
+          java-version: "21"
+      - uses: android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd # v4.0.4
+        with:
+          packages: "platform-tools platforms;android-36 build-tools;36.0.0 ndk;27.1.12297006"
+      - name: Name the NDK
+        run: echo "NDK_HOME=$ANDROID_HOME/ndk/27.1.12297006" >> "$GITHUB_ENV"
+      # A debug build for one architecture builds in a fraction of a release build's time, and proves the same
+      # project, resources and Rust library.
+      - name: Build the package
+        working-directory: mobile
+        run: pnpm exec tauri android build --debug --apk --target aarch64 --ci
+      # The package stays three days, and a full artifact quota does not fail the check.
+      - name: Upload the test package
+        continue-on-error: true
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: apk-test
+          path: mobile/src-tauri/gen/android/app/build/outputs/apk/**/*.apk
+          if-no-files-found: error
+          retention-days: 3
+      # The Kotlin's JUnit tests (gen/android/app/src/test), which need the Gradle files the build writes
+      # (tauri.build.gradle.kts) and not the Rust library. After the upload, so a failing test still leaves the
+      # package for a check on a phone.
+      - name: Test the Kotlin
+        working-directory: mobile/src-tauri/gen/android
+        run: ./gradlew :app:testUniversalDebugUnitTest --console=plain

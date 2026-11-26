@@ -1,0 +1,186 @@
+/* The start page, in the workspace's own colours (app/app.css): the light reading by
+   day and the dark one when the phone is, as the workspace itself reads the system until the person
+   picks a theme. */
+:root {
+  color-scheme: light dark;
+  --background: #fcfcfc;
+  --text: #1f2023;
+  --muted: #5f636c;
+  --tile: #15171a;
+  --tiles: #f5f6f7;
+  --lit: #3be08a;
+  --field: #ffffff;
+  --border: #d9dbe0;
+  --danger: #b42318;
+  --button: #1f2023;
+  --button-text: #fcfcfc;
+  --ring: #0a7f43;
+  font-family: -apple-system, system-ui, sans-serif;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #191a1b;
+    --text: #e6e7ea;
+    --muted: #9a9ea7;
+    --tile: #f7f8f8;
+    --tiles: #08090a;
+    --lit: #0e9f55;
+    --field: #232427;
+    --border: #3a3c41;
+    --danger: #f97066;
+    --button: #e6e7ea;
+    --button-text: #191a1b;
+    --ring: #3be08a;
+  }
+}
+
+html,
+body {
+  height: 100%;
+  margin: 0;
+  background: var(--background);
+  color: var(--text);
+  overscroll-behavior: none;
+  -webkit-text-size-adjust: 100%;
+}
+
+main {
+  display: flex;
+  box-sizing: border-box;
+  height: 100%;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  /* Clear of the status bar and the home indicator. */
+  padding: calc(24px + env(safe-area-inset-top, 0px)) 24px
+    calc(24px + env(safe-area-inset-bottom, 0px));
+  text-align: center;
+}
+
+.mark {
+  width: 64px;
+  height: 64px;
+  margin-bottom: 8px;
+}
+
+.tile {
+  fill: var(--tile);
+}
+
+.tiles {
+  fill: var(--tiles);
+}
+
+.lit {
+  fill: var(--lit);
+}
+
+h1 {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 600;
+}
+
+p {
+  max-width: 28rem;
+  margin: 0;
+  color: var(--muted);
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+form {
+  display: flex;
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 22rem;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+  margin-top: 8px;
+  text-align: left;
+}
+
+form[hidden] {
+  display: none;
+}
+
+label {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+input {
+  box-sizing: border-box;
+  min-height: 44px;
+  padding: 0 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--field);
+  color: var(--text);
+  /* 16px or more, or WebKit zooms the page in when the field takes focus. */
+  font: inherit;
+  font-size: 17px;
+}
+
+input:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 1px;
+}
+
+form p {
+  font-size: 13px;
+}
+
+.problem {
+  color: var(--danger);
+}
+
+button {
+  min-height: 44px;
+  margin-top: 8px;
+  padding: 0 20px;
+  border: 0;
+  border-radius: 10px;
+  background: var(--button);
+  color: var(--button-text);
+  font: inherit;
+  font-size: 15px;
+  font-weight: 600;
+  -webkit-tap-highlight-color: transparent;
+}
+
+button:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+button:disabled {
+  opacity: 0.6;
+}
+
+button.quiet {
+  margin-top: 0;
+  background: transparent;
+  color: var(--muted);
+  font-weight: 500;
+}
+
+button[hidden] {
+  display: none;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .lit {
+    animation: pulse 1.6s ease-in-out infinite;
+    transform-origin: center;
+  }
+}
+
+@keyframes pulse {
+  50% {
+    opacity: 0.55;
+  }
+}

@@ -239,6 +239,11 @@ if (!r.ok || !health.ok) {
   fail("health endpoint failed");
 }
 
+// The phone app's start page reads it from its own origin before it keeps a workspace's address (mobile/).
+if (r.headers.get("access-control-allow-origin") !== "*") {
+  fail("health endpoint is not readable from the phone app");
+}
+
 log("search, the views, Settings → Mail and health ok");
 
 // 7b. Drive: a folder, a file uploaded whole through the upload route, the listing and the folder page show them,
