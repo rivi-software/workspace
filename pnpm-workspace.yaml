@@ -22,6 +22,22 @@ allowBuilds:
 # No transitive dependencies from git or tarball URLs.
 blockExoticSubdeps: true
 
+# A version published less than seven days ago is not installed: most malicious releases are found and pulled within
+# days.
+minimumReleaseAge: 10080
+# Versions the lockfile already held when the rule came in (the production group of #29), each within seven days of
+# its release then. Remove them after 2026-12-01, when the youngest is a week old.
+minimumReleaseAgeExclude:
+  - "@ai-sdk/anthropic@4.0.108"
+  - "@ai-sdk/gateway@4.0.154"
+  - "@ai-sdk/provider-utils@5.0.83"
+  - "@posthog/types@1.427.2"
+  - "ai@7.0.181"
+
+# A version that was published with weaker evidence of who published it than an earlier one of the same package
+# (provenance, then trusted publishing, gone) is refused: that is what a stolen token looks like.
+trustPolicy: no-downgrade
+
 overrides:
   sharp: 0.35.5
   # drizzle-kit carries esbuild copies with dev-server advisories (GHSA-67mh-4wv8-2f99 via @esbuild-kit/core-utils,
