@@ -1,0 +1,829 @@
+app/lib/assistant/undo.server.ts
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-95
+mobile/src-tauri/gen/android/app/src/main/java/software/rivi/workspace/MainActivity.kt
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-64
+app/lib/duo/enabled.ts
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-5
+migrations/0003_search_by_meaning.sql
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-14
+ios/Workspace/Design/Components/AvatarView.swift
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-31
+ios/Workspace/Features/Drive/DriveIcons.swift
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-166
+mobile/src-tauri/capabilities/start-page.json
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-12
+app/routes/_app/route.tsx
+  s_a928261b8f1eb9::t_818a16cdc936ae 13,41,46,60,66,68,71,74,81,86,88-124,130,142-143,148-150,202-210,234,237-249,473,477,542-559,566,575,598,639-655,669-672,674-680,682-685,688,714-720,726-727,747-808,813-815,820-822,825-828,851,861-871,881-884,934,983,990,1023-1029,1089,1110-1114,1127-1129,1167,1185,1193,1223-1228
+ios/Workspace/Features/Tasks/TaskRowViews.swift
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-137
+ios/Workspace/Features/Tasks/TasksRootView.swift
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-175
+ios/Workspace/Design/Components/LoadState.swift
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-47
+ios/Workspace/App/WorkspaceApp.swift
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-28
+ios/WorkspaceKit/Sources/WorkspaceKit/Models/Assistant.swift
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-175
+app/components/rich-editor.tsx
+  s_a928261b8f1eb9::t_818a16cdc936ae 35-39,274-305
+mobile/src-tauri/gen/android/app/src/main/java/software/rivi/workspace/Unreachable.kt
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-142
+app/lib/duo/error.ts
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-10
+test/assistant-telemetry.test.ts
+  s_a928261b8f1eb9::t_818a16cdc936ae 12,25-27,45-48,56-61,115,153,163,173-177
+ios/WorkspaceKit/Sources/WorkspaceKit/Models/Drive.swift
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-203
+ios/WorkspaceKit/Sources/WorkspaceKit/API/ChatStream.swift
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-119
+app/lib/branding-actions.ts
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-20
+app/components/labels.tsx
+  s_a928261b8f1eb9::t_818a16cdc936ae 152-153
+ios/Workspace/Design/Components/BrandMarks.swift
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-129
+app/components/drive/preview.tsx
+  s_a928261b8f1eb9::t_818a16cdc936ae 5,107,153-161
+  s_a928261b8f1eb9::t_dc5e7ae8a5c5e7 162-164
+mobile/src-tauri/gen/android/app/src/main/res/values/strings.xml
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-9
+app/lib/assistant/mock-model.server.ts
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-292
+mobile/src-tauri/gen/android/.editorconfig
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-12
+mobile/src-tauri/gen/apple/project.yml
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-111
+ios/Workspace/Workspace.entitlements
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-5
+mobile/src-tauri/src/window.rs
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-287
+migrations/0006_person_removal.sql
+  s_a928261b8f1eb9::t_4cb2c7834a06ba 1
+test/console-loaders.test.ts
+  s_a928261b8f1eb9::t_818a16cdc936ae 108-109,111-113
+app/routes/s.sign.$token.tsx
+  s_a928261b8f1eb9::t_818a16cdc936ae 11,221
+app/components/mailbox.tsx
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-32
+app/components/auth-shell.tsx
+  s_a928261b8f1eb9::t_818a16cdc936ae 3,22
+app/lib/ai.ts
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-14
+app/lib/assistant/provider.server.ts
+  s_a928261b8f1eb9::t_818a16cdc936ae 2,4,6,8,10,18-19,21-22,25-27,29-35,37-61,64-70,73-74,76-81,83-84,86,90-98,108,111,114-119,121-124,127-129
+app/lib/settings.server.ts
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-88
+ios/Workspace/Design/Components/RelativeDateText.swift
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-27
+ios/Workspace/Features/Assistant/AssistantRootView.swift
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-150
+ios/Workspace/Features/Mail/MailHTMLView.swift
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-136
+ios/Workspace/Features/Mail/MailSnooze.swift
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-68
+ios/Workspace/Resources/Assets.xcassets/AccentColor.colorset/Contents.json
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-38
+ios/WorkspaceKit/Sources/WorkspaceKit/Auth/WorkspaceAddress.swift
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-80
+ios/WorkspaceKit/Tests/WorkspaceKitTests/SignInTests.swift
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-186
+mobile/package.json
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-30
+ios/Workspace/Features/Drive/DriveListView.swift
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-216
+mobile/src/start.css
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-186
+mobile/src-tauri/gen/android/app/src/main/res/values-night/colors.xml
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-5
+app/lib/tasks/actions.ts
+  s_a928261b8f1eb9::t_818a16cdc936ae 12-13,149,151,158
+mobile/src-tauri/gen/apple/workspace-mobile_iOS/Info.plist
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-65
+mobile/tests/icons.test.ts
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-123
+app/components/drive/browser.tsx
+  s_a928261b8f1eb9::t_818a16cdc936ae 34,44,521,551
+app/lib/users.server.ts
+  s_a928261b8f1eb9::t_745ee8846ee331 184,246-247
+  s_a928261b8f1eb9::t_818a16cdc936ae 26-36,88
+ios/Workspace/App/ChangeSignal.swift
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-21
+ios/Workspace/Features/Tasks/TasksModel.swift
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-157
+mobile/src-tauri/tauri.local.conf.json
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-8
+test/sanitize.test.ts
+  s_a928261b8f1eb9::t_818a16cdc936ae 70-118,698-719,846-857
+ios/Workspace/Features/Mail/MailModel.swift
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-279
+test/authenticator.ts
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-82
+scripts/smoke.mjs
+  s_a928261b8f1eb9::t_818a16cdc936ae 6,243-247,491-571,621,709-728
+  s_a928261b8f1eb9::t_e55de6eee6b392 729
+migrations/JOURNAL.json
+  s_a928261b8f1eb9::t_818a16cdc936ae 13-26
+  s_a928261b8f1eb9::t_4cb2c7834a06ba 27-29
+ios/Workspace/Features/Mail/MailRootView.swift
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-272
+ios/Workspace/Features/Assistant/AssistantMarkdown.swift
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-151
+mobile/src-tauri/tauri.emulator.conf.json
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-8
+ios/WorkspaceKit/Sources/WorkspaceKit/Notifications/ReminderPlan.swift
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-143
+app/lib/assistant/chat.server.ts
+  s_a928261b8f1eb9::t_818a16cdc936ae 9,16,19,25,33-37,39,107-108,119-132,187-258,261-269,275-276,325-329,332-336,338,341-344,350,354-357,388-395,398-412,432-434,437-438,442-451,468,492-509,521,538-542,547,549
+app/lib/assistant/tools.server.ts
+  s_a928261b8f1eb9::t_818a16cdc936ae 8,13,22-28,62-69,71-72,75-77,81-83,88-89,91-93,96,103-109,126-138,140-160,166,202,209-213,216,219-244,248-252,259,274-275,277-278,280-281,290-328
+mobile/src-tauri/gen/apple/workspace-mobile_iOS/workspace-mobile_iOS.entitlements
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-5
+app/lib/mail/threads.server.ts
+  s_a928261b8f1eb9::t_818a16cdc936ae 37,756-759,772-773
+  s_a928261b8f1eb9::t_62d133ca451422 774-775
+app/lib/sso/clients.server.ts
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-426
+ios/Workspace/Features/Mail/MailSnoozePicker.swift
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-50
+ios/Workspace/App/MainTabView.swift
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-70
+app/lib/mobile-app.ts
+  s_a928261b8f1eb9::t_818a16cdc936ae 6-7,24-48
+mobile/src-tauri/gen/android/app/src/main/java/software/rivi/workspace/Downloads.kt
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-69
+README.md
+  s_a928261b8f1eb9::t_818a16cdc936ae 115-120,149,151,153-158,166-167,172,190,213-214,228,231,241,258,267-268,295-302
+  s_a928261b8f1eb9::t_c371ff0819ecb5 303
+ios/Workspace/Features/Drive/DriveListDialogs.swift
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-80
+app/db/schema.ts
+  s_a928261b8f1eb9::t_818a16cdc936ae 40-43,93-96,232-266,485-486,1062-1065,1142-1187,1309-1408
+ios/Workspace/App/ReloadWhileOpen.swift
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-40
+ios/Workspace/Features/Drive/DriveUploads.swift
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-124
+app/components/mail-list.tsx
+  s_a928261b8f1eb9::t_818a16cdc936ae 45,65,72,74,101,118,139,673,681-684,854-863,920,925-928,989-990,1003,1155,1269,1288,1325
+ios/RIVIWorkspace.xcodeproj/project.xcworkspace/contents.xcworkspacedata
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-7
+ios/WorkspaceKit/Sources/WorkspaceKit/API/Endpoints/TasksAPI.swift
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-40
+ios/Workspace/Features/Drive/DriveModel.swift
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-145
+mobile/src-tauri/gen/android/buildSrc/src/main/java/software/rivi/workspace/kotlin/BuildTask.kt
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-75
+app/lib/account.server.ts
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-167
+app/lib/drive/settings.server.ts
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-57
+package.json
+  s_a928261b8f1eb9::t_818a16cdc936ae 45-47,49-53,55,57-59,61,65-67,74-75,77-79,83,85-87,89,92-93,95,118-120,139-147,160-165
+test/duo.test.ts
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-466
+app/lib/guards.ts
+  s_a928261b8f1eb9::t_818a16cdc936ae 31-34
+app/lib/text.ts
+  s_a928261b8f1eb9::t_818a16cdc936ae 34-243,271-272,274-280,299-301,307-336,340,343,347,360,369,380,401-404,408,411,428,462-463,478-479,482-489,494,496-497,507-513,516,518-519,527,539-544,566,746-755,780-781,862-876
+app/lib/mail/signature-settings.server.ts
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-85
+ios/Workspace/Features/Calendar/CalendarEventView.swift
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-188
+migrations/0005_groups.sql
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-20
+app/lib/drive/actions.ts
+  s_a928261b8f1eb9::t_818a16cdc936ae 13,40,376,380-381,383
+mobile/tsconfig.json
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-27
+ios/Workspace/Features/Mail/MailFolderMenu.swift
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-94
+test/settings.test.ts
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-375
+test/assistant-planner.test.ts
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-580
+ios/WorkspaceKit/Tests/WorkspaceKitTests/ChatStreamTests.swift
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-102
+app/lib/api/me.server.ts
+  s_a928261b8f1eb9::t_818a16cdc936ae 2,5,19-40,52,57-58
+ios/project.yml
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-80
+app/lib/sso/keys.server.ts
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-163
+app/routes/s.$token.tsx
+  s_a928261b8f1eb9::t_818a16cdc936ae 10,177
+docs/API.md
+  s_a928261b8f1eb9::t_818a16cdc936ae 20,39,43-44,55-56,90,210-214,216
+pnpm-workspace.yaml
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-4,25-40
+test/branding.test.ts
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-322
+test/groups.test.ts
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-558
+app/lib/search/index.server.ts
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-161
+app/components/mail-settings.tsx
+  s_a928261b8f1eb9::t_818a16cdc936ae 6,60,77-80
+ios/Workspace/Features/Assistant/AssistantSafariView.swift
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-37
+app/routes/__root.tsx
+  s_a928261b8f1eb9::t_818a16cdc936ae 14,17-22,51,127-132
+app/lib/assistant/planner-tools.server.ts
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-377
+app/routes/api/assistant.chat.ts
+  s_a928261b8f1eb9::t_818a16cdc936ae 5,7,18-19,54-64,70-71
+ios/WorkspaceKit/Sources/WorkspaceKit/Models/Tasks.swift
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-148
+ios/WorkspaceKit/Tests/WorkspaceKitTests/WorkspaceClientTests.swift
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-150
+ios/Workspace/Features/Mail/MailThreadView.swift
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-159
+migrations/0004_single_sign_on.sql
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-57
+ios/Workspace/Features/Tasks/TaskEditor.swift
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-187
+mobile/src-tauri/src/endpoint.rs
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-200
+test/removal.test.ts
+  s_a928261b8f1eb9::t_dc31f2105c4ada 5-11,19,33,378-380,383-398,400-452,454-464,466-479
+  s_a928261b8f1eb9::t_36655701adf719 80-85,106-107
+  s_a928261b8f1eb9::t_b6a9f1f150fe5b 382,453,465
+  s_a928261b8f1eb9::t_72fe80513f6ff9 32,381,399
+  s_a928261b8f1eb9::t_e5b00d4da92f9e 480
+ios/Workspace/App/RootView.swift
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-48
+ios/Workspace/Features/Drive/DriveMoveSheet.swift
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-100
+test/search-index.ts
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-81
+mobile/src-tauri/gen/android/app/proguard-rules.pro
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-21
+test/signature-settings.test.ts
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-108
+mobile/src-tauri/src/main.rs
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-9
+mobile/src-tauri/gen/android/buildSrc/build.gradle.kts
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-23
+app/routes/_app/mail.t.$threadId.tsx
+  s_a928261b8f1eb9::t_818a16cdc936ae 4,10,24,48-49,51,78,89-90,92,94-96,257,271,302,317,348,393,400,696,702-703,707-710,749-767,882,899,940,1194-1195,1277-1283,1298-1306,1343-1349,1351-1352,1357,1373
+app/lib/assistant/reading.server.ts
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-103
+app/components/keyboard.tsx
+  s_a928261b8f1eb9::t_818a16cdc936ae 40-41,81,108,125-130
+app/lib/duo/hmac-jwt.ts
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-113
+ios/Workspace/Features/Drive/DriveNodeModel.swift
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-124
+app/lib/groups.server.ts
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-431
+app/lib/mail/settings.server.ts
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-334
+mobile/README.md
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-58
+mobile/src-tauri/gen/android/app/build.gradle.kts
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-86
+ios/.gitignore
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-6
+ios/Workspace/Features/Calendar/PlannerDates.swift
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-176
+ios/Workspace/Features/Drive/DrivePicked.swift
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-79
+ios/Workspace/Features/Mail/MailRecipientField.swift
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-99
+test/mail-ai.test.ts
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-253
+app/app.css
+  s_a928261b8f1eb9::t_818a16cdc936ae 348-357
+ios/Workspace/Design/Components/EmptyState.swift
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-18
+app/lib/batch.ts
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-36
+app/components/use-thread-actions.ts
+  s_a928261b8f1eb9::t_818a16cdc936ae 14,85,90,106,119,183
+ios/Workspace/Features/Mail/MailComposeView.swift
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-221
+test/mobile-app.test.ts
+  s_a928261b8f1eb9::t_818a16cdc936ae 4-10,16,19-26,39-74
+  s_a928261b8f1eb9::t_446a9b16ecf817 75
+ios/Workspace/App/AppDelegate.swift
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-59
+ios/Workspace/Features/Assistant/AssistantChatView.swift
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-146
+mobile/oxlint.config.ts
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-15
+test/send.test.ts
+  s_a928261b8f1eb9::t_818a16cdc936ae 7,430-498
+  s_a928261b8f1eb9::t_e60389f7054fc5 499
+app/lib/mail/colors.ts
+  s_a928261b8f1eb9::t_818a16cdc936ae 172,279-281,283
+ios/Workspace/App/CreateFlows.swift
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-86
+mobile/src-tauri/build.rs
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-19
+mobile/src-tauri/gen/apple/Sources/workspace-mobile/main.mm
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-6
+app/components/drive/signature-pad.tsx
+  s_a928261b8f1eb9::t_818a16cdc936ae 128-137,276-277
+mobile/src-tauri/gen/android/gradlew.bat
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-82
+mobile/src-tauri/gen/apple/workspace-mobile.xcodeproj/project.xcworkspace/xcshareddata/WorkspaceSettings.xcsettings
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-10
+ios/Workspace/Features/Mail/MailComposeModel.swift
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-205
+app/routes/_app/assistant.c.$conversationId.tsx
+  s_a928261b8f1eb9::t_818a16cdc936ae 7,18-23
+ios/AGENTS.md
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-38
+ios/WorkspaceKit/Sources/WorkspaceKit/Auth/TokenStore.swift
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-121
+app/lib/api/mail.server.ts
+  s_a928261b8f1eb9::t_818a16cdc936ae 6-11,14,43-73,88,91,134,293-299,310-311,315,324-325,342,382-384,414-419
+app/lib/mail/context.server.ts
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-17
+test/spam.test.ts
+  s_a928261b8f1eb9::t_818a16cdc936ae 37,925
+ios/WorkspaceKit/Sources/WorkspaceKit/API/Endpoints/AssistantAPI.swift
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-24
+app/routes/api/messages.$id.raw.ts
+  s_a928261b8f1eb9::t_818a16cdc936ae 3,8,10,23,26-40
+app/components/calendar/sidebar.tsx
+  s_a928261b8f1eb9::t_818a16cdc936ae 20,48-49,61,91
+test/api.test.ts
+  s_a928261b8f1eb9::t_818a16cdc936ae 1,7-8,10,13,18-19,22,25,28,35,100-107,110,114,116,118-122,151-152,430-450,667-717,1185-1186,1231-1325,1333-1541
+app/lib/recovery.server.ts
+  s_a928261b8f1eb9::t_818a16cdc936ae 322
+app/lib/mail/mailbox.server.ts
+  s_a928261b8f1eb9::t_818a16cdc936ae 27,30,474-481,486,625-635,639,643-654,656-657,659-663,665,667
+app/lib/drive/signing.server.ts
+  s_a928261b8f1eb9::t_818a16cdc936ae 303,470-474
+.github/workflows/mobile.yml
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-123
+mobile/CLAUDE.md
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-3
+ios/RIVIWorkspace.xcodeproj/xcshareddata/xcschemes/Workspace.xcscheme
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-127
+ios/WorkspaceKit/Sources/WorkspaceKit/Models/Calendar.swift
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-142
+app/components/drive/signing-fields.tsx
+  s_a928261b8f1eb9::t_818a16cdc936ae 95-97,122-123,142-144,194-198,242-244,246-278,283-284,286,292
+app/lib/auth.server.ts
+  s_a928261b8f1eb9::t_818a16cdc936ae 32-35,145-236,354-357,393-396,409-411,413,417-424,432-447,547-660
+  s_a928261b8f1eb9::t_0fbfa9973c4015 661
+app/lib/mail/reads.server.ts
+  s_a928261b8f1eb9::t_818a16cdc936ae 37,136
+app/routes/_app/drive.d.$nodeId.tsx
+  s_a928261b8f1eb9::t_818a16cdc936ae 54,69,500,602
+app/lib/duo.server.ts
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-176
+app/lib/drive/drive.server.ts
+  s_a928261b8f1eb9::t_818a16cdc936ae 11,16,25,1004-1011,1016,1022-1032,1034-1035,1037,1041-1043,1049,1058,1062-1068,1150-1154,1197-1201,1290-1358
+app/components/calendar/calendar.tsx
+  s_a928261b8f1eb9::t_818a16cdc936ae 13,570-574
+ios/Workspace/Features/Drive/DriveFiles.swift
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-73
+ios/Workspace/Features/Notifications/NotificationsModel.swift
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-157
+app/components/drive/uploads.tsx
+  s_a928261b8f1eb9::t_818a16cdc936ae 305,374,383,385-387,389-390,393-395,437,439-440,454,463-464,467,469-471
+app/lib/assistant/organize-tools.server.ts
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-104
+ios/Workspace/App/AppModel.swift
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-132
+ios/Workspace/Design/Components/PersonChip.swift
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-22
+ios/WorkspaceKit/Sources/WorkspaceKit/API/Endpoints/CalendarAPI.swift
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-33
+mobile/src-tauri/gen/android/app/src/main/res/xml/file_paths.xml
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-5
+app/lib/sso/settings.server.ts
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-206
+app/lib/people.server.ts
+  s_a928261b8f1eb9::t_a0816151375c1c 17,21,84,124-126,128-130
+  s_a928261b8f1eb9::t_74fe0e6ccd285c 36-81,127,131
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-16,18-20,22-35,82-83,85-123,132-213
+seed/seed.sql
+  s_a928261b8f1eb9::t_818a16cdc936ae 32-38
+workers/worker.ts
+  s_a928261b8f1eb9::t_818a16cdc936ae 10-11,13-14,64-69,78-81,87-94,154-157
+ios/WorkspaceKit/Sources/WorkspaceKit/Auth/Authenticator.swift
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-228
+ios/WorkspaceKit/Package.swift
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-23
+test/organise.test.ts
+  s_a928261b8f1eb9::t_818a16cdc936ae 648
+app/lib/mail/mail.server.ts
+  s_a928261b8f1eb9::t_818a16cdc936ae 4-7,9,15,24,29-33,183-238,296,376-597
+ios/WorkspaceKit/Sources/WorkspaceKit/Notifications/NotificationRoute.swift
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-58
+mobile/src-tauri/gen/apple/.gitignore
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-3
+app/components/brand.tsx
+  s_a928261b8f1eb9::t_818a16cdc936ae 7-9,72-82
+  s_a928261b8f1eb9::t_c2092e82719950 83
+test/scripted-model.ts
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-189
+mobile/src-tauri/gen/android/build.gradle.kts
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-22
+mobile/src-tauri/gen/android/app/src/main/res/values-night/themes.xml
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-6
+mobile/.gitignore
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-21
+test/signing-editor.tsx
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-124
+app/lib/mail/send.server.ts
+  s_a928261b8f1eb9::t_818a16cdc936ae 22,71-72,93,104-113,115,117,193-203,492,762
+app/lib/assistant/actions.ts
+  s_a928261b8f1eb9::t_818a16cdc936ae 6-9,30-77
+ios/WorkspaceKit/Sources/WorkspaceKit/API/Endpoints/DriveAPI.swift
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-113
+.github/workflows/ios.yml
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-72
+app/components/assistant/chat.tsx
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-6,24-27,30,32,43,136-209,236-238,244,262,271,273,276-277,279-308,311-312,320,323-326,357-358,435,522-523,568,602-609,647
+ios/Workspace/Features/Calendar/CalendarRootView.swift
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-107
+mobile/src-tauri/src/workspace.rs
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-411
+app/lib/branding-settings.server.ts
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-87
+mobile/src-tauri/gen/android/app/src/debug/AndroidManifest.xml
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-9
+test/ai.test.ts
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-31
+mobile/src-tauri/gen/apple/workspace-mobile.xcodeproj/project.xcworkspace/contents.xcworkspacedata
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-7
+ios/Workspace/Features/Settings/SettingsView.swift
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-137
+mobile/scripts/icons.ts
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-262
+app/lib/calendar/calendar.server.ts
+  s_a928261b8f1eb9::t_818a16cdc936ae 215-216
+mobile/src/tauri.d.ts
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-10
+mobile/src-tauri/gen/apple/ExportOptions.plist
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-8
+app/routes/api/health.ts
+  s_a928261b8f1eb9::t_818a16cdc936ae 7-8,10-18
+ios/RIVIWorkspace.xcodeproj/project.pbxproj
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-794
+ios/Workspace/Info.plist
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-53
+mobile/src-tauri/gen/apple/Assets.xcassets/AppIcon.appiconset/Contents.json
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-116
+app/lib/sso/paths.ts
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-14
+mobile/src-tauri/gen/android/.gitignore
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-20
+mobile/src-tauri/gen/android/buildSrc/src/main/java/software/rivi/workspace/kotlin/RustPlugin.kt
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-86
+ios/WorkspaceKit/Sources/WorkspaceKit/Models/Common.swift
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-101
+ios/Workspace/Features/Mail/MailThreadMenuItems.swift
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-138
+ios/WorkspaceKit/Tests/WorkspaceKitTests/DecodingTests.swift
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-158
+mobile/src-tauri/gen/android/app/src/main/java/software/rivi/workspace/ContentDisposition.kt
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-81
+app/lib/assistant/search.server.ts
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-112
+app/lib/sso/actions.ts
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-21
+app/lib/tasks/settings.server.ts
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-85
+ios/Workspace/Features/Mail/MailThreadModel.swift
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-117
+test/text.test.ts
+  s_a928261b8f1eb9::t_818a16cdc936ae 19,79-150
+ios/Workspace/Design/Glass.swift
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-121
+ios/Workspace/App/TabToolbar.swift
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-62
+app/lib/mail/pgp/settings.server.ts
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-148
+app/lib/sso/jwt.ts
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-254
+docs/ARCHITECTURE.md
+  s_a928261b8f1eb9::t_818a16cdc936ae 15-17,23-29,31,67-68,71,90-91,107,132,134,136-140,143-150,157,169,188-189,191-194,203,208,211-212,216,222,235-236,245,258,262-263,268
+  s_a928261b8f1eb9::t_7a16ba0190cf2e 3,186-187,202,261
+ios/Workspace/Features/Calendar/CalendarEventEditor.swift
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-290
+app/components/draft-with-ai.tsx
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-124
+app/routes/login.tsx
+  s_a928261b8f1eb9::t_818a16cdc936ae 18,20,22,26-38,44,50,61-64,79-83,157-159,163,168-172,181,208-213,221,230-237,249,265
+ios/WorkspaceKit/Sources/WorkspaceKit/Models/ChatEvent.swift
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-67
+ios/WorkspaceKit/Sources/WorkspaceKit/Models/Wire.swift
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-130
+test/mailbox.test.ts
+  s_a928261b8f1eb9::t_818a16cdc936ae 184,189,194,232,239,244,248,275-276,310,312
+app/lib/calendar/calendar.ts
+  s_a928261b8f1eb9::t_818a16cdc936ae 589-600,607-612,616,627
+mobile/src/index.html
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-56
+mobile/src-tauri/Cargo.toml
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-54
+test/signing-editor.test.ts
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-65
+app/lib/removal.server.ts
+  s_a928261b8f1eb9::t_36655701adf719 20,43,58-59,66-68,238-271,277-281,313
+ios/WorkspaceKit/Sources/WorkspaceKit/Models/Mail.swift
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-369
+app/lib/mail/sanitize.ts
+  s_a928261b8f1eb9::t_818a16cdc936ae 990-991,993-998,1001-1013,1016,1027,1033-1049,1076,1081,1113,1205-1208,1236
+ios/package.json
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-14
+ios/Workspace/App/CreateMenu.swift
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-86
+mobile/src-tauri/gen/apple/LaunchScreen.storyboard
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-30
+ios/Workspace/Features/Mail/MailSelectionBar.swift
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-70
+ios/Workspace/Features/Mail/MailAttachmentPreview.swift
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-63
+test/assistant.test.ts
+  s_a928261b8f1eb9::t_818a16cdc936ae 1,4,6,13,22-27,32,35-36,72-86,95-105,107,109-114,118-122,127-132,135,139-146,149,151-153,164-168,174,176-177,183-184,193-197,210-214,235-241,274-278,285-295,323-328,336,341-345,351-591,593-594,596,598,603,609,614-632,636-638,640,642,651-657,678-827,883-944
+  s_a928261b8f1eb9::t_a0cf8c2258efca 945
+mobile/src-tauri/gen/android/app/src/main/res/layout/activity_main.xml
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-18
+ios/Workspace/Features/Drive/DriveImageViewer.swift
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-51
+ios/Workspace/Features/Mail/MailRows.swift
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-161
+app/routes/_app/mail.tsx
+  s_a928261b8f1eb9::t_818a16cdc936ae 15,21,30-31,44-70,100-107,110,163-198,210
+mobile/src-tauri/gen/apple/Sources/workspace-mobile/bindings/bindings.h
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-8
+app/lib/settings.ts
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-53
+ios/Workspace/App/Environment.swift
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-14
+ios/WorkspaceKit/Tests/WorkspaceKitTests/Support/StubURLProtocol.swift
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-150
+ios/Workspace/Features/Mail/MailMessageCard.swift
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-268
+app/routes/_app/settings.tsx
+  s_a928261b8f1eb9::t_818a16cdc936ae 1,20-21,45,48-49,51,53,56-58,62-63,69-79,81-84,86,89,94,97-103,105-107,110,113-117,119-120,125,128-129,131-135,137,144,477,553-554,705,1312-1316,1318-1694,1696-1700,1706,1714,1718,1720,1726-1728,1741-1742,1745-1746,1754-1763,1765,1767,1769
+ios/Workspace/Features/Drive/DriveAddFlows.swift
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-135
+mobile/src-tauri/src/lib.rs
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-43
+test/fixtures.ts
+  s_a928261b8f1eb9::t_818a16cdc936ae 92-113,145-151
+  s_a928261b8f1eb9::t_31d838efbf1080 152
+app/lib/mail/spam.server.ts
+  s_a928261b8f1eb9::t_818a16cdc936ae 20,424-426,428-429,431,433-438,450-485
+mobile/src-tauri/gen/android/app/src/main/res/values/themes.xml
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-7
+ios/Workspace/Features/Drive/DriveFolderView.swift
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-39
+ios/Workspace/Features/Calendar/CalendarModel.swift
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-146
+ios/Workspace/Features/Calendar/CalendarMonthGrid.swift
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-125
+app/env.d.ts
+  s_a928261b8f1eb9::t_818a16cdc936ae 18-35,39,43
+mobile/src-tauri/gen/android/app/src/test/java/software/rivi/workspace/ContentDispositionTest.kt
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-85
+app/lib/assistant/time.ts
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-141
+test/scheduled.test.ts
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-306
+migrations/0002_assistant_undos.sql
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-10
+app/components/mail-summary.tsx
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-169
+mobile/src-tauri/gen/android/app/src/main/AndroidManifest.xml
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-43
+GLOSSARY.md
+  s_a928261b8f1eb9::t_818a16cdc936ae 16-22,32-40
+  s_a928261b8f1eb9::t_d6edbe8ba6e860 41
+ios/WorkspaceKit/Sources/WorkspaceKit/Models/Coding.swift
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-80
+ios/WorkspaceKit/Sources/WorkspaceKit/Models/Me.swift
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-87
+mobile/icon/icon.svg
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-10
+mobile/src-tauri/clippy.toml
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-2
+app/lib/assistant/mail-ai.server.ts
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-253
+app/lib/duo/client.ts
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-447
+app/lib/api/assistant.server.ts
+  s_a928261b8f1eb9::t_818a16cdc936ae 4,12,16,48-51,60,64,77-87,89-94,99-105
+ios/Workspace/Resources/Assets.xcassets/Canvas.colorset/Contents.json
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-38
+mobile/src-tauri/gen/apple/Assets.xcassets/Contents.json
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-6
+test/assistant-turn.ts
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-80
+app/lib/icons.ts
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-28
+app/lib/mail/pgp/actions.ts
+  s_a928261b8f1eb9::t_818a16cdc936ae 12,16-17,19,21,28
+app/lib/documents.server.ts
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-92
+ios/Workspace/Features/Drive/DriveRowView.swift
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-190
+ios/Workspace/Features/Notifications/NotificationSettingsSection.swift
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-85
+app/components/applications-settings.tsx
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-494
+ios/Workspace/Features/Mail/MailViews.swift
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-211
+app/lib/search/indexer.server.ts
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-395
+ios/Workspace/Features/SignIn/SignInView.swift
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-301
+mobile/src-tauri/gen/android/gradle.properties
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-26
+mobile/src/start.js
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-288
+mobile/src-tauri/gen/apple/Assets.xcassets/Canvas.colorset/Contents.json
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-38
+mobile/vitest.config.ts
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-5
+app/lib/mail/filing.server.ts
+  s_a928261b8f1eb9::t_818a16cdc936ae 64-65,291,396
+ios/Workspace/Features/Assistant/AssistantChatModel.swift
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-213
+ios/Workspace/Features/Mail/MailLabelPicker.swift
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-147
+app/routes/_app/assistant.tsx
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-30,33
+ios/Workspace/Features/Assistant/AssistantMessageViews.swift
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-169
+app/lib/mail/actions.ts
+  s_a928261b8f1eb9::t_818a16cdc936ae 16,21,24-25,43-44,90,125,136,170,173,176,179-185,202-203,206,242-243,317,393-395,402-403,428,449,451,454,471,554,612,614,618-619,621
+ios/WorkspaceKit/Sources/WorkspaceKit/API/Endpoints/MeAPI.swift
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-8
+mobile/src-tauri/gen/android/app/.gitignore
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-6
+app/lib/drive/drive.ts
+  s_a928261b8f1eb9::t_818a16cdc936ae 527-535
+ios/Workspace/Features/Calendar/CalendarAgendaSections.swift
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-193
+mobile/src-tauri/tauri.conf.json
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-40
+test/assistant-reading.test.ts
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-301
+app/lib/assistant/assistant.ts
+  s_a928261b8f1eb9::t_818a16cdc936ae 3,6-8,22-27,32-34,105-106,199-202,204,212-217,242-437,488,519-522,524-530
+app/lib/mail/groups.server.ts
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-25,28-43,47-191
+  s_a928261b8f1eb9::t_ef9743aa2978f2 26-27,44-46
+test/fake-duo.ts
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-244
+mobile/src-tauri/gen/apple/Podfile
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-21
+app/routes/_app/mail.compose.tsx
+  s_a928261b8f1eb9::t_818a16cdc936ae 2,7,12,24,26-28,74-80,84,102
+app/components/drive/dialogs.tsx
+  s_a928261b8f1eb9::t_818a16cdc936ae 440-450
+.dev.vars.local.example
+  s_a928261b8f1eb9::t_818a16cdc936ae 22-27,30,32-33
+app/lib/mail/ingest.server.ts
+  s_a928261b8f1eb9::t_818a16cdc936ae 6,11,14,234-235,241,243-245,259-270,285,287,291-323,423-425,442-444
+ios/CLAUDE.md
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-3
+mobile/src-tauri/gen/apple/workspace-mobile.xcodeproj/project.pbxproj
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-464
+mobile/src-tauri/gen/android/app/src/main/res/values/colors.xml
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-5
+app/lib/branding.server.ts
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-475
+test/assistant-organize.test.ts
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-370
+mobile/src-tauri/rust-toolchain.toml
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-15
+app/lib/sign-in.server.ts
+  s_a928261b8f1eb9::t_818a16cdc936ae 4,9,14,16-17,19-25,76-97,99-105,107,112-113,137-143,151-191,215
+  s_a928261b8f1eb9::t_102d2d267b4883 216
+ios/Workspace/Features/Drive/DriveShareSheet.swift
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-39
+app/components/branding-settings.tsx
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-201
+docs/SSO.md
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-116
+test/search.test.ts
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-455
+mobile/src-tauri/gen/android/gradlew
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-248
+app/components/message-card.tsx
+  s_a928261b8f1eb9::t_818a16cdc936ae 203-207
+AGENTS.md
+  s_a928261b8f1eb9::t_818a16cdc936ae 3,13-14,56-62,67,72,83,116-120,123-124,139-140,142-143
+  s_a928261b8f1eb9::t_7a16ba0190cf2e 149
+mobile/AGENTS.md
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-37
+test/drive.test.ts
+  s_a928261b8f1eb9::t_818a16cdc936ae 661,676
+app/components/shortcuts-help.tsx
+  s_a928261b8f1eb9::t_818a16cdc936ae 102,106,110,125-147
+test/people-settings.test.ts
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-228
+ios/Workspace/Features/Drive/DriveNodeView.swift
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-213
+ios/WorkspaceKit/Sources/WorkspaceKit/API/APIError.swift
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-32
+test/sso.test.ts
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-1191
+vitest.config.ts
+  s_a928261b8f1eb9::t_818a16cdc936ae 1,9-17,45-50,52,59-67,79-81
+wrangler.jsonc
+  s_a928261b8f1eb9::t_818a16cdc936ae 27-33,35-39,42-43,72-73,81-83,86-90
+  s_a928261b8f1eb9::t_5833841776506d 91
+ios/README.md
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-57
+app/components/composer.tsx
+  s_a928261b8f1eb9::t_818a16cdc936ae 1,31,34-35,43-44,48,52,63-77,366,374-375,614,668-671,696,708,786-789,847,1018-1039
+app/lib/mail/reads.ts
+  s_a928261b8f1eb9::t_818a16cdc936ae 46-49,75-76
+mobile/src-tauri/gen/android/gradle/wrapper/gradle-wrapper.properties
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-6
+test/account-settings.test.ts
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-273
+mobile/src-tauri/gen/android/settings.gradle
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-3
+ios/WorkspaceKit/Sources/WorkspaceKit/API/WorkspaceClient.swift
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-241
+app/routes/api/mail.summary.ts
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-80
+ios/WorkspaceKit/Tests/WorkspaceKitTests/NotificationsTests.swift
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-125
+ios/Workspace/Features/Drive/DriveNodeSections.swift
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-82
+ios/Workspace/Features/Calendar/PlannerItems.swift
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-86
+ios/Workspace/Resources/Assets.xcassets/AppIcon.appiconset/Contents.json
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-14
+ios/Workspace/Resources/Assets.xcassets/Contents.json
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-6
+test/calendar.test.ts
+  s_a928261b8f1eb9::t_818a16cdc936ae 15,119-127
+  s_a928261b8f1eb9::t_7a04ba58f20607 128-130
+app/lib/sso/provider.server.ts
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-740
+ios/Workspace/Features/Calendar/PlannerChips.swift
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-147
+ios/Workspace/Features/Drive/DriveRootView.swift
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-58
+mobile/src-tauri/gen/android/app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-6
+ios/WorkspaceKit/Sources/WorkspaceKit/API/Endpoints/MailAPI.swift
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-102
+mobile/src-tauri/gen/apple/workspace-mobile.xcodeproj/xcshareddata/xcschemes/workspace-mobile_iOS.xcscheme
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-131
+workers/scheduled.ts
+  s_a928261b8f1eb9::t_818a16cdc936ae 4-5,7,9,12-67,74-78,80-83,151-168
+  s_a928261b8f1eb9::t_3774ec4512e16e 71-73,150
+ios/Workspace/Design/Components/LoadStateView.swift
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-43
+app/routes/_app/drive.index.tsx
+  s_a928261b8f1eb9::t_818a16cdc936ae 9,42
+ios/Workspace/App/Server.swift
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-51
+.dev.vars.example
+  s_a928261b8f1eb9::t_818a16cdc936ae 14-17
+ios/WorkspaceKit/Tests/WorkspaceKitTests/Samples.swift
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-131
+ios/Workspace/Design/Components/ErrorBanner.swift
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-24
+ios/Workspace/Design/Theme.swift
+  s_a928261b8f1eb9::t_818a16cdc936ae 1-99
+app/lib/assistant/telemetry.server.ts
+  s_a928261b8f1eb9::t_818a16cdc936ae 37
+app/routeTree.gen.ts
+  s_a928261b8f1eb9::t_5478fa6a1cccc3 35,166-170,270,307,349,391,428,469,504,678-684,880
+migrations/meta/0002_snapshot.json
+  s_a928261b8f1eb9::t_566a885ab51e84 4,365-433
+migrations/meta/0003_snapshot.json
+  s_a928261b8f1eb9::t_24fb0e6c7fdfa9 1-4605
+migrations/meta/0004_snapshot.json
+  s_a928261b8f1eb9::t_66f69f0e8a1c4c 1-5013
+migrations/meta/0005_snapshot.json
+  s_a928261b8f1eb9::t_6d0370893d5d92 1-5170
+migrations/meta/0006_snapshot.json
+  s_a928261b8f1eb9::t_c8d48595de1149 1-5177
+migrations/meta/_journal.json
+  s_a928261b8f1eb9::t_1a0564dc729397 22-51
+mobile/src-tauri/Cargo.lock
+  s_a928261b8f1eb9::t_f296c248b302e7 1-4821
+pnpm-lock.yaml
+  s_a928261b8f1eb9::t_94c84fc285a646 175-176,178-179,181-182,187-188,190-191,193-194,196-197,199-200,205-206,209,211-212,214-215,217-218,223-224,235-236,238-239,241-242,257-258,260-261,266-267,269-270,272-273,284-285,290-291,293-294,296-297,302-303,311-312,314-315,318,320-342,346-347,352-353,358-359,364-365,546-547,552,560-561,563,570-571,573,580-581,583,586-587,589,596-597,599,602-603,606-607,609,619-620,622,656-657,660,662-663,667-668,673-674,679-680,685-686,691-692,704-706,710-715,1204-1206,1315-1321,1396-1397,1402-1403,1408-1409,1414-1415,1420-1421,1426-1427,1432-1433,1438-1439,1445-1446,1452-1453,1459-1460,1466-1467,1473-1474,1480-1481,1487-1488,1494-1495,1500-1501,1506-1507,1512-1513,1548-1549,1554-1555,1560-1561,1566-1567,1572-1573,1578-1579,1584-1585,1590-1591,1597-1598,1604-1605,1611-1612,1618-1619,1625-1626,1632-1633,1639-1640,1646-1647,1652-1653,1658-1659,1664-1665,1736-1737,1739-1740,1744-1745,1750-1751,1755-1759,1761-1762,1766-1767,1776-1777,1787-1788,1808-1810,1813-1814,1816-1817,1822-1823,1828-1829,1834-1835,1840-1841,1846-1847,1852-1853,1859-1860,1866-1867,1873-1874,1880-1881,1887-1888,1894-1895,1900-1906,1911-1912,2104-2105,2107-2108,2113-2114,2119-2120,2125-2126,2131-2132,2137-2138,2144-2145,2151-2152,2158-2159,2165-2166,2176-2177,2182-2183,2188-2189,2192-2193,2208-2209,2215-2216,2220,2223,2239-2240,2243,2266-2268,2270-2272,2276,2291-2293,2303-2304,2307,2330-2408,2562-2563,2665-2666,2714-2715,2773-2774,2886-2887,3211-3212,3216-3217,3221-3222,3226-3227,3231-3232,3236-3237,3241-3242,3246-3247,3251-3252,3256-3257,3261-3262,3346-3347,3387-3394,3396-3403,3405-3407,3463-3464,3483-3484,3553-3554,3561-3562,3572-3573,3577,3582-3583,3648-3649,3760-3761,3810-3811,3903-3904,4019-4020,4024-4026,4029,4092,4094-4095,4098,4100-4101,4105,4107,4113,4356,4361,4369,4371,4376,4378,4383,4385,4388,4390,4393,4395,4400-4401,4405,4407,4410,4412,4438,4442,4444,4446-4447,4449-4450,4455,4459,4463-4465,4471,4474,4477,4480,4483,4486,4489-4491,4493,4495-4498,4501-4503,4506,4508-4509,4511,4792-4793,4887-4893,4927,4931,4944,4947,4950,4953,4956,4959,4962,4965,4968,4971,4974,4977,4980,4983,4986,4989,4992,4995,4998,5019,5022,5025,5028,5031,5034,5037,5040,5043,5046,5049,5052,5055,5058,5061,5064,5067,5070,5073,5196,5198-5200,5205,5209,5211,5217,5219,5224-5226,5228,5230,5232,5234,5236,5239,5241,5243,5245,5247-5249,5251,5254,5256,5258,5265,5268,5271,5274,5277,5280,5283,5286,5289,5292,5295,5298,5301,5304-5311,5314,5317,5321,5324,5429,5437,5439,5442,5445,5448,5451,5454,5457,5460,5463,5466,5469,5472,5475,5477-5495,5508,5516,5520,5523,5549,5552-5553,5555,5557,5563,5591,5595,5604,5610-5611,5613,5617,5628,5650,5657-5659,5670,5674,5706-5757,5848,5851,5853,5855,5862,5870,5876,5886-5887,5889,5896,5898-5900,5938,5940-5946,5951,5958,5963,5967,6057,6301,6304,6307,6310,6313,6316,6319,6322,6325,6328,6331,6333-6342,6406,6448,6453,6461,6466,6474,6476,6519,6523-6541,6552,6554-6572,6620,6628,6630-6632,6634,6646,6648,6692,6697-6712,6847,6905,6927-6928,6941,6949,6951,6967,6972,6982,6984,6986,6989,7000,7022,7024-7028,7030,7033,7037,7040,7046
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "835a01cfe2ced350afaf323e5f5b93a4a03a1fb7",
+  "prompts": {},
+  "sessions": {
+    "s_a928261b8f1eb9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "030169ea-2486-4be5-9188-1c1fc558820a",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rik Visser <rik@rivi.software>"
+    }
+  }
+}
