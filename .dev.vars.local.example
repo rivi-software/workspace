@@ -19,6 +19,12 @@ MICROSOFT_TENANT_ID=
 # with a key, local dev sends real mail through SES.
 SES_ACCESS_KEY_ID=
 SES_SECRET_ACCESS_KEY=
+# Optional: Duo as the second factor of the password sign-in (docs/SSO.md, Second factor: Duo): a Web SDK
+# application's Client ID, Client secret and API hostname. Its redirect URI is http://localhost:5174/auth/duo locally.
+# Empty: the authenticator app and passkeys, as without Duo.
+DUO_CLIENT_ID=
+DUO_CLIENT_SECRET=
+DUO_API_HOST=
 # The Assistant's model: mock answers without a model (and calls its tools on "search my mail for …", "find files
 # named …", "read conversation th_…", "draft a reply to th_… saying …"); workers-ai or anthropic run the real one through
 # the AI binding, which needs `wrangler login`, and fail the request without it.

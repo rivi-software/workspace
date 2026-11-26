@@ -10,6 +10,7 @@ import {
 } from "@tanstack/react-router";
 import { createServerFn } from "@tanstack/react-start";
 import {
+  AppWindow,
   Archive,
   Bell,
   BellOff,
@@ -55,6 +56,7 @@ import { ToastProvider, useToast } from "~/components/toast";
 import {
   Avatar,
   Menu,
+  MenuAnchor,
   MenuItem,
   MenuLink,
   MenuSeparator,
@@ -74,26 +76,37 @@ import { parsePreferences } from "~/lib/mail/preferences";
 import { participantLabel } from "~/lib/mail/threading";
 import { appContext } from "~/lib/request.server";
 import { serverFnFetch } from "~/lib/server-fn-fetch";
+import { listApps } from "~/lib/sso/clients.server";
 import { githubConnection } from "~/lib/tasks/github.server";
 
 const getLayout = createServerFn().handler(async () => {
   const { db, user, env } = await appContext();
   const assistant = aiEnabled(env);
 
-  const [counts, labels, newest, driveUsed, conversations, people, github] =
-    await Promise.all([
-      folderCounts(db, user.id),
-      listLabels(db, user.id),
-      newestUnread(db, user.id),
-      // What the person's files in Drive take, for the sidebar.
-      storageUsed(db, user.id),
-      // The person's recent conversations with the Assistant, for its sidebar.
-      assistant ? listConversations(db, user.id, 30) : [],
-      // Whom a new event from the sidebar can invite (#3111).
-      colleagues(db, user.id),
-      // Whether a new task from the sidebar can name a GitHub issue.
-      githubConnection(db, user.id),
-    ]);
+  const [
+    counts,
+    labels,
+    newest,
+    driveUsed,
+    conversations,
+    people,
+    github,
+    apps,
+  ] = await Promise.all([
+    folderCounts(db, user.id),
+    listLabels(db, user.id),
+    newestUnread(db, user.id),
+    // What the person's files in Drive take, for the sidebar.
+    storageUsed(db, user.id),
+    // The person's recent conversations with the Assistant, for its sidebar.
+    assistant ? listConversations(db, user.id, 30) : [],
+    // Whom a new event from the sidebar can invite (#3111).
+    colleagues(db, user.id),
+    // Whether a new task from the sidebar can name a GitHub issue.
+    githubConnection(db, user.id),
+    // The applications the person signs in to through the workspace, under Apps in the account menu.
+    listApps(db, user.id),
+  ]);
 
   return {
     user: { id: user.id, name: user.name, email: user.email, role: user.role },
@@ -118,6 +131,7 @@ const getLayout = createServerFn().handler(async () => {
     githubConnected: github !== null,
     // Whether the Assistant and every way to it show (`AI_FEATURES`).
     assistant,
+    apps,
   };
 });
 
@@ -533,6 +547,7 @@ const useShellShortcuts = ({
 const AccountMenu = ({
   user,
   appName,
+  apps,
   theme,
   setTheme,
   notify,
@@ -541,6 +556,7 @@ const AccountMenu = ({
 }: {
   user: Layout["user"];
   appName: string;
+  apps: Layout["apps"];
   theme: Theme;
   setTheme: (t: Theme) => void;
   notify: boolean;
@@ -604,6 +620,23 @@ const AccountMenu = ({
     >
       Settings
     </MenuLink>
+    {apps.length > 0 && (
+      <>
+        <MenuSeparator />
+        <div className="text-subtle px-2 py-1 text-xs">Apps</div>
+        {apps.map((app) => (
+          <MenuAnchor
+            key={app.id}
+            href={app.launchUrl}
+            target="_blank"
+            rel="noopener"
+            icon={<AppWindow className="h-3.5 w-3.5" />}
+          >
+            {app.name}
+          </MenuAnchor>
+        ))}
+      </>
+    )}
     <MenuSeparator />
     <form
       method="post"
@@ -949,7 +982,7 @@ const AppShell = () => {
   useRefresh();
 
   const layout = Route.useLoaderData();
-  const { user, newest, appName, assistant } = layout;
+  const { user, newest, appName, assistant, apps } = layout;
   const loading = useRouterState({ select: (s) => s.isLoading });
   const { pathname, search } = useLocation();
   const [theme, setTheme] = useTheme();
@@ -1027,6 +1060,7 @@ const AppShell = () => {
           <AccountMenu
             user={user}
             appName={appName}
+            apps={apps}
             theme={theme}
             setTheme={setTheme}
             notify={notify}

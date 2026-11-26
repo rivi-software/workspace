@@ -13,6 +13,13 @@ _Avoid_: user, account, member (a role)
 **Admin**:
 A person who may also create mailboxes and manage the other people: their passwords, passkeys, second factor, aliases, roles and sessions.
 
+**Second factor**:
+What confirms a password sign-in: Duo's prompt while Duo is set up, else the person's authenticator app. A passkey signs in on its own. A session records how it was signed in (`amr`).
+
+**Application**:
+Another app that signs people in through the workspace (single sign-on, OpenID Connect), registered by an admin under Settings → Applications, open to everyone or to the people on its list, each with an optional role.
+_Avoid_: client (the protocol's word, fine in code), relying party
+
 ### Mail
 
 **Mailbox**:

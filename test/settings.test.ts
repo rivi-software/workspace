@@ -13,6 +13,10 @@ import { peopleSettings } from "~/lib/people.server";
 import { SETTINGS_TABS, openTab, tabsFor } from "~/lib/settings";
 import { loadSettings } from "~/lib/settings.server";
 import type { Settings } from "~/lib/settings.server";
+import {
+  applicationsIntent,
+  applicationsSettings,
+} from "~/lib/sso/settings.server";
 import { githubIntent, tasksSettings } from "~/lib/tasks/settings.server";
 
 import {
@@ -34,19 +38,34 @@ describe("Settings' tabs", () => {
       admin: tabsFor("admin"),
     }).toStrictEqual({
       member: ["account", "mail", "tasks"],
-      admin: ["account", "mail", "tasks", "people", "drive", "branding"],
+      admin: [
+        "account",
+        "mail",
+        "tasks",
+        "people",
+        "drive",
+        "branding",
+        "applications",
+      ],
     });
   });
 
   it("opens Account for no tab, a tab that is gone, and a tab a member does not see", () => {
-    const asked = [undefined, "applications", "people", "drive", "mail"];
+    const asked = [
+      undefined,
+      "billing",
+      "people",
+      "drive",
+      "applications",
+      "mail",
+    ];
 
     expect({
       member: asked.map((tab) => openTab(tab, "member")),
       admin: asked.map((tab) => openTab(tab, "admin")),
     }).toStrictEqual({
-      member: ["account", "account", "account", "account", "mail"],
-      admin: ["account", "account", "people", "drive", "mail"],
+      member: ["account", "account", "account", "account", "account", "mail"],
+      admin: ["account", "account", "people", "drive", "applications", "mail"],
     });
   });
 });
@@ -74,6 +93,7 @@ describe("loading Settings", () => {
         ["people", ["me", "people", "tab"]],
         ["drive", ["drive", "me", "tab"]],
         ["branding", ["branding", "me", "tab"]],
+        ["applications", ["applications", "me", "tab"]],
       ].map(([tab, keys]) => ({
         tab,
         keys,
@@ -139,17 +159,19 @@ describe("loading Settings", () => {
     });
   });
 
-  it("refuses People's and Drive's slices to a member, even asked directly", async () => {
+  it("refuses People's, Drive's and the applications' slices to a member, even asked directly", async () => {
     const member = await mailbox("settings-sneak");
 
     const refusals = await Promise.all([
       rejection(peopleSettings(db, env, member)),
       rejection(driveSettings(db, member)),
+      rejection(applicationsSettings(db, env, member)),
     ]);
 
     expect(refusals.map((error) => error?.message)).toStrictEqual([
       "Only an admin sees People.",
       "Only an admin sees Drive's settings.",
+      "Only an admin sees the applications.",
     ]);
   });
 });
@@ -293,6 +315,59 @@ describe("the forms of Mail, OpenPGP, Tasks and Drive", () => {
       on: { message: "Sharing outside the workspace is on." },
       onShown: true,
       unknown: { error: "Unknown action." },
+    });
+  });
+});
+
+describe("the Applications form", () => {
+  it("lets an admin alone register an application, shows its secret once, and answers a mistake as the form's error", async () => {
+    const member = await mailbox("settings-apps-member");
+    const admin = await adminMailbox("settings-apps-admin");
+
+    const fields = {
+      intent: "create",
+      name: "Wiki",
+      redirectUris: "https://wiki.example.com/callback",
+      access: "everyone",
+      pkceRequired: "on",
+    };
+
+    const refused = await applicationsIntent(db, env, member, formOf(fields));
+    const made = await applicationsIntent(db, env, admin, formOf(fields));
+
+    const mistake = await applicationsIntent(
+      db,
+      env,
+      admin,
+      formOf({ ...fields, redirectUris: "http://wiki.example.com/callback" })
+    );
+
+    const shown = await applicationsSettings(db, env, admin);
+    const wiki = shown.applications.find((app) => app.name === "Wiki");
+
+    expect({
+      refused,
+      secret: made.password?.startsWith("wss_"),
+      mistake,
+      wiki: wiki && {
+        redirectUris: wiki.redirectUris,
+        access: wiki.access,
+        members: wiki.members,
+      },
+      secretShown: JSON.stringify(shown).includes(made.password ?? "wss_"),
+    }).toStrictEqual({
+      refused: { error: "Only an admin can change this." },
+      secret: true,
+      mistake: {
+        error:
+          '"http://wiki.example.com/callback" must use https (http only on localhost).',
+      },
+      wiki: {
+        redirectUris: ["https://wiki.example.com/callback"],
+        access: "everyone",
+        members: [],
+      },
+      secretShown: false,
     });
   });
 });

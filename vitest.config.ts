@@ -42,6 +42,10 @@ export default defineConfig({
             // Mail goes through the recording binding, never Amazon SES, whatever `.dev.vars` holds.
             SES_ACCESS_KEY_ID: "",
             SES_SECRET_ACCESS_KEY: "",
+            // Duo stays off unless a test lays its three values over its env (test/duo.test.ts, against fakeDuo).
+            DUO_CLIENT_ID: "",
+            DUO_CLIENT_SECRET: "",
+            DUO_API_HOST: "",
             // The Assistant's tests script their own models (test/scripted-model.ts); a request through
             // `exports.default` answers from the mock model. Nothing calls Workers AI.
             AI_PROVIDER: "mock",

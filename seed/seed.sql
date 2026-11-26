@@ -29,3 +29,10 @@ INSERT OR IGNORE INTO messages (id, thread_id, user_id, direction, message_id, f
 
 Press c to write a message, / to search, and ? for the list of shortcuts.',
   'Your mailbox is ready. Mail sent to admin@example.com lands here…', strftime('%Y-%m-%dT%H:%M:%fZ','now'), 0, 300, 'received');
+
+-- An application that signs people in through the workspace (single sign-on, docs/SSO.md), for trying the flow with a
+-- local client: client id `app_local_example`, secret `dev-sso-client-secret` (its SHA-256 below), returning to
+-- http://localhost:5175/auth/callback. The smoke test signs the admin in to it.
+INSERT OR IGNORE INTO oauth_clients (id, name, secret_hash, redirect_uris_json, post_logout_redirect_uris_json, pkce_required, access, created_by) VALUES
+ ('app_local_example', 'Local example', 'ab02572aaa33fa272b0480133b48ae623a82c3af1ffcef047ffd3e27e433ddda',
+  '["http://localhost:5175/auth/callback"]', '["http://localhost:5175/"]', 1, 'everyone', 'usr_admin');

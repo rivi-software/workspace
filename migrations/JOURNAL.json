@@ -16,6 +16,10 @@
     {
       "name": "0003_search_by_meaning.sql",
       "sha256": "7f78c278daf043f5f25ec1ad9a0fe8ec02eac0585e2d7f6b5f58fc3117e4ebed"
+    },
+    {
+      "name": "0004_single_sign_on.sql",
+      "sha256": "eba78e6227c45d3deb17abbee461e6c51d0dcdcb769f0a852d8e73d7fd2f2f71"
     }
   ]
 }

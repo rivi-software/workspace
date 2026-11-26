@@ -29,6 +29,13 @@
       "when": 1795709495082,
       "tag": "0003_search_by_meaning",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1795726495986,
+      "tag": "0004_single_sign_on",
+      "breakpoints": true
     }
   ]
 }

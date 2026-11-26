@@ -15,6 +15,12 @@ interface WorkspaceSecrets {
   // the mail domain in `SES_REGION` (a var). Empty: mail goes out through the EMAIL binding.
   SES_ACCESS_KEY_ID: string;
   SES_SECRET_ACCESS_KEY: string;
+  // Duo as the second factor of the password sign-in (docs/SSO.md, Second factor: Duo): the Web SDK application's
+  // Client ID, Client secret and API hostname. All three set: Duo's prompt follows every password; any empty: the
+  // authenticator app and passkeys, as without Duo.
+  DUO_CLIENT_ID: string;
+  DUO_CLIENT_SECRET: string;
+  DUO_API_HOST: string;
 }
 
 // What Workspace uses in place of a binding's own client, absent in production, where it is built from the binding
