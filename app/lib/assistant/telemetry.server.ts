@@ -34,7 +34,7 @@ const REGISTERED = Symbol.for("workspace.posthog-ai-telemetry");
 
 /**
  * Registers the integration once per isolate (module reloads in dev would otherwise add it again), and takes the
- * text switch from the env the turn runs with (`assistantModel`).
+ * text switch from the env the turn runs with (`answerChat`).
  */
 export const registerAssistantTelemetry = (
   env: Pick<Env, "AI_TEXT_ANALYTICS">

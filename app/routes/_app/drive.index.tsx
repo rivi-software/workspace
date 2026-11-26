@@ -1,13 +1,12 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { createServerFn } from "@tanstack/react-start";
-import { waitUntil } from "cloudflare:workers";
 
 import { DriveBrowser } from "~/components/drive/browser";
 import type { DriveListData } from "~/components/drive/browser";
 import { MailSelectionProvider } from "~/components/mail-selection";
 import { DRIVE_VIEW_LABEL, isDriveSort, isDriveView } from "~/lib/drive/drive";
 import type { DriveDir, DriveSort, DriveView } from "~/lib/drive/drive";
-import { listView, pruneDrive } from "~/lib/drive/drive.server";
+import { listView } from "~/lib/drive/drive.server";
 import { keepShown } from "~/lib/keep-shown";
 import { appContext } from "~/lib/request.server";
 import { serverFnFetch } from "~/lib/server-fn-fetch";
@@ -40,7 +39,7 @@ const pageTitle = (data: DriveListData | undefined) => {
 const getDrive = createServerFn()
   .validator((d: Deps) => d)
   .handler(async ({ data }): Promise<DriveListData> => {
-    const { db, env, user } = await appContext();
+    const { db, user } = await appContext();
     const q = (data.q ?? "").trim();
     const view = isDriveView(data.view) ? data.view : "mine";
 
@@ -52,14 +51,6 @@ const getDrive = createServerFn()
       data.dir === "desc" || data.dir === "asc" ? data.dir : defaultDir(sort);
 
     const order = { sort, dir };
-    // Housekeeping a few times a day, after the response: the old trash and abandoned uploads go.
-    const pruneKey = `drive-prune:${user.id}`;
-
-    if (!(await env.KV.get(pruneKey))) {
-      await env.KV.put(pruneKey, "1", { expirationTtl: 6 * 3600 });
-      waitUntil(pruneDrive(env, db, user.id));
-    }
-
     const rows = await listView(db, user.id, q ? { search: q } : view, order);
 
     return {

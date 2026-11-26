@@ -92,8 +92,9 @@ const EditorFace = ({
 };
 
 /**
- * The editor's layer on one page: with a tool chosen, a click places a field of it there; a field is selected by a
- * click, moved by dragging it and sized by its corner, and removed with its cross (or Delete while selected).
+ * The editor's layer on one page: with a tool chosen, a click places a field of it there; a field is selected and
+ * focused by a click, moved by dragging it and sized by its corner, and removed with its cross, the control after it
+ * in the tab order (or Delete while it has focus).
  */
 export const EditorLayer = ({
   page,
@@ -118,6 +119,8 @@ export const EditorLayer = ({
   onPlaced: () => void;
 }) => {
   const layer = useRef<HTMLDivElement | null>(null);
+  /** Each field's button by its id, which a press on the field or its corner focuses. */
+  const buttons = useRef(new Map<string, HTMLButtonElement>());
 
   const fraction = (e: { clientX: number; clientY: number }) => {
     const rect = defined(layer.current, "the current").getBoundingClientRect();
@@ -136,6 +139,9 @@ export const EditorLayer = ({
   ) => {
     e.stopPropagation();
     e.preventDefault();
+    // preventDefault() also keeps the browser from focusing the field, and Delete removes it only while it has focus,
+    // so the press focuses it as Tab does (#3819).
+    buttons.current.get(field.id)?.focus({ preventScroll: true });
     onSelect(field.id);
     const start = fraction(e);
     const { currentTarget: target } = e;
@@ -185,6 +191,11 @@ export const EditorLayer = ({
     target.addEventListener("pointercancel", up);
   };
 
+  const remove = (id: string) => {
+    onChange(fields.filter((f) => f.id !== id));
+    onSelect(null);
+  };
+
   return (
     <div
       ref={layer}
@@ -228,49 +239,57 @@ export const EditorLayer = ({
           const active = selected === f.id;
           const value = f.party === "rivi" ? values[f.id] : undefined;
 
+          // The box holds the field and, beside it, its remove button and resize corner: a screen reader reads a
+          // button's contents as its name, so a remove button inside the field was never reached (#3794). The two
+          // sit just inside the field's border, where they sat when it held them.
           return (
-            <div
-              key={f.id}
-              // oxlint-disable-next-line jsx-a11y/prefer-tag-over-role -- the field holds its own remove button and resize handle, and a button element cannot contain a button
-              role="button"
-              tabIndex={0}
-              aria-label={`${PARTY_LABEL[f.party]}: ${f.label}`}
-              aria-pressed={active}
-              className={cx(
-                "absolute flex touch-none select-none items-center gap-1 overflow-hidden rounded-[3px] border px-1 cursor-move",
-                PARTY_TONE[f.party],
-                active && "ring-2 ring-offset-1 ring-sky-400"
-              )}
-              style={{ ...boxStyle(f), fontSize: textSize(f, shown) }}
-              onPointerDown={(e) => drag(e, f, "move")}
-              onKeyDown={(e) => {
-                if (e.key === "Delete" || e.key === "Backspace") {
-                  e.preventDefault();
-                  onChange(fields.filter((x) => x.id !== f.id));
-                  onSelect(null);
-                }
-              }}
-              onFocus={() => onSelect(f.id)}
-            >
-              <EditorFace field={f} value={value} />
+            <div key={f.id} className="absolute" style={boxStyle(f)}>
+              <button
+                ref={(el) => {
+                  if (!el) {
+                    return;
+                  }
+
+                  buttons.current.set(f.id, el);
+
+                  return () => {
+                    buttons.current.delete(f.id);
+                  };
+                }}
+                type="button"
+                aria-label={`${PARTY_LABEL[f.party]}: ${f.label}`}
+                aria-pressed={active}
+                className={cx(
+                  "flex h-full w-full touch-none select-none items-center gap-1 overflow-hidden rounded-[3px] border px-1 text-left cursor-move",
+                  PARTY_TONE[f.party],
+                  active && "ring-2 ring-offset-1 ring-sky-400"
+                )}
+                style={{ fontSize: textSize(f, shown) }}
+                onPointerDown={(e) => drag(e, f, "move")}
+                onKeyDown={(e) => {
+                  if (e.key === "Delete" || e.key === "Backspace") {
+                    e.preventDefault();
+                    remove(f.id);
+                  }
+                }}
+                onFocus={() => onSelect(f.id)}
+              >
+                <EditorFace field={f} value={value} />
+              </button>
               {active && (
                 <>
                   <button
                     type="button"
-                    aria-label="Remove the field"
-                    className="absolute top-0 right-0 flex h-3.5 w-3.5 items-center justify-center rounded-bl-[3px] bg-black/60 text-white"
+                    aria-label={`Remove ${f.label} for ${PARTY_LABEL[f.party]}`}
+                    className="absolute top-px right-px flex h-3.5 w-3.5 items-center justify-center rounded-tr-[2px] rounded-bl-[3px] bg-black/60 text-white"
                     onPointerDown={(e) => e.stopPropagation()}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onChange(fields.filter((x) => x.id !== f.id));
-                      onSelect(null);
-                    }}
+                    onClick={() => remove(f.id)}
                   >
                     <X className="h-2.5 w-2.5" />
                   </button>
                   <span
                     aria-hidden
-                    className="absolute right-0 bottom-0 h-2.5 w-2.5 cursor-nwse-resize bg-black/60"
+                    className="absolute right-px bottom-px h-2.5 w-2.5 cursor-nwse-resize rounded-br-[2px] bg-black/60"
                     onPointerDown={(e) => drag(e, f, "size")}
                   />
                 </>

@@ -14,6 +14,7 @@ import type { ReactNode } from "react";
 import { RiviMark } from "~/components/brand";
 
 import { THEME_COLORS, themeInitScript } from "../components/theme";
+import { APPLE_TOUCH_ICON_HREF, FAVICON_HREF } from "../lib/icons";
 
 import appCss from "../app.css?url";
 
@@ -118,8 +119,8 @@ export const Route = createRootRoute({
     ],
     links: [
       { rel: "stylesheet", href: appCss },
-      { rel: "icon", href: "/favicon.svg", type: "image/svg+xml" },
-      { rel: "apple-touch-icon", href: "/apple-touch-icon.png" },
+      { rel: "icon", href: FAVICON_HREF, type: "image/svg+xml" },
+      { rel: "apple-touch-icon", href: APPLE_TOUCH_ICON_HREF },
       { rel: "manifest", href: "/manifest.webmanifest" },
     ],
   }),

@@ -586,20 +586,34 @@ const clockTime = (iso: string) =>
 export const timeRange = (start: string, end: string): string =>
   `${clockTime(start)} – ${clockTime(end)}`;
 
-const shortDay = (q: { y: number; m: number; d: number }, withYear: boolean) =>
-  new Date(Date.UTC(q.y, q.m - 1, q.d)).toLocaleDateString(undefined, {
+/**
+ * The locale the server formats in (the Workers runtime's): a name of a month or a day rendered before hydration
+ * uses it, so the hydrating render reads as the server's did, and only then the reader's own (`undefined`).
+ */
+export const SERVER_LOCALE = "en-US";
+
+const shortDay = (
+  q: { y: number; m: number; d: number },
+  withYear: boolean,
+  locale: string | undefined
+) =>
+  new Date(Date.UTC(q.y, q.m - 1, q.d)).toLocaleDateString(locale, {
     day: "numeric",
     month: "short",
     year: withYear ? "numeric" : undefined,
     timeZone: "UTC",
   });
 
-/** The title of a view: the month of a month view, the span of a week ("27 Oct – 2 Nov 2026"). */
-export const viewTitle = (view: CalendarView, key: DayKey): string => {
+/** The title of a view: the month of a month view, the span of a week ("27 Oct – 2 Nov 2026"), in `locale` (the reader's when left out). */
+export const viewTitle = (
+  view: CalendarView,
+  key: DayKey,
+  locale?: string
+): string => {
   const p = dayParts(key);
 
   if (view === "month") {
-    return new Date(Date.UTC(p.y, p.m - 1, 1)).toLocaleDateString(undefined, {
+    return new Date(Date.UTC(p.y, p.m - 1, 1)).toLocaleDateString(locale, {
       month: "long",
       year: "numeric",
       timeZone: "UTC",
@@ -610,7 +624,7 @@ export const viewTitle = (view: CalendarView, key: DayKey): string => {
   const a = dayParts(days[0] ?? key);
   const b = dayParts(days[6] ?? key);
 
-  return `${shortDay(a, a.y !== b.y)} – ${shortDay(b, true)}`;
+  return `${shortDay(a, a.y !== b.y, locale)} – ${shortDay(b, true, locale)}`;
 };
 
 /** The reader's zone, for an event made on the client; UTC where the browser cannot say. */

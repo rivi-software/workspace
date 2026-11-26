@@ -531,7 +531,7 @@ if (!r.ok) {
 
 html = await r.text();
 
-if (!html.includes("Ask about your mail and files")) {
+if (!html.includes("Ask about your mail, files, calendar and tasks")) {
   fail("the Assistant page shows no welcome");
 }
 
@@ -618,6 +618,26 @@ for (const [path, expected] of [
 }
 
 log("the calendar, the tasks and the GitHub connection page render");
+
+// 10b. Settings loads the open tab alone: each tab the seeded admin sees renders from its own slice.
+for (const [path, expected] of [
+  ["/settings", "Change password"],
+  ["/settings?tab=account", "Signatures"],
+  ["/settings?tab=mail", "Reading and writing"],
+  ["/settings?tab=people", "Add person"],
+  ["/settings?tab=drive", "Sharing outside the workspace"],
+]) {
+  // oxlint-disable-next-line eslint/no-await-in-loop -- a smoke test walks its checks in order, one request at a time
+  r = await req(path);
+  // oxlint-disable-next-line eslint/no-await-in-loop -- a smoke test walks its checks in order, one request at a time
+  html = await r.text();
+
+  if (!r.ok || !html.includes(expected)) {
+    fail(`${path} failed: ${r.status}`);
+  }
+}
+
+log("every Settings tab renders");
 
 // 11. a forgotten password: the request answers the same for any address, and the pages render signed out
 for (const email of [mailbox, "nobody@example.com"]) {

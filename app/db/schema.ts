@@ -1088,6 +1088,52 @@ export const assistantMessages = sqliteTable(
 );
 
 /**
+ * What a step of the Assistant changed in a person's mail, to put back: the sealed undo of one `organize_mail` call
+ * (Mail's own, purpose `mail-undo`), kept here and never in the answer, so neither the model nor the page ever holds
+ * it. The step's Undo is taken within ten minutes of `created_at` and once: `used_at` is set in the same statement
+ * that reads the undo. A person's rows older than a day go when they organise mail again.
+ */
+export const assistantUndos = sqliteTable(
+  "assistant_undos",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id),
+    undo: text("undo").notNull(),
+    createdAt: text("created_at").notNull().default(now()),
+    usedAt: text("used_at"),
+  },
+  (t) => [index("assistant_undos_user_idx").on(t.userId, t.createdAt)]
+);
+
+/**
+ * What the search by meaning holds: one row per conversation or Drive file whose text has a vector in the index
+ * (`app/lib/search/`), under its own id. `user_id` is the owner the vector is filed under, `source_at` the source's
+ * last change when it was read (a conversation's `last_message_at`, a file's `updated_at`), so the indexer reads a
+ * source again only when it changed. A row whose source is gone is what the sweep finds, to take its vector out.
+ */
+export const searchEntries = sqliteTable(
+  "search_entries",
+  {
+    id: text("id").primaryKey(),
+    kind: text("kind", { enum: ["mail", "drive"] }).notNull(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id),
+    sourceAt: text("source_at").notNull(),
+    indexedAt: text("indexed_at").notNull().default(now()),
+  },
+  (t) => [index("search_entries_kind_idx").on(t.kind, t.id)]
+);
+
+/** Where the indexer of the search by meaning is in its walks: a named cursor each, read and moved by the cron. */
+export const searchState = sqliteTable("search_state", {
+  key: text("key").primaryKey(),
+  value: text("value").notNull(),
+});
+
+/**
  * Calendar (#3111): an event on a person's calendar, theirs to change. A timed event runs from `starts_at` to
  * `ends_at` (instants, the end exclusive); an all-day one (`all_day`) spans whole days, its `starts_at` the first
  * day's midnight UTC and its `ends_at` the midnight UTC after its last day, read as dates wherever it is shown.

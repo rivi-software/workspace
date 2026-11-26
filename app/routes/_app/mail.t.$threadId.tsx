@@ -1,11 +1,13 @@
 import {
   Link,
   createFileRoute,
+  getRouteApi,
   notFound,
   useHydrated,
   useNavigate,
   useRouter,
 } from "@tanstack/react-router";
+import type { ErrorComponentProps } from "@tanstack/react-router";
 import { createServerFn, useServerFn } from "@tanstack/react-start";
 import {
   Archive,
@@ -19,6 +21,7 @@ import {
   Download,
   Forward,
   MailOpen,
+  MessageSquareText,
   MoreHorizontal,
   Printer,
   Reply,
@@ -42,7 +45,9 @@ import {
 } from "~/components/labels";
 import { listParams } from "~/components/mail-list";
 import { useSelection } from "~/components/mail-selection";
+import { ThreadSummary, useThreadSummary } from "~/components/mail-summary";
 import { MessageCard } from "~/components/message-card";
+import { SectionError } from "~/components/section-error";
 import { SnoozeMenu, SnoozeTriggerButton } from "~/components/snooze-menu";
 import { useToast } from "~/components/toast";
 import {
@@ -78,6 +83,8 @@ import { appContext } from "~/lib/request.server";
 import { serverFnFetch } from "~/lib/server-fn-fetch";
 
 import { Route as MailRoute, inboxUnreadOf, listOf, mailTitle } from "./mail";
+
+const appRoute = getRouteApi("/_app");
 
 const getThread = createServerFn()
   .validator((d: { threadId: string }) => d)
@@ -679,11 +686,14 @@ const ThreadMenu = ({
   messages,
   reading,
   act,
+  onSummarize,
 }: {
   thread: ThreadInfo;
   messages: MessageData[];
   reading: Reading;
   act: Act;
+  /** Writes a summary above the messages; absent where the Worker has no model. */
+  onSummarize?: () => void;
 }) => {
   const last = messages.at(-1);
   const { allOpen, toggleAll, print } = reading;
@@ -725,8 +735,16 @@ const ThreadMenu = ({
       >
         Print
       </MenuItem>
+      {onSummarize && (
+        <MenuItem
+          icon={<Sparkles className="h-3.5 w-3.5" />}
+          onClick={onSummarize}
+        >
+          Summarize
+        </MenuItem>
+      )}
       <MenuLink
-        icon={<Sparkles className="h-3.5 w-3.5" />}
+        icon={<MessageSquareText className="h-3.5 w-3.5" />}
         to="/assistant"
         search={{
           prompt: `Summarize the conversation “${thread.subject}” (${thread.id}).`,
@@ -848,6 +866,7 @@ interface ThreadHeaderProps {
   onLabelOpen: (open: boolean) => void;
   snoozeOpen: boolean;
   onSnoozeOpen: (open: boolean) => void;
+  onSummarize?: () => void;
 }
 
 const ThreadHeader = ({
@@ -864,6 +883,7 @@ const ThreadHeader = ({
   onLabelOpen,
   snoozeOpen,
   onSnoozeOpen,
+  onSummarize,
 }: ThreadHeaderProps) => (
   <ViewHeader
     className="print-hidden"
@@ -904,6 +924,7 @@ const ThreadHeader = ({
       messages={messages}
       reading={reading}
       act={act}
+      onSummarize={onSummarize}
     />
     <span className="bg-line mx-0.5 hidden h-4 w-px sm:block" />
     <NeighbourLink thread={prev} search={listSearch} label="Newer (k)">
@@ -1157,6 +1178,8 @@ const ThreadView = () => {
     Route.useLoaderData();
 
   const list = MailRoute.useLoaderData();
+  const layout = appRoute.useLoaderData();
+  const { summary, summarize, dismiss } = useThreadSummary(thread.id);
   const navigate = useNavigate();
   const router = useRouter();
   const run = useThreadActions();
@@ -1238,6 +1261,13 @@ const ThreadView = () => {
         onLabelOpen={setLabelOpen}
         snoozeOpen={snoozeOpen}
         onSnoozeOpen={setSnoozeOpen}
+        onSummarize={
+          layout.ai
+            ? () => {
+                void summarize();
+              }
+            : undefined
+        }
       />
 
       <div className="print-flow min-h-0 flex-1 overflow-y-auto">
@@ -1252,6 +1282,15 @@ const ThreadView = () => {
           </h1>
           <ThreadChips thread={thread} hydrated={hydrated} act={act} />
           <ThreadNotices folder={thread.folder} messages={messages} />
+          {summary && (
+            <ThreadSummary
+              summary={summary}
+              onRetry={() => {
+                void summarize();
+              }}
+              onDismiss={dismiss}
+            />
+          )}
           <ol className="space-y-3">
             {messages.map((m) => (
               <ThreadMessage
@@ -1288,6 +1327,13 @@ const ThreadPage = () => {
   return <ThreadView key={data.thread.id} />;
 };
 
+/** What takes the conversation's place beside the list when it cannot load and there is nothing to keep (#3557): its
+ * own, since on a first load the server renders the failing route's error component and the layout's `MailError`
+ * would only catch in the browser. */
+const ConversationError = ({ error }: ErrorComponentProps) => (
+  <SectionError error={error} title="The conversation didn't load" />
+);
+
 export const Route = createFileRoute("/_app/mail/t/$threadId")({
   // The conversation stays when the minute's refresh cannot load it again (#3547).
   loader: (run) =>
@@ -1309,4 +1355,5 @@ export const Route = createFileRoute("/_app/mail/t/$threadId")({
     ],
   }),
   component: ThreadPage,
+  errorComponent: ConversationError,
 });

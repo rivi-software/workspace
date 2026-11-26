@@ -1,4 +1,9 @@
-import { getRouteApi, useNavigate, useRouter } from "@tanstack/react-router";
+import {
+  getRouteApi,
+  useHydrated,
+  useNavigate,
+  useRouter,
+} from "@tanstack/react-router";
 import { DefaultChatTransport } from "ai";
 import type { ChatStatus } from "ai";
 import {
@@ -16,10 +21,15 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { SubmitEvent } from "react";
 
 import { useAction } from "~/lib/action";
-import { deleteConversationAction } from "~/lib/assistant/actions";
+import {
+  deleteConversationAction,
+  undoStepAction,
+} from "~/lib/assistant/actions";
 import {
   SUGGESTIONS,
+  canUndo,
   isToolPart,
+  messageText,
   stepView,
   toUIMessages,
 } from "~/lib/assistant/assistant";
@@ -30,6 +40,7 @@ import type {
   ToolPart,
 } from "~/lib/assistant/assistant";
 import { Markdown } from "~/lib/assistant/markdown";
+import { readerZone } from "~/lib/calendar/calendar";
 import { defined, isJsonObject, stringOrNull } from "~/lib/guards";
 
 import { useToast } from "../toast";
@@ -122,8 +133,80 @@ const StepIcon = ({
   return <Check className="h-3.5 w-3.5 shrink-0" />;
 };
 
-/** One thing the assistant did on the way to its answer. */
-const Step = ({ part }: { part: ToolPart }) => {
+/** Where a step sits: the answer it is part of, in its conversation. */
+interface StepPlace {
+  conversationId: string;
+  messageId: string;
+}
+
+/** How often a step looks at the clock to see whether its Undo is still on offer. */
+const UNDO_TICK_MS = 30_000;
+
+/**
+ * Undo for a step that organised mail, offered for ten minutes after it (`canUndo`): the server holds the step's
+ * undo and puts back what it changed (`undoStep`). The clock is read after hydration only, so the server renders
+ * no button it cannot time.
+ */
+const UndoStep = ({ part, place }: { part: ToolPart; place: StepPlace }) => {
+  const hydrated = useHydrated();
+  const toast = useToast();
+  // The server's reading is never shown (nothing renders before hydration), and the browser takes its own.
+  const [now, setNow] = useState(() => Date.now());
+  const [undone, setUndone] = useState(false);
+
+  const undo = useAction(undoStepAction, {
+    ...place,
+    toolCallId: part.toolCallId,
+  });
+
+  useEffect(() => {
+    const tick = setInterval(() => setNow(Date.now()), UNDO_TICK_MS);
+
+    return () => clearInterval(tick);
+  }, []);
+
+  if (undone) {
+    return <span className="text-faint shrink-0">Undone</span>;
+  }
+
+  if (!hydrated || !canUndo(part, now)) {
+    return null;
+  }
+
+  const run = async () => {
+    const result = await undo.submit({});
+
+    if (result?.ok) {
+      setUndone(true);
+      toast.show({ message: "Undone." });
+
+      return;
+    }
+
+    toast.show({
+      message:
+        (result && !result.ok ? result.error : undo.error) ??
+        "This could not be undone.",
+      tone: "error",
+    });
+  };
+
+  return (
+    <button
+      type="button"
+      disabled={undo.state === "submitting"}
+      className="text-accent shrink-0 underline-offset-2 hover:underline disabled:opacity-60"
+      onClick={() => {
+        void run();
+      }}
+    >
+      Undo
+    </button>
+  );
+};
+
+/** One thing the assistant did on the way to its answer; `place` when the answer is whole and stored. */
+const Step = ({ part, place }: { part: ToolPart; place: StepPlace | null }) => {
   const view = stepView(part);
   const router = useRouter();
 
@@ -150,12 +233,15 @@ const Step = ({ part }: { part: ToolPart }) => {
           Open
         </a>
       )}
+      {place && part.type === "tool-organize_mail" && (
+        <UndoStep part={part} place={place} />
+      )}
     </div>
   );
 };
 
 /** An answer's parts in order: its text as Markdown, each tool call as a step; a text part is keyed by its turn. */
-const answerParts = (message: AssistantMessage) => {
+const answerParts = (message: AssistantMessage, place: StepPlace | null) => {
   const out: React.ReactNode[] = [];
   let texts = 0;
 
@@ -173,7 +259,7 @@ const answerParts = (message: AssistantMessage) => {
         );
       }
     } else if (isToolPart(part)) {
-      out.push(<Step key={part.toolCallId} part={part} />);
+      out.push(<Step key={part.toolCallId} part={part} place={place} />);
     }
   }
 
@@ -182,24 +268,48 @@ const answerParts = (message: AssistantMessage) => {
 
 const AssistantAnswer = ({
   message,
+  conversationId,
   streaming,
+  explained,
 }: {
   message: AssistantMessage;
+  /** The conversation the answer is stored in, once that is known. */
+  conversationId: string | null;
   streaming: boolean;
-}) => (
-  <div className="flex gap-3">
-    <AssistantMark />
-    <div className="min-w-0 flex-1">
-      <div className="text-fg mb-1 text-sm font-medium">Assistant</div>
-      <div className="space-y-2">
-        {answerParts(message)}
-        {streaming && (
-          <span className="sr-only">The assistant is writing.</span>
-        )}
+  /** Whether the person knows why the answer has no words: the turn failed (the notice below says so) or they stopped it. */
+  explained: boolean;
+}) => {
+  // A step can be undone once its answer is whole, which is when it is stored.
+  const parts = answerParts(
+    message,
+    !streaming && conversationId
+      ? { conversationId, messageId: message.id }
+      : null
+  );
+
+  // A model that declines a question ends its turn without a word, and one out of steps ends on its last step.
+  const silent = !streaming && !explained && !messageText(message);
+
+  return (
+    <div className="flex gap-3">
+      <AssistantMark />
+      <div className="min-w-0 flex-1">
+        <div className="text-fg mb-1 text-sm font-medium">Assistant</div>
+        <div className="space-y-2">
+          {parts}
+          {streaming && (
+            <span className="sr-only">The assistant is writing.</span>
+          )}
+          {silent && (
+            <p className="text-muted text-base">
+              The assistant gave no answer. Ask again, or in other words.
+            </p>
+          )}
+        </div>
       </div>
     </div>
-  </div>
-);
+  );
+};
 
 const Welcome = ({ onPick }: { onPick: (text: string) => void }) => (
   <div className="animate-fade-in flex flex-col items-center px-6 py-6 text-center">
@@ -207,12 +317,13 @@ const Welcome = ({ onPick }: { onPick: (text: string) => void }) => (
       <Sparkles className="h-4 w-4" />
     </div>
     <div className="text-md text-fg font-medium">
-      Ask about your mail and files
+      Ask about your mail, files, calendar and tasks
     </div>
     <p className="text-muted mt-1 max-w-md text-base">
-      The assistant searches your mail and Drive, reads a conversation or a file
-      when asked, and can prepare a draft that you review and send. It changes
-      nothing by itself.
+      The assistant searches your mail and Drive, reads your calendar and tasks,
+      and when you ask it prepares a draft that you review and send, adds a task
+      or an event, or files your mail. It sends nothing and deletes nothing for
+      good.
     </p>
     <div className="mt-5 flex flex-wrap justify-center gap-1.5">
       {SUGGESTIONS.map((s) => (
@@ -243,6 +354,8 @@ const createAsker = (conversationId: string | null) => {
           conversationId: continuing,
           message: all.toReversed().find((m) => m.role === "user") ?? null,
           retry: trigger === "regenerate-message",
+          // What "today" and "14:00" mean to the person asking, which the server cannot know.
+          timeZone: readerZone(),
         },
       }),
     }),
@@ -319,7 +432,7 @@ const Composer = ({
           }}
           rows={1}
           aria-label="Your question"
-          placeholder="Ask about your mail and files…"
+          placeholder="Ask about your mail, files, calendar or tasks…"
           className="text-fg placeholder:text-subtle block w-full resize-none bg-transparent px-3 pt-2.5 pb-1 text-base leading-5 focus:outline-none"
         />
         <div className="flex h-9 items-center justify-between gap-2 px-2 pb-1">
@@ -406,6 +519,8 @@ const AssistantChat = ({
 
   const { messages, status, error } = chat;
   const busy = status === "submitted" || status === "streaming";
+  // Whether the person stopped the newest answer themselves, which then needs no word about its silence.
+  const [stopped, setStopped] = useState(false);
 
   const scroller = useRef<HTMLDivElement>(null);
   const stuck = useRef(true);
@@ -450,6 +565,7 @@ const AssistantChat = ({
     }
 
     stuck.current = true;
+    setStopped(false);
     void chat.sendMessage({ text: trimmed });
   };
 
@@ -483,7 +599,14 @@ const AssistantChat = ({
                 {m.role === "user" ? (
                   <UserMessage message={m} name={user.name} />
                 ) : (
-                  <AssistantAnswer message={m} streaming={busy && m === last} />
+                  <AssistantAnswer
+                    message={m}
+                    conversationId={
+                      m.metadata?.conversationId ?? conversation?.id ?? null
+                    }
+                    streaming={busy && m === last}
+                    explained={m === last && (status === "error" || stopped)}
+                  />
                 )}
               </li>
             ))}
@@ -521,6 +644,7 @@ const AssistantChat = ({
         busy={busy}
         onSend={send}
         onStop={() => {
+          setStopped(true);
           void chat.stop();
         }}
         autoFocus={!messages.length || !!prompt}

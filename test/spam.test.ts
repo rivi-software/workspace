@@ -34,8 +34,8 @@ import type {
 } from "~/lib/mail/spam";
 import {
   SpamError,
+  forgetIdleWords,
   learntTotals,
-  pruneSpamTokens,
   removeSenderRule,
   setSenderRule,
   trainTokens,
@@ -922,7 +922,7 @@ describe("the spam filter on delivery", () => {
     await db.run(
       `update spam_tokens set updated_at = '2000-01-01T00:00:00.000Z' where user_id = '${reader.id}'`
     );
-    await pruneSpamTokens(db, reader.id);
+    await forgetIdleWords(db, reader.id);
     observed.push(await learntTotals(db, reader.id));
 
     const left = await db.all<{ n: number }>(

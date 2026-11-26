@@ -302,7 +302,7 @@ export const UploadProvider = ({ children }: { children: ReactNode }) => {
   const [items, setItems] = useState<UploadItem[]>([]);
   const files = useRef(new Map<number, File>());
   const controls = useRef(new Map<number, Control>());
-  const queue = useRef<number[]>([]);
+  const queue = useRef<UploadItem[]>([]);
   const running = useRef(0);
   const pumpRef = useRef<(() => void) | null>(null);
   const next = useRef(1);
@@ -371,6 +371,7 @@ export const UploadProvider = ({ children }: { children: ReactNode }) => {
         { folderFor, patch, invalidateSoon },
         () => {
           files.current.delete(item.id);
+          controls.current.delete(item.id);
           running.current -= 1;
           pumpRef.current?.();
         }
@@ -379,23 +380,19 @@ export const UploadProvider = ({ children }: { children: ReactNode }) => {
     [patch, folderFor, invalidateSoon]
   );
 
+  // The queue holds the items as they were added: `run` reads only what never changes on them (id, folder, dir).
   const pump = useCallback(() => {
-    setItems((list) => {
-      while (running.current < CONCURRENCY && queue.current.length) {
-        const id = defined(queue.current.shift(), "the result of shift");
-        const item = list.find((u) => u.id === id);
-        const control = controls.current.get(id);
+    while (running.current < CONCURRENCY && queue.current.length) {
+      const item = defined(queue.current.shift(), "the result of shift");
+      const control = controls.current.get(item.id);
 
-        if (!item || !control || control.cancelled) {
-          continue;
-        }
-
-        running.current += 1;
-        void run(item);
+      if (!control || control.cancelled) {
+        continue;
       }
 
-      return list;
-    });
+      running.current += 1;
+      void run(item);
+    }
   }, [run]);
 
   // `run` hands the queue on when it ends, and `pump` starts `run`: the latest `pump` is kept for it in a ref.
@@ -419,7 +416,6 @@ export const UploadProvider = ({ children }: { children: ReactNode }) => {
 
         files.current.set(id, file);
         controls.current.set(id, { cancelled: false, xhr: null, nodeId: null });
-        queue.current.push(id);
         fresh.push({
           id,
           name: file.name,
@@ -438,9 +434,10 @@ export const UploadProvider = ({ children }: { children: ReactNode }) => {
         return;
       }
 
+      queue.current.push(...fresh);
       setItems((list) => [...list, ...fresh]);
-      // The items are in state before the queue is pumped, so `run` finds them.
-      setTimeout(pump, 0);
+      // React applies the updates in order, so the item is in the list before `run` patches it.
+      pump();
     },
     [pump]
   );
@@ -454,7 +451,7 @@ export const UploadProvider = ({ children }: { children: ReactNode }) => {
 
     control.cancelled = true;
     control.xhr?.abort();
-    queue.current = queue.current.filter((x) => x !== id);
+    queue.current = queue.current.filter((x) => x.id !== id);
     setItems((list) =>
       list.map((u) =>
         u.id === id && u.status === "waiting"
@@ -463,22 +460,15 @@ export const UploadProvider = ({ children }: { children: ReactNode }) => {
       )
     );
     files.current.delete(id);
+    // A running transfer keeps its own reference to the control; a waiting one never starts now.
+    controls.current.delete(id);
   }, []);
 
+  // An upload's control goes when it ends or is cancelled, so clearing only drops the ended items.
   const clear = useCallback(() => {
-    setItems((list) => {
-      const keep = list.filter(
-        (u) => u.status === "waiting" || u.status === "uploading"
-      );
-
-      for (const u of list) {
-        if (!keep.includes(u)) {
-          controls.current.delete(u.id);
-        }
-      }
-
-      return keep;
-    });
+    setItems((list) =>
+      list.filter((u) => u.status === "waiting" || u.status === "uploading")
+    );
   }, []);
 
   const active = items.filter(

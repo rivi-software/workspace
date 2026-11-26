@@ -8,6 +8,14 @@
     {
       "name": "0001_openpgp.sql",
       "sha256": "74aa2a5f303b0bcd67273ecb2713bc6b0de18f678cea99d389399ece304b6993"
+    },
+    {
+      "name": "0002_assistant_undos.sql",
+      "sha256": "ea67e575b6f6348a40e1ff13385782202c00eaa104a3714c3349390e9d222054"
+    },
+    {
+      "name": "0003_search_by_meaning.sql",
+      "sha256": "7f78c278daf043f5f25ec1ad9a0fe8ec02eac0585e2d7f6b5f58fc3117e4ebed"
     }
   ]
 }

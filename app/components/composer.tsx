@@ -1,4 +1,4 @@
-import { useNavigate, useRouter } from "@tanstack/react-router";
+import { getRouteApi, useNavigate, useRouter } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import {
   CalendarClock,
@@ -28,15 +28,18 @@ import type {
 } from "~/lib/mail/compose.server";
 import { pgpRecipientsAction } from "~/lib/mail/pgp/actions";
 import { sendLaterPresets, snoozeLabel } from "~/lib/mail/snooze";
-import { formatBytes } from "~/lib/text";
+import { formatBytes, textToEditorHtml } from "~/lib/text";
 
 import { AddressField } from "./address-field";
+import { DraftWithAi } from "./draft-with-ai";
 import { SignaturePreview } from "./message-body";
 import { RichEditor } from "./rich-editor";
 import type { RichEditorHandle } from "./rich-editor";
 import { SnoozeMenu } from "./snooze-menu";
 import { useToast } from "./toast";
 import { Button, IconButton, Notice, cx, inputClass, selectClass } from "./ui";
+
+const appRoute = getRouteApi("/_app");
 
 const AUTOSAVE_MS = 2000;
 const MAX_TOTAL = 20 * 1024 * 1024;
@@ -344,6 +347,7 @@ export const Composer = ({
   className?: string;
 }) => {
   const { froms, signatures, prefill, undoSendSeconds, pgp } = data;
+  const { ai } = appRoute.useLoaderData();
   const router = useRouter();
   const navigate = useNavigate();
   const toast = useToast();
@@ -986,6 +990,28 @@ export const Composer = ({
             }}
           />
         </label>
+        {ai && (
+          <DraftWithAi
+            // A reply (and a reply all) is drafted from its conversation; a new message from what the person says.
+            // A forward carries its original's `threadId` too, but is drafted from the person's words alone: it
+            // goes to someone outside the conversation, who is not answered by it.
+            threadId={prefill.mode === "reply" ? prefill.threadId : null}
+            fields={() => {
+              const now = new FormData(form.current ?? undefined);
+
+              return {
+                to: formText(now, "to"),
+                cc: formText(now, "cc"),
+                subject: formText(now, "subject"),
+              };
+            }}
+            onDraft={(text) => {
+              editor.current?.insertDraft(textToEditorHtml(text));
+              touch();
+            }}
+            onError={setError}
+          />
+        )}
         {signatures.length > 0 && (
           <label className="text-muted flex items-center gap-2 text-sm">
             <span className="sr-only sm:not-sr-only">Signature</span>

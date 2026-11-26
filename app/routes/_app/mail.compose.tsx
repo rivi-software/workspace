@@ -1,8 +1,10 @@
 import { createFileRoute, notFound } from "@tanstack/react-router";
+import type { ErrorComponentProps } from "@tanstack/react-router";
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
 import { Composer } from "~/components/composer";
+import { SectionError } from "~/components/section-error";
 import { ViewHeader } from "~/components/ui";
 import { keepShown } from "~/lib/keep-shown";
 import { composeData, ComposeNotFound } from "~/lib/mail/compose.server";
@@ -66,6 +68,13 @@ const Compose = () => {
   );
 };
 
+/** What takes the composer's place beside the list when what it starts from cannot load and there is nothing to keep
+ * (#3557): its own, since on a first load the server renders the failing route's error component and the layout's
+ * `MailError` would only catch in the browser. */
+const ComposeError = ({ error }: ErrorComponentProps) => (
+  <SectionError error={error} title="The message didn't load" />
+);
+
 export const Route = createFileRoute("/_app/mail/compose")({
   validateSearch: searchSchema,
   loaderDeps: ({ search }) => ({
@@ -86,4 +95,5 @@ export const Route = createFileRoute("/_app/mail/compose")({
     ],
   }),
   component: Compose,
+  errorComponent: ComposeError,
 });

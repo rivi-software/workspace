@@ -437,12 +437,17 @@ const endOfDay = (value: string): string =>
 const useCopyLink = () => {
   const toast = useToast();
 
-  return (url: string) =>
-    navigator.clipboard.writeText(url).then(
-      () => toast.show({ message: "Link copied." }),
-      () =>
-        toast.show({ message: "The link could not be copied.", tone: "error" })
-    );
+  return async (url: string) => {
+    try {
+      await navigator.clipboard.writeText(url);
+    } catch {
+      toast.show({ message: "The link could not be copied.", tone: "error" });
+
+      return;
+    }
+
+    toast.show({ message: "Link copied." });
+  };
 };
 
 export const CopyLinkButton = ({ url }: { url: string }) => {

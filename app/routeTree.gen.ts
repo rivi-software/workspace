@@ -32,6 +32,7 @@ import { Route as AppMailComposeRouteImport } from './routes/_app/mail.compose'
 import { Route as ApiAssistantChatRouteImport } from './routes/api/assistant.chat'
 import { Route as ApiDriveUploadRouteImport } from './routes/api/drive.upload'
 import { Route as ApiFilesIdRouteImport } from './routes/api/files.$id'
+import { Route as ApiMailSummaryRouteImport } from './routes/api/mail.summary'
 import { Route as SSignTokenRouteImport } from './routes/s.sign.$token'
 import { Route as AppAssistantCConversationIdRouteImport } from './routes/_app/assistant.c.$conversationId'
 import { Route as AppDriveDNodeIdRouteImport } from './routes/_app/drive.d.$nodeId'
@@ -162,6 +163,11 @@ const ApiFilesIdRoute = ApiFilesIdRouteImport.update({
   path: '/api/files/$id',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiMailSummaryRoute = ApiMailSummaryRouteImport.update({
+  id: '/api/mail/summary',
+  path: '/api/mail/summary',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const SSignTokenRoute = SSignTokenRouteImport.update({
   id: '/s/sign/$token',
   path: '/s/sign/$token',
@@ -261,6 +267,7 @@ export interface FileRoutesByFullPath {
   '/api/assistant/chat': typeof ApiAssistantChatRoute
   '/api/drive/upload': typeof ApiDriveUploadRoute
   '/api/files/$id': typeof ApiFilesIdRoute
+  '/api/mail/summary': typeof ApiMailSummaryRoute
   '/s/sign/$token': typeof SSignTokenRoute
   '/assistant/': typeof AppAssistantIndexRoute
   '/drive/': typeof AppDriveIndexRoute
@@ -297,6 +304,7 @@ export interface FileRoutesByTo {
   '/api/assistant/chat': typeof ApiAssistantChatRoute
   '/api/drive/upload': typeof ApiDriveUploadRoute
   '/api/files/$id': typeof ApiFilesIdRoute
+  '/api/mail/summary': typeof ApiMailSummaryRoute
   '/s/sign/$token': typeof SSignTokenRoute
   '/assistant': typeof AppAssistantIndexRoute
   '/drive': typeof AppDriveIndexRoute
@@ -338,6 +346,7 @@ export interface FileRoutesById {
   '/api/assistant/chat': typeof ApiAssistantChatRoute
   '/api/drive/upload': typeof ApiDriveUploadRoute
   '/api/files/$id': typeof ApiFilesIdRoute
+  '/api/mail/summary': typeof ApiMailSummaryRoute
   '/s/sign/$token': typeof SSignTokenRoute
   '/_app/assistant/': typeof AppAssistantIndexRoute
   '/_app/drive/': typeof AppDriveIndexRoute
@@ -379,6 +388,7 @@ export interface FileRouteTypes {
     | '/api/assistant/chat'
     | '/api/drive/upload'
     | '/api/files/$id'
+    | '/api/mail/summary'
     | '/s/sign/$token'
     | '/assistant/'
     | '/drive/'
@@ -415,6 +425,7 @@ export interface FileRouteTypes {
     | '/api/assistant/chat'
     | '/api/drive/upload'
     | '/api/files/$id'
+    | '/api/mail/summary'
     | '/s/sign/$token'
     | '/assistant'
     | '/drive'
@@ -455,6 +466,7 @@ export interface FileRouteTypes {
     | '/api/assistant/chat'
     | '/api/drive/upload'
     | '/api/files/$id'
+    | '/api/mail/summary'
     | '/s/sign/$token'
     | '/_app/assistant/'
     | '/_app/drive/'
@@ -489,6 +501,7 @@ export interface RootRouteChildren {
   ApiAssistantChatRoute: typeof ApiAssistantChatRoute
   ApiDriveUploadRoute: typeof ApiDriveUploadRoute
   ApiFilesIdRoute: typeof ApiFilesIdRoute
+  ApiMailSummaryRoute: typeof ApiMailSummaryRoute
   SSignTokenRoute: typeof SSignTokenRoute
   ApiDriveFilesIdRoute: typeof ApiDriveFilesIdRoute
   ApiImportMicrosoftCallbackRoute: typeof ApiImportMicrosoftCallbackRoute
@@ -660,6 +673,13 @@ declare module '@tanstack/react-router' {
       path: '/api/files/$id'
       fullPath: '/api/files/$id'
       preLoaderRoute: typeof ApiFilesIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/mail/summary': {
+      id: '/api/mail/summary'
+      path: '/api/mail/summary'
+      fullPath: '/api/mail/summary'
+      preLoaderRoute: typeof ApiMailSummaryRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/s/sign/$token': {
@@ -857,6 +877,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiAssistantChatRoute: ApiAssistantChatRoute,
   ApiDriveUploadRoute: ApiDriveUploadRoute,
   ApiFilesIdRoute: ApiFilesIdRoute,
+  ApiMailSummaryRoute: ApiMailSummaryRoute,
   SSignTokenRoute: SSignTokenRoute,
   ApiDriveFilesIdRoute: ApiDriveFilesIdRoute,
   ApiImportMicrosoftCallbackRoute: ApiImportMicrosoftCallbackRoute,

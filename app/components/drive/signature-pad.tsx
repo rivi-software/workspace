@@ -125,6 +125,16 @@ export const SignaturePad = ({
 
   const ctx = () => contextOf(canvas.current);
 
+  // A stroke ends where the pointer lifts, and where the browser takes the pointer away (a cancelled touch, another app).
+  const endStroke = () => {
+    drawing.current = null;
+    const got = ctx();
+
+    if (got && inked.current) {
+      onChangeRef.current(trimmedPng(got.el));
+    }
+  };
+
   const clear = () => {
     const got = ctx();
 
@@ -263,14 +273,8 @@ export const SignaturePad = ({
             drawing.current = to;
             inked.current = true;
           }}
-          onPointerUp={() => {
-            drawing.current = null;
-            const got = ctx();
-
-            if (got && inked.current) {
-              onChangeRef.current(trimmedPng(got.el));
-            }
-          }}
+          onPointerUp={endStroke}
+          onPointerCancel={endStroke}
         />
         <div className="pointer-events-none absolute inset-x-6 bottom-8 border-b border-dashed border-black/20" />
       </div>
