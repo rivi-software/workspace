@@ -1,0 +1,25 @@
+docs/ARCHITECTURE.md
+  s_a928261b8f1eb9::t_c5bf3259a8ac59 203,214
+app/lib/auth.server.ts
+  s_a928261b8f1eb9::t_46b0d17c4a4e94 755-757
+app/lib/users.server.ts
+  s_a928261b8f1eb9::t_46b0d17c4a4e94 266
+AGENTS.md
+  s_a928261b8f1eb9::t_46b0d17c4a4e94 50,72
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "c028065679c41dd5deb9d87bb4620869a9bf11af",
+  "prompts": {},
+  "sessions": {
+    "s_a928261b8f1eb9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "030169ea-2486-4be5-9188-1c1fc558820a",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rik Visser <rik@rivi.software>"
+    }
+  }
+}
