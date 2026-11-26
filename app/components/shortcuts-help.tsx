@@ -99,13 +99,15 @@ const GROUPS: { title: string; keys: [string[], string][] }[] = [
   },
 ];
 
-/** The keyboard shortcuts, as `?` shows them. */
+/** The keyboard shortcuts, as `?` shows them; the Assistant's only while AI is on (`app/lib/ai.ts`). */
 export const ShortcutsHelp = ({
   open,
   onClose,
+  assistant,
 }: {
   open: boolean;
   onClose: () => void;
+  assistant: boolean;
 }) => (
   <Dialog
     open={open}
@@ -120,27 +122,29 @@ export const ShortcutsHelp = ({
             {g.title}
           </h3>
           <dl className="space-y-1">
-            {g.keys.map(([keys, what]) => (
-              <div
-                key={what}
-                className="flex items-center justify-between gap-3 text-base"
-              >
-                <dt className="text-muted">{what}</dt>
-                <dd className="flex shrink-0 items-center gap-1">
-                  {keys.map((k, i) => (
-                    <span
-                      key={`${what}-${k}`}
-                      className="flex items-center gap-1"
-                    >
-                      {i > 0 && keys.length === 2 && keys[0].length === 1 && (
-                        <span className="text-subtle text-xs">then</span>
-                      )}
-                      <Kbd>{k}</Kbd>
-                    </span>
-                  ))}
-                </dd>
-              </div>
-            ))}
+            {g.keys
+              .filter(([, what]) => assistant || what !== "Assistant")
+              .map(([keys, what]) => (
+                <div
+                  key={what}
+                  className="flex items-center justify-between gap-3 text-base"
+                >
+                  <dt className="text-muted">{what}</dt>
+                  <dd className="flex shrink-0 items-center gap-1">
+                    {keys.map((k, i) => (
+                      <span
+                        key={`${what}-${k}`}
+                        className="flex items-center gap-1"
+                      >
+                        {i > 0 && keys.length === 2 && keys[0].length === 1 && (
+                          <span className="text-subtle text-xs">then</span>
+                        )}
+                        <Kbd>{k}</Kbd>
+                      </span>
+                    ))}
+                  </dd>
+                </div>
+              ))}
           </dl>
         </section>
       ))}

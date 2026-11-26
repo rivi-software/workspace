@@ -35,7 +35,7 @@ client ── POST /api/auth/sign-out, Authorization: Bearer <token> ──▶ 2
 
 | Method and path | Answer |
 | --- | --- |
-| `GET /me` | `{ user: { id, name, email, role: "admin" \| "member" }, appName, counts, labels: LabelRef[], preferences: { layout, undoSendSeconds, pageSize }, driveUsed: bytes, github: { connected }, colleagues: [{ id, name, email }], suggestions: string[] }`. `counts` is `{ inboxUnread, spamUnread, snoozed, drafts, scheduled, labels: { <labelId>: unread } }`; `suggestions` are the Assistant's opening questions. |
+| `GET /me` | `{ user: { id, name, email, role: "admin" \| "member" }, appName, counts, labels: LabelRef[], preferences: { layout, undoSendSeconds, pageSize }, driveUsed: bytes, github: { connected }, colleagues: [{ id, name, email }], assistant: { enabled }, suggestions: string[] }`. `counts` is `{ inboxUnread, spamUnread, snoozed, drafts, scheduled, labels: { <labelId>: unread } }`; `assistant.enabled` is false while the workspace's AI is off (`AI_FEATURES`); `suggestions` are the Assistant's opening questions, none while it is off. |
 
 ### Mail
 
@@ -204,6 +204,8 @@ interface Issue { repo: string; number: number; title: string; url: string; stat
 | `GET /assistant/conversations/:id` | | `{ conversation: { id, title, updatedAt }, messages: [{ id, role: "user" \| "assistant", parts: Part[] }] }` oldest first |
 | `DELETE /assistant/conversations/:id` | | `{ ok: true }` |
 | `POST /assistant/chat` | `{ conversationId: string \| null, message: { role: "user", parts: [{ type: "text", text }] }, timeZone?: string }`, `timeZone` the device's IANA zone ("Europe/Amsterdam"), which says what "today" and "14:00" mean in the question; UTC without it | `text/event-stream`: the answer as it comes (below) |
+
+While the workspace's AI is off (`AI_FEATURES` is `off`; `GET /me` answers `assistant.enabled: false`), every route of this section is `404` with `{ ok: false, error: "The Assistant is off in this workspace." }`.
 
 A stored `Part` is `{ type: "text", text }`, `{ type: "step-start" }`, or a tool's step `{ type: "tool-<name>", toolCallId, state: "output-available", input, output }` with `<name>` one of `search_mail`, `read_conversation`, `read_attachment`, `search_drive`, `read_file`, `create_draft`, `list_events`, `list_tasks`, `create_task`, `create_event`, `organize_mail`, and more as the Assistant learns them: a client shows a name it does not know as a step without a label of its own. The answer's text is Markdown, with links on paths of the console (`/mail/t/<id>`, `/drive/d/<id>`, `/calendar?date=<day>`, `/tasks`) and, for a GitHub issue, on its address on GitHub; a client shows the step as "Searched mail", "Read a conversation", "Searched Drive", "Read a file", "Prepared a draft", "Read the calendar", "Read the tasks", "Added a task", "Added an event", "Organized mail". An `organize_mail` step's `output` holds `action`, `count`, `at`, `undoId` (the id of the undo the server keeps for ten minutes, or null) and, once undone, `undone`; the API has no endpoint that undoes a step yet, so a client shows the step and leaves the undo to the console.
 

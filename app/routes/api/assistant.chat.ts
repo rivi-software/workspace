@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { env, waitUntil } from "cloudflare:workers";
 
 import { createDb } from "~/db";
+import { AI_OFF, aiEnabled } from "~/lib/ai";
 import { AssistantError, answerChat } from "~/lib/assistant/chat.server";
 import { assistantModel } from "~/lib/assistant/provider.server";
 import { getSessionUser } from "~/lib/auth.server";
@@ -53,6 +54,11 @@ export const Route = createFileRoute("/api/assistant/chat")({
         const timeZone = isJsonObject(body)
           ? stringOrNull(body.timeZone)
           : null;
+
+        // With AI off there is no model to resolve: the Assistant is not there.
+        if (!aiEnabled(env)) {
+          return problem(AI_OFF, 404);
+        }
 
         const model = await assistantModel(env);
 

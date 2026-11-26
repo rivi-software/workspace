@@ -45,6 +45,7 @@ export default defineConfig({
             // The Assistant's tests script their own models (test/scripted-model.ts); a request through
             // `exports.default` answers from the mock model. Nothing calls Workers AI.
             AI_PROVIDER: "mock",
+            AI_FEATURES: "on",
             // An empty PostHog token keeps the tests from sending exceptions anywhere.
             POSTHOG_PROJECT_TOKEN: "",
           },

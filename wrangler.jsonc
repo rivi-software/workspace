@@ -24,6 +24,10 @@
     // SES_ACCESS_KEY_ID and SES_SECRET_ACCESS_KEY are set too (README, Amazon SES), and through the EMAIL binding
     // until then.
     "SES_REGION": "eu-central-1",
+    // Every AI feature at once (app/lib/ai.ts): "off" turns the Assistant off (its pages, its API and every link to
+    // it), Mail's summary and draft, and the search by meaning's indexing, so nothing a person keeps reaches a model;
+    // anything else leaves them on.
+    "AI_FEATURES": "on",
     // The Assistant's model (app/lib/assistant/provider.server.ts): "workers-ai" runs AI_CHAT_MODEL on Workers AI
     // through the AI binding and AI Gateway; "anthropic" runs AI_CHAT_MODEL as a Claude model (Claude Sonnet 5.5
     // when it names none) through the gateway's provider-native endpoint, on the Anthropic key stored on the gateway;

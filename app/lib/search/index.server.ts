@@ -1,6 +1,7 @@
 import { createAI } from "agents/models/ai-sdk";
 import { embedMany } from "ai";
 
+import { aiEnabled } from "~/lib/ai";
 import { assistantProvider } from "~/lib/assistant/provider.server";
 
 /**
@@ -142,9 +143,14 @@ const vectorizeIndex = (env: Env, vectors: VectorizeIndex): SearchIndex => {
  * Worker runs a real model, else none. Where `AI_PROVIDER` is `mock` (local dev from `.dev.vars.example`, the
  * tests, the smoke) nothing calls a model, an embedding model included, and both bindings are stand-ins that only
  * throw; there the search by meaning is off and the tools search by words. Local dev on a real provider has no
- * Vectorize either: a call fails, and the caller falls back the same way.
+ * Vectorize either: a call fails, and the caller falls back the same way. With AI off (`AI_FEATURES`) there is none
+ * at all, a test's stand-in included: the cron sends nothing to the embedding model and nothing is searched by meaning.
  */
 export const searchIndexFor = (env: Env): SearchIndex | null => {
+  if (!aiEnabled(env)) {
+    return null;
+  }
+
   if (env.SEARCH_INDEX) {
     return env.SEARCH_INDEX;
   }

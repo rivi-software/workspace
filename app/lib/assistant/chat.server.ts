@@ -13,6 +13,7 @@ import type { Database } from "~/db";
 import { assistantConversations, assistantMessages } from "~/db/schema";
 import type { User } from "~/db/schema";
 
+import { AI_OFF, aiEnabled } from "../ai";
 import { isJsonObject, stringOrNull } from "../guards";
 import { newId, nowIso } from "../ids";
 import { undoOrganized } from "../mail/mail.server";
@@ -350,6 +351,10 @@ export const answerChat = async (
   input: ChatInput,
   signal?: AbortSignal
 ): Promise<ChatAnswer> => {
+  if (!aiEnabled(env)) {
+    throw new AssistantError(AI_OFF, 404);
+  }
+
   const text = questionOf(input.message);
   const now = nowIso();
   let conversation: ConversationRef;

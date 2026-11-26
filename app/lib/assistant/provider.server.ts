@@ -3,6 +3,8 @@ import type { AnthropicLanguageModelOptions } from "@ai-sdk/anthropic";
 import { createAI } from "agents/models/ai-sdk";
 import { defaultSettingsMiddleware, wrapLanguageModel } from "ai";
 
+import { aiEnabled } from "~/lib/ai";
+
 import type { ChatModel } from "./chat.server";
 
 export type AssistantProvider = "mock" | "workers-ai" | "anthropic";
@@ -60,11 +62,12 @@ export const assistantProvider = (
 };
 
 /**
- * Whether this Worker has a model to ask: the dev model, or a real provider with its AI binding. What offers AI
- * beside the Assistant's own page (Mail's summary and draft) asks this first, and offers nothing without one.
+ * Whether this Worker has a model to ask: AI is on (`AI_FEATURES`, `app/lib/ai.ts`), and there is the dev model or a
+ * real provider with its AI binding. What offers AI beside the Assistant's own page (Mail's summary and draft) asks
+ * this first, and offers nothing without one.
  */
 export const assistantReady = (env: Env): boolean =>
-  assistantProvider(env) === "mock" || Boolean(env.AI);
+  aiEnabled(env) && (assistantProvider(env) === "mock" || Boolean(env.AI));
 
 /**
  * The model the Assistant writes with, from `AI_PROVIDER`. The routes resolve it once per request and hand it to

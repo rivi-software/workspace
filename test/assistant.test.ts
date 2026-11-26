@@ -33,6 +33,7 @@ import { ask, promptOf, question, toolPart } from "./assistant-turn";
 import { db, defined, mail, mailbox, stringContaining } from "./fixtures";
 import { renderMarkdown } from "./markdown";
 import { scriptedModel } from "./scripted-model";
+import { stubEnv } from "./stub-env";
 
 const stored = async (user: User, over: Parameters<typeof mail>[0] = {}) => {
   const r = await ingestInboundEmail(
@@ -612,6 +613,23 @@ describe("the assistant", () => {
     ).rejects.toThrow(AssistantError);
     // A refused question never reaches the model.
     expect(unused.doStreamCalls).toHaveLength(0);
+  });
+
+  it("answers nothing while AI_FEATURES is off, and files no question", async () => {
+    const unused = scriptedModel([]);
+    const before = await listConversations(db, ann.id);
+
+    await expect(
+      answerChat(stubEnv({ ...env, AI_FEATURES: "off" }), db, ann, unused, {
+        conversationId: null,
+        message: question("Hello"),
+      })
+    ).rejects.toThrow("The Assistant is off in this workspace.");
+
+    expect({
+      conversations: await listConversations(db, ann.id),
+      calls: unused.doStreamCalls.length,
+    }).toStrictEqual({ conversations: before, calls: 0 });
   });
 
   it("refuses another person's conversation, and deletes for the owner only", async () => {

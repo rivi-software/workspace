@@ -21,6 +21,7 @@ import { indexForSearch, MAIL_BATCH } from "~/lib/search/indexer.server";
 import { ask, isObject, toolPart } from "./assistant-turn";
 import { db, defined, mail, mailbox, sorted } from "./fixtures";
 import { fakeSearchIndex } from "./search-index";
+import { stubEnv } from "./stub-env";
 
 /** A conversation in the person's inbox, last heard from at `date`. */
 const arrived = async (
@@ -118,6 +119,14 @@ describe("the search by meaning", () => {
 
   it("does nothing where the Worker has no index", async () => {
     await expect(indexForSearch(env, db)).resolves.toBeNull();
+  });
+
+  it("has no index while AI_FEATURES is off, so the cron embeds nothing", async () => {
+    const index = fakeSearchIndex();
+
+    await expect(
+      indexForSearch(stubEnv({ ...index.env, AI_FEATURES: "off" }), db)
+    ).resolves.toBeNull();
   });
 
   it("indexes what there is, newest first, then what arrives, and reads a conversation again only when it changed", async () => {

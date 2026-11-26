@@ -697,6 +697,9 @@ const ThreadMenu = ({
 }) => {
   const last = messages.at(-1);
   const { allOpen, toggleAll, print } = reading;
+  // "Ask the assistant" only while AI is on (`AI_FEATURES`); Summarize comes with `onSummarize`, which the layout's
+  // `ai` gives.
+  const { assistant } = appRoute.useLoaderData();
 
   return (
     <Menu
@@ -743,15 +746,17 @@ const ThreadMenu = ({
           Summarize
         </MenuItem>
       )}
-      <MenuLink
-        icon={<MessageSquareText className="h-3.5 w-3.5" />}
-        to="/assistant"
-        search={{
-          prompt: `Summarize the conversation “${thread.subject}” (${thread.id}).`,
-        }}
-      >
-        Ask the assistant
-      </MenuLink>
+      {assistant && (
+        <MenuLink
+          icon={<MessageSquareText className="h-3.5 w-3.5" />}
+          to="/assistant"
+          search={{
+            prompt: `Summarize the conversation “${thread.subject}” (${thread.id}).`,
+          }}
+        >
+          Ask the assistant
+        </MenuLink>
+      )}
       {last?.hasRaw && (
         <MenuAnchor
           icon={<Download className="h-3.5 w-3.5" />}

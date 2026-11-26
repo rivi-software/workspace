@@ -60,6 +60,7 @@ import {
   MenuSeparator,
   cx,
 } from "~/components/ui";
+import { aiEnabled } from "~/lib/ai";
 import { listConversations } from "~/lib/assistant/chat.server";
 import { assistantReady } from "~/lib/assistant/provider.server";
 import { colleagues, storageUsed } from "~/lib/drive/drive.server";
@@ -77,6 +78,7 @@ import { githubConnection } from "~/lib/tasks/github.server";
 
 const getLayout = createServerFn().handler(async () => {
   const { db, user, env } = await appContext();
+  const assistant = aiEnabled(env);
 
   const [counts, labels, newest, driveUsed, conversations, people, github] =
     await Promise.all([
@@ -86,7 +88,7 @@ const getLayout = createServerFn().handler(async () => {
       // What the person's files in Drive take, for the sidebar.
       storageUsed(db, user.id),
       // The person's recent conversations with the Assistant, for its sidebar.
-      listConversations(db, user.id, 30),
+      assistant ? listConversations(db, user.id, 30) : [],
       // Whom a new event from the sidebar can invite (#3111).
       colleagues(db, user.id),
       // Whether a new task from the sidebar can name a GitHub issue.
@@ -108,12 +110,14 @@ const getLayout = createServerFn().handler(async () => {
       : null,
     preferences: parsePreferences(user.preferencesJson),
     appName: env.APP_NAME,
-    // Whether this Worker has a model, and so offers AI where a person reads and writes mail.
+    // Whether this Worker has a model and AI is on, and so offers AI where a person reads and writes mail.
     ai: assistantReady(env),
     driveUsed,
     conversations,
     colleagues: people,
     githubConnected: github !== null,
+    // Whether the Assistant and every way to it show (`AI_FEATURES`).
+    assistant,
   };
 });
 
@@ -436,9 +440,11 @@ const useNotifications = () => {
 const useShellShortcuts = ({
   toggleSidebar,
   showHelp,
+  assistant,
 }: {
   toggleSidebar: () => void;
   showHelp: () => void;
+  assistant: boolean;
 }) => {
   const navigate = useNavigate();
   const toast = useToast();
@@ -503,19 +509,24 @@ const useShellShortcuts = ({
         void navigate({ to: "/tasks", search: {} });
       },
     },
-    {
-      keys: "g h",
-      run: () => {
-        void navigate({ to: "/assistant", search: {} });
-      },
-    },
-    {
-      keys: "mod+j",
-      run: () => {
-        void navigate({ to: "/assistant", search: {} });
-      },
-      allowInInput: true,
-    },
+    // The Assistant's, only while AI is on.
+    ...(assistant
+      ? [
+          {
+            keys: "g h",
+            run: () => {
+              void navigate({ to: "/assistant", search: {} });
+            },
+          },
+          {
+            keys: "mod+j",
+            run: () => {
+              void navigate({ to: "/assistant", search: {} });
+            },
+            allowInInput: true,
+          },
+        ]
+      : []),
   ]);
 };
 
@@ -606,13 +617,26 @@ const AccountMenu = ({
   </Menu>
 );
 
+/** The modules the strip and the tab bar show: the Assistant only while AI is on. */
+const shownModules = (assistant: boolean) =>
+  MODULES.filter((m) => assistant || m.module !== "assistant");
+
 // On a phone the tab bar at the bottom of the screen takes its place (`TabBar`).
-const ModuleStrip = ({ current }: { current: ShellModule | null }) => (
+const ModuleStrip = ({
+  current,
+  assistant,
+}: {
+  current: ShellModule | null;
+  assistant: boolean;
+}) => (
   <nav
-    className="bg-hover mx-3 mb-3 grid grid-cols-5 gap-0.5 rounded-md p-0.5 max-sm:hidden"
+    className={cx(
+      "bg-hover mx-3 mb-3 grid gap-0.5 rounded-md p-0.5 max-sm:hidden",
+      assistant ? "grid-cols-5" : "grid-cols-4"
+    )}
     aria-label="Modules"
   >
-    {MODULES.map((m) => (
+    {shownModules(assistant).map((m) => (
       <Link
         key={m.to}
         to={m.to}
@@ -638,14 +662,20 @@ const ModuleStrip = ({ current }: { current: ShellModule | null }) => (
  * (#3529): one tap switches modules, and the drawer keeps the module's own navigation. It sits
  * above the home indicator (`pb-safe`) and steps aside while the person types (app.css, `--dock`).
  */
-const TabBar = ({ current }: { current: ShellModule | null }) => (
+const TabBar = ({
+  current,
+  assistant,
+}: {
+  current: ShellModule | null;
+  assistant: boolean;
+}) => (
   <nav
     data-tab-bar
     aria-label="Modules"
     className="border-line bg-sidebar/95 px-safe pb-safe print-hidden fixed inset-x-0 bottom-0 z-20 border-t backdrop-blur-sm sm:hidden"
   >
-    <ul className="grid h-12 grid-cols-5">
-      {MODULES.map((m) => (
+    <ul className={cx("grid h-12", assistant ? "grid-cols-5" : "grid-cols-4")}>
+      {shownModules(assistant).map((m) => (
         <li key={m.to} className="min-w-0">
           <Link
             to={m.to}
@@ -919,7 +949,7 @@ const AppShell = () => {
   useRefresh();
 
   const layout = Route.useLoaderData();
-  const { user, newest, appName } = layout;
+  const { user, newest, appName, assistant } = layout;
   const loading = useRouterState({ select: (s) => s.isLoading });
   const { pathname, search } = useLocation();
   const [theme, setTheme] = useTheme();
@@ -940,7 +970,11 @@ const AppShell = () => {
 
   const { notify, toggle: toggleNotify } = useNotifications();
   useNewMailNotice(newest);
-  useShellShortcuts({ toggleSidebar, showHelp: () => setHelp(true) });
+  useShellShortcuts({
+    toggleSidebar,
+    showHelp: () => setHelp(true),
+    assistant,
+  });
 
   // People are PostHog persons by their user id, so an error shows who it happened to.
   useEffect(() => {
@@ -953,7 +987,9 @@ const AppShell = () => {
     );
   }, [user.id, user.email, user.name, user.role]);
 
-  const current = moduleOf(pathname);
+  // With AI off, `/assistant` only says so (routes/_app/assistant.tsx), beside Mail's sidebar.
+  const module = moduleOf(pathname);
+  const current = module === "assistant" && !assistant ? null : module;
 
   return (
     <div className="bg-bg text-fg flex h-dvh overflow-hidden print:h-auto print:overflow-visible">
@@ -1008,7 +1044,7 @@ const AppShell = () => {
           </button>
         </div>
 
-        <ModuleStrip current={current} />
+        <ModuleStrip current={current} assistant={assistant} />
 
         <ModuleSidebar
           layout={layout}
@@ -1045,8 +1081,12 @@ const AppShell = () => {
         </button>
         <Outlet />
       </main>
-      <TabBar current={current} />
-      <ShortcutsHelp open={help} onClose={() => setHelp(false)} />
+      <TabBar current={current} assistant={assistant} />
+      <ShortcutsHelp
+        open={help}
+        onClose={() => setHelp(false)}
+        assistant={assistant}
+      />
       <UploadPanel />
       <NewVersionNotice />
     </div>

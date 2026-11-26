@@ -28,6 +28,7 @@ import {
   recordingEmail,
 } from "./fixtures";
 import type { Json } from "./fixtures";
+import { stubEnv } from "./stub-env";
 
 const issuer = env.APP_URL.replace(/\/+$/u, "");
 const api = `${issuer}/api/v1`;
@@ -1221,6 +1222,48 @@ describe("the Workspace API", () => {
       { ok: true },
       404,
     ]);
+  });
+
+  it("answers no Assistant while AI_FEATURES is off, and /me says so", async () => {
+    const off = workerOn(stubEnv({ ...env, AI_FEATURES: "off" }));
+    const before = await call(token, "GET", "/me");
+    const me = await call(token, "GET", "/me", undefined, off);
+
+    const conversations = await call(
+      token,
+      "GET",
+      "/assistant/conversations",
+      undefined,
+      off
+    );
+
+    const chat = await call(
+      token,
+      "POST",
+      "/assistant/chat",
+      {
+        conversationId: null,
+        message: { role: "user", parts: [{ type: "text", text: "Hello" }] },
+      },
+      off
+    );
+
+    const refused = {
+      ok: false,
+      error: "The Assistant is off in this workspace.",
+    };
+
+    expect({
+      before: before.data.assistant,
+      me: [me.data.assistant, me.data.suggestions],
+      conversations: [conversations.status, conversations.data],
+      chat: [chat.status, chat.data],
+    }).toStrictEqual({
+      before: { enabled: true },
+      me: [{ enabled: false }, []],
+      conversations: [404, refused],
+      chat: [404, refused],
+    });
   });
 
   it("fails a question with a 500 and files nothing when its provider has no AI binding", async () => {

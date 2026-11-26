@@ -123,6 +123,7 @@ app/
   lib/drive/actions.ts    the server functions the Drive components call: an intent on nodes, the move targets, sharing, Settings → Drive
   lib/drive/settings.server.ts  Settings → Drive, an admin's: the tab's slice and its form (driveSettingsIntent)
   lib/workspace-settings.server.ts  workspace-wide settings an admin changes: sharing outside the workspace on or off
+  lib/ai.ts                   AI_FEATURES: whether the AI features are on, for the server and the pages alike
   lib/assistant/assistant.ts  the Assistant's vocabulary: the tools' names, the limits, a message as stored, a tool step as the page shows it
   lib/assistant/provider.server.ts  the model for a request from AI_PROVIDER: a Claude model or Workers AI through AI Gateway (an error without the AI binding), or the mock
   lib/assistant/mock-model.server.ts  the mock (AI_PROVIDER=mock: local dev, the smoke) that calls the tools on set phrasings, imported only when it is picked
