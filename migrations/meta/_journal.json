@@ -43,6 +43,13 @@
       "when": 1795727591557,
       "tag": "0005_groups",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1795733021371,
+      "tag": "0006_person_removal",
+      "breakpoints": true
     }
   ]
 }

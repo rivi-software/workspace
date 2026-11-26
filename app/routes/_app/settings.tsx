@@ -30,6 +30,7 @@ import { TwoFactor } from "~/components/two-factor";
 import {
   Avatar,
   Button,
+  Checkbox,
   Field,
   Notice,
   Pill,
@@ -827,9 +828,140 @@ const Account = ({
   );
 };
 
+/** A person an admin removed, while the cron deletes what was theirs; nothing more is done to them. */
+const RemovingRow = ({ person: p }: { person: Person }) => (
+  <li className="flex items-center gap-3 p-4 opacity-60">
+    <Avatar name={p.name} size={28} />
+    <div className="min-w-0 flex-1">
+      <div className="flex items-center gap-2 text-base font-medium">
+        <span className="truncate">{p.name}</span>
+        <Pill tone="red">Being removed</Pill>
+      </div>
+      <div className="text-muted truncate text-sm">
+        {p.email}
+        <span className="text-subtle">
+          {" · "}mail to them bounces; what was theirs goes over the next
+          minutes
+        </span>
+      </div>
+    </div>
+  </li>
+);
+
+/** A person's primary address changed, with the old one kept as an alias unless the admin unticks it. */
+const AddressForm = ({
+  person: p,
+  mailDomain,
+}: {
+  person: Person;
+  mailDomain: string;
+}) => {
+  const act = useAction(peopleAction, { id: p.id });
+
+  return (
+    <div className="space-y-1">
+      <act.Form className="flex flex-wrap items-center gap-2">
+        <span className="text-muted text-sm">Address</span>
+        <div className="flex items-center">
+          <input
+            name="address"
+            required
+            pattern="[^@\s]+"
+            aria-label="New address"
+            defaultValue={p.email.slice(0, p.email.indexOf("@"))}
+            className={cx(inputClass, "h-6 w-40 rounded-r-none text-sm")}
+          />
+          <span className="border-line bg-hover text-muted flex h-6 items-center rounded-r-md border border-l-0 px-2 text-sm">
+            @{mailDomain}
+          </span>
+        </div>
+        <label className="text-muted flex items-center gap-1.5 text-sm">
+          <Checkbox name="keepOld" defaultChecked />
+          Keep {p.email} as an alias
+        </label>
+        <Button size="sm" type="submit" name="intent" value="address">
+          <Pencil className="h-3.5 w-3.5" />
+          Change address
+        </Button>
+      </act.Form>
+      <Feedback result={act.data} error={act.error} />
+    </div>
+  );
+};
+
 /**
- * One person: who they are and when they last signed in, with the actions an admin takes on them (role, aliases,
- * passwords, passkeys, the second factor, sessions).
+ * Removal, for a deactivated person other than the admin: the admin types their address to confirm, and the browser
+ * asks once more, since nothing of theirs comes back.
+ */
+const RemovePerson = ({
+  person: p,
+  isMe,
+}: {
+  person: Person;
+  isMe: boolean;
+}) => {
+  const act = useAction(peopleAction, { id: p.id });
+
+  if (isMe) {
+    return null;
+  }
+
+  if (p.active) {
+    return (
+      <p className="text-subtle text-sm">
+        To remove {p.name} and everything that is theirs, deactivate them first.
+      </p>
+    );
+  }
+
+  return (
+    <div className="border-line space-y-2 border-t pt-3">
+      <act.Form
+        className="space-y-2"
+        onSubmit={(e) => {
+          if (
+            // oxlint-disable-next-line eslint/no-alert -- destructive action requires user confirmation
+            !confirm(`Remove ${p.name} for good? This cannot be undone.`)
+          ) {
+            e.preventDefault();
+          }
+        }}
+      >
+        <p className="text-muted text-sm">
+          Removing {p.name} deletes their mail, their Drive with the files they
+          shared, their signing requests, calendar, tasks and Assistant chats,
+          for good. Mail to {p.email} and their aliases bounces, and the
+          addresses can be given out again.
+        </p>
+        <div className="flex flex-wrap items-center gap-2">
+          <input
+            name="confirm"
+            required
+            autoComplete="off"
+            placeholder={p.email}
+            aria-label={`Type ${p.email} to confirm`}
+            className={cx(inputClass, "h-6 w-64 text-sm")}
+          />
+          <Button
+            size="sm"
+            variant="danger"
+            type="submit"
+            name="intent"
+            value="remove"
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+            Remove for good
+          </Button>
+        </div>
+      </act.Form>
+      <Feedback result={act.data} error={act.error} />
+    </div>
+  );
+};
+
+/**
+ * One person: who they are and when they last signed in, with the actions an admin takes on them (role, address,
+ * aliases, passwords, passkeys, the second factor, sessions, removal).
  */
 const PersonRow = ({
   person: p,
@@ -966,6 +1098,7 @@ const PersonRow = ({
               </Button>
             </act.Form>
           )}
+          <AddressForm person={p} mailDomain={mailDomain} />
           <div className="space-y-1">
             <div className="text-muted text-sm font-medium">
               Recovery addresses
@@ -1066,6 +1199,7 @@ const PersonRow = ({
               Sign out everywhere
             </Button>
           </act.Form>
+          <RemovePerson person={p} isMe={isMe} />
         </div>
       )}
       <div className="pl-10">
@@ -1152,14 +1286,18 @@ const People = ({
         </create.Form>
       )}
       <ul className="divide-line divide-y">
-        {people.map((p) => (
-          <PersonRow
-            key={p.id}
-            person={p}
-            mailDomain={mailDomain}
-            isMe={p.id === meId}
-          />
-        ))}
+        {people.map((p) =>
+          p.removing ? (
+            <RemovingRow key={p.id} person={p} />
+          ) : (
+            <PersonRow
+              key={p.id}
+              person={p}
+              mailDomain={mailDomain}
+              isMe={p.id === meId}
+            />
+          )
+        )}
       </ul>
       {!people.length && (
         <div className="text-muted p-6 text-center text-base">

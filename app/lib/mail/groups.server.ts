@@ -23,7 +23,8 @@ export interface Delivery {
  * The mailboxes an address is delivered to, `+tags` ignored: a person's own address or alias, a shared group's
  * mailbox, or every active member of a distribution group. Null when it is none of these, a group that is off or a
  * distribution group with nobody active in it, so Email Routing refuses it and the sender gets a bounce. A deactivated person keeps receiving their own mail,
- * but a distribution group skips them: they cannot read it.
+ * but a distribution group skips them: they cannot read it. A person an admin removed (`removing_since`) is nobody's
+ * mailbox, so the sender gets a bounce rather than mail filed into what is being deleted.
  */
 export const resolveDelivery = async (
   db: Database,
@@ -40,7 +41,9 @@ export const resolveDelivery = async (
   }
 
   if (direct.kind === "person") {
-    return { mailboxes: [direct], distributedBy: null };
+    return direct.removingSince
+      ? null
+      : { mailboxes: [direct], distributedBy: null };
   }
 
   const group = direct.active

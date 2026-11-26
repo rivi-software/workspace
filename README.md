@@ -147,7 +147,7 @@ Workspace is an open-source workspace that runs on Cloudflare: **Mail** (receivi
 | Settings → Drive | Sharing outside the workspace on or off, and every link and invitation with who made it and how often it was opened (admins). |
 | Settings → Tasks | The GitHub connection. |
 | Settings → Groups | Group inboxes: a **distribution group** files its mail in each member's own inbox, a **shared inbox** is one mailbox every member opens in Mail. Admins make them, turn them off and delete a distribution group; admins and a group's owners add and remove its members. Everyone sees the groups they are in. |
-| Settings → People | Mailboxes, aliases, roles, one-time passwords, deactivation, each person's passkeys, authenticator app, recovery addresses and sessions (admins). |
+| Settings → People | Mailboxes, aliases, a new primary address, roles, one-time passwords, deactivation and removal for good, each person's passkeys, authenticator app, recovery addresses and sessions (admins). |
 | Settings → Applications | The apps that sign people in through the workspace (single sign-on): their redirect URIs, secrets and who may sign in to each, with a role; the signing key (admins). |
 
 ## On a phone

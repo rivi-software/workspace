@@ -3,7 +3,7 @@ import { and, eq } from "drizzle-orm";
 
 import { createDb } from "~/db";
 import type { Database } from "~/db";
-import { aliases, passkeys, users } from "~/db/schema";
+import { aliases, drafts, passkeys, pgpKeys, users } from "~/db/schema";
 import type { User } from "~/db/schema";
 
 import {
@@ -16,6 +16,7 @@ import {
 } from "./auth.server";
 import { newId } from "./ids";
 import { canonicalAddress, isValidEmail } from "./mail/addresses";
+import { continueRemoval } from "./removal.server";
 
 export class PeopleError extends Error {
   override name = "PeopleError";
@@ -40,6 +41,8 @@ export const listPeople = async (db: Database) => {
     name: p.name,
     role: p.role,
     active: p.active,
+    // Being removed (`removePerson`): the cron is deleting what is theirs, and the row goes last.
+    removing: !!p.removingSince,
     createdAt: p.createdAt,
     lastSignInAt: p.lastSignInAt,
     // Whether their password sign-in asks for an authenticator app's code, for an admin resetting a lost one.
@@ -134,6 +137,12 @@ export const setPersonActive = async (
     throw new PeopleError("You cannot deactivate your own account.");
   }
 
+  const person = await db.query.users.findFirst({ where: eq(users.id, id) });
+
+  if (person?.removingSince) {
+    throw new PeopleError("They are being removed, which cannot be undone.");
+  }
+
   await db.update(users).set({ active }).where(eq(users.id, id));
 
   // A deactivated person's open sessions end at once, not at their next request, and a reset link mailed before
@@ -156,6 +165,111 @@ export const setPersonRole = async (
   }
 
   await db.update(users).set({ role }).where(eq(users.id, id));
+};
+
+/**
+ * Give a person another primary address on the mail domain: what they sign in with, receive at and send from. With
+ * `keepOld` the old address becomes an alias, so mail on its way and replies to it still arrive; one of their own
+ * aliases may become the primary address. Their sessions go on: the session names the person, not the address.
+ */
+export const changeAddress = async (
+  db: Database,
+  env: Env,
+  id: string,
+  typed: string,
+  keepOld: boolean
+): Promise<{ address: string; hasPgpKey: boolean }> => {
+  const person = await db.query.users.findFirst({ where: eq(users.id, id) });
+
+  if (!person || person.kind !== "person" || person.removingSince) {
+    throw new PeopleError("There is no such person.");
+  }
+
+  const address = mailboxAddress(env, typed);
+  const old = person.email;
+
+  if (address === old) {
+    throw new PeopleError(`${address} is their address already.`);
+  }
+
+  const ownAlias = await db.query.aliases.findFirst({
+    where: and(eq(aliases.address, address), eq(aliases.userId, id)),
+  });
+
+  if (!ownAlias && (await addressTaken(db, address))) {
+    throw new PeopleError(`${address} is already in use.`);
+  }
+
+  // With the old address kept, drafts from it still send; without, they move to the new one, or a draft from an
+  // address that is gone would be refused on send (a scheduled one in the night).
+  const oldAddress = keepOld
+    ? db.insert(aliases).values({ address: old, userId: id })
+    : db
+        .update(drafts)
+        .set({ fromEmail: address })
+        .where(and(eq(drafts.userId, id), eq(drafts.fromEmail, old)));
+
+  // In one batch, so the address is never both the alias and the primary one, nor neither.
+  await db.batch([
+    db.delete(aliases).where(eq(aliases.address, address)),
+    db.update(users).set({ email: address }).where(eq(users.id, id)),
+    oldAddress,
+  ]);
+
+  // An OpenPGP key names the addresses it was made for, so WKD publishes it at the new one only once a key names it.
+  const key = await db.query.pgpKeys.findFirst({
+    where: eq(pgpKeys.userId, id),
+  });
+
+  return { address, hasPgpKey: !!key };
+};
+
+/**
+ * Remove a deactivated person for good: everything of theirs (mail, Drive and the files they shared, signing
+ * requests, calendar, tasks, Assistant chats) is deleted and their addresses are freed. Mail to them bounces from now
+ * on; the deletion starts here and the cron finishes it (`app/lib/removal.server.ts`). `confirm` is their address,
+ * typed by the admin.
+ */
+export const removePerson = async (
+  db: Database,
+  env: Env,
+  actor: User,
+  id: string,
+  confirm: string
+): Promise<{ email: string; gone: boolean }> => {
+  if (actor.id === id) {
+    throw new PeopleError("You cannot remove your own account.");
+  }
+
+  const person = await db.query.users.findFirst({ where: eq(users.id, id) });
+
+  // A group's row is a mailbox too, but Settings → Groups deletes it, not this.
+  if (!person || person.kind !== "person") {
+    throw new PeopleError("There is no such person.");
+  }
+
+  if (person.active) {
+    throw new PeopleError("Deactivate them first.");
+  }
+
+  if (confirm.trim().toLowerCase() !== person.email) {
+    throw new PeopleError(`Type ${person.email} to confirm.`);
+  }
+
+  if (!person.removingSince) {
+    await db
+      .update(users)
+      .set({ removingSince: new Date().toISOString() })
+      .where(eq(users.id, id));
+
+    // Deactivation ended these already; nothing they held before is to work while the rest goes.
+    await revoke(db, id, "removal");
+  }
+
+  // A small mailbox goes at once; a large one goes on in the cron, a minute at a time.
+  const gone = await continueRemoval(env, db, id, 50);
+
+  return { email: person.email, gone };
 };
 
 /** A new one-time password for someone who lost theirs; their sessions and reset links end with the old one. */

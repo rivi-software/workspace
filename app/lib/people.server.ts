@@ -14,9 +14,11 @@ import type { SettingsResult } from "./settings";
 import {
   PeopleError,
   addAlias,
+  changeAddress,
   createPerson,
   listPeople,
   removeAlias,
+  removePerson,
   resetPassword,
   setPersonActive,
   setPersonRole,
@@ -31,9 +33,55 @@ export const peopleSettings = async (db: Database, env: Env, user: User) => {
   return { people: await listPeople(db), mailDomain: env.MAIL_DOMAIN };
 };
 
+/** A person's new primary address, with what the admin tells them about their OpenPGP key. */
+const changeAddressIntent = async (
+  db: Database,
+  env: Env,
+  id: string,
+  form: FormData
+): Promise<SettingsResult> => {
+  const changed = await changeAddress(
+    db,
+    env,
+    id,
+    field(form, "address"),
+    form.get("keepOld") === "on"
+  );
+
+  // WKD publishes a key only at an address the key names (`serveWkd`).
+  return {
+    message: changed.hasPgpKey
+      ? `Their address is now ${changed.address}. Their OpenPGP key names the old one: they make a new key under Settings → Mail to be found at the new address.`
+      : `Their address is now ${changed.address}.`,
+  };
+};
+
+/** A deactivated person removed for good, at once or over the next minutes. */
+const removePersonIntent = async (
+  db: Database,
+  env: Env,
+  actor: User,
+  id: string,
+  form: FormData
+): Promise<SettingsResult> => {
+  const removed = await removePerson(
+    db,
+    env,
+    actor,
+    id,
+    field(form, "confirm")
+  );
+
+  return {
+    message: removed.gone
+      ? `${removed.email} is removed, with everything that was theirs.`
+      : `Removing ${removed.email}: mail to them bounces now, and what was theirs goes over the next minutes.`,
+  };
+};
+
 /**
  * A People form, for an admin only: `create` (a mailbox with a one-time password), `deactivate` and `activate`,
- * `admin` and `member`, `reset` (a new one-time password), `alias` and `unalias`, `signout`, `recovery-remove`,
+ * `address` (a new primary address), `remove` (a deactivated person, for good), `admin` and `member`, `reset` (a new one-time password), `alias` and `unalias`, `signout`, `recovery-remove`,
  * `passkeys-remove` and `two-factor-reset`. `id` names the person. An intent it does not know answers nothing.
  */
 export const peopleIntent = async (
@@ -73,6 +121,14 @@ export const peopleIntent = async (
         await setPersonActive(db, user, id, true);
 
         return { message: "Reactivated." };
+      }
+
+      case "address": {
+        return await changeAddressIntent(db, env, id, form);
+      }
+
+      case "remove": {
+        return await removePersonIntent(db, env, user, id, form);
       }
 
       case "admin": {

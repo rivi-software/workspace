@@ -8,6 +8,7 @@ import { pruneExpired } from "~/lib/mail/mailbox.server";
 import { sendDueDrafts } from "~/lib/mail/schedule.server";
 import { pruneSpamTokens } from "~/lib/mail/spam.server";
 import { wakeSnoozed } from "~/lib/mail/threads.server";
+import { runRemovals } from "~/lib/removal.server";
 import { indexForSearch } from "~/lib/search/indexer.server";
 
 /**
@@ -67,8 +68,9 @@ const prune = async (env: Env, db: Database, at: Date): Promise<void> => {
 
 /**
  * The cron (`triggers` in wrangler.jsonc, every minute): snoozed conversations whose time came wake in every mailbox,
- * the scheduled messages that are due go out, then each running mailbox import takes a batch, then the search by meaning reads a few
- * conversations and files into its index. Last, a batch of what
+ * the scheduled messages that are due go out, then each running mailbox import takes a batch, then the people an admin
+ * removed lose another batch of what was theirs, then the search by meaning reads a few conversations and files into
+ * its index. Last, a batch of what
  * expired goes in every drive and every mailbox: Drive's trash after 30 days and the uploads abandoned for a day, then
  * Mail's trash and Spam after 30 days, whether or not anyone opens Drive or Mail; then the spam filter of the mailbox
  * whose turn the minute `at` is forgets its idle words, each mailbox once a day. `at` is the minute the run was
@@ -128,6 +130,21 @@ export const handleScheduled = async (
     );
     captureServerException(error, {
       properties: { handler: "scheduled", job: "import" },
+    });
+  }
+
+  try {
+    const removed = await runRemovals(env, db);
+
+    if (removed) {
+      console.log(JSON.stringify({ event: "people.removed", removed }));
+    }
+  } catch (error) {
+    console.error(
+      JSON.stringify({ event: "people.removal_error", error: String(error) })
+    );
+    captureServerException(error, {
+      properties: { handler: "scheduled", job: "removal" },
     });
   }
 

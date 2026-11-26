@@ -24,6 +24,10 @@
     {
       "name": "0005_groups.sql",
       "sha256": "3711cf3d19f4f29cbda19e3617cae1f39d8704e99563fcca190c3c40ae153309"
+    },
+    {
+      "name": "0006_person_removal.sql",
+      "sha256": "9e681b1ffcb76af7f84fdf1be5bb29ae4944450ab609f864b158e0efc3f1c0e7"
     }
   ]
 }
