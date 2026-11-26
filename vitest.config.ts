@@ -35,6 +35,7 @@ export default defineConfig({
             SES_SECRET_ACCESS_KEY: "",
             // The Assistant's tests run on the mock model; nothing calls Workers AI.
             AI_PROVIDER: "mock",
+            AI_FEATURES: "on",
             // An empty PostHog token keeps the tests from sending exceptions anywhere.
             POSTHOG_PROJECT_TOKEN: "",
           },

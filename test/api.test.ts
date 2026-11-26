@@ -23,6 +23,7 @@ import {
   recordingEmail,
 } from "./fixtures";
 import type { Json } from "./fixtures";
+import { stubEnv } from "./stub-env";
 
 const issuer = env.APP_URL.replace(/\/+$/u, "");
 const api = `${issuer}/api/v1`;
@@ -1130,6 +1131,63 @@ describe("the Workspace API", () => {
       { ok: true },
       404,
     ]);
+  });
+
+  it("answers no Assistant while AI_FEATURES is off, and /me says so", async () => {
+    const worker = createWorker(
+      () => new Response("no start", { status: 404 })
+    );
+
+    const off = stubEnv({ ...env, AI_FEATURES: "off" });
+
+    const fetchFn: typeof fetch = (input, init) =>
+      worker.fetch(
+        // SAFETY: nothing in the Worker reads `request.cf`; a plain Request stands in for Workers' own.
+        new Request(input, init) as Request<
+          unknown,
+          IncomingRequestCfProperties
+        >,
+        off
+      );
+
+    const before = await call(token, "GET", "/me");
+    const me = await call(token, "GET", "/me", undefined, fetchFn);
+
+    const conversations = await call(
+      token,
+      "GET",
+      "/assistant/conversations",
+      undefined,
+      fetchFn
+    );
+
+    const chat = await call(
+      token,
+      "POST",
+      "/assistant/chat",
+      {
+        conversationId: null,
+        message: { role: "user", parts: [{ type: "text", text: "Hello" }] },
+      },
+      fetchFn
+    );
+
+    const refused = {
+      ok: false,
+      error: "The Assistant is off in this workspace.",
+    };
+
+    expect({
+      before: before.data.assistant,
+      me: [me.data.assistant, me.data.suggestions],
+      conversations: [conversations.status, conversations.data],
+      chat: [chat.status, chat.data],
+    }).toStrictEqual({
+      before: { enabled: true },
+      me: [{ enabled: false }, []],
+      conversations: [404, refused],
+      chat: [404, refused],
+    });
   });
 
   it("ends with the session: after a sign-out everywhere the token gets 401 at its next request", async () => {

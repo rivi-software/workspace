@@ -145,6 +145,9 @@
       "SES_REGION": {
         "description": "Amazon SES's region, used only once the two SES secrets are set."
       },
+      "AI_FEATURES": {
+        "description": "`off` turns every AI feature off: the Assistant, its API and every link to it. Anything else leaves them on."
+      },
       "AI_PROVIDER": {
         "description": "The Assistant's model: `workers-ai` (Workers AI through AI Gateway), `anthropic` (Claude through AI Gateway, which holds the key) or `mock` (no model)."
       },

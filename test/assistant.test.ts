@@ -25,6 +25,7 @@ import { ingestInboundEmail } from "~/lib/mail/ingest.server";
 
 import { db, defined, mail, mailbox, stringContaining } from "./fixtures";
 import { renderMarkdown } from "./markdown";
+import { stubEnv } from "./stub-env";
 
 /** A question to the assistant, its answer read to the end (the stream), and the stored turn waited for. */
 const ask = async (
@@ -323,6 +324,19 @@ describe("the assistant", () => {
         message: { role: "assistant" },
       })
     ).rejects.toThrow(AssistantError);
+  });
+
+  it("answers nothing while AI_FEATURES is off, and files no question", async () => {
+    const before = await listConversations(db, ann.id);
+
+    await expect(
+      answerChat(stubEnv({ ...env, AI_FEATURES: "off" }), db, ann, {
+        conversationId: null,
+        message: { role: "user", parts: [{ type: "text", text: "Hello" }] },
+      })
+    ).rejects.toThrow("The Assistant is off in this workspace.");
+
+    await expect(listConversations(db, ann.id)).resolves.toStrictEqual(before);
   });
 
   it("refuses another person's conversation, and deletes for the owner only", async () => {

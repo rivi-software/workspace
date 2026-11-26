@@ -35,7 +35,7 @@ client ── POST /api/auth/sign-out, Authorization: Bearer <token> ──▶ 2
 
 | Method and path | Answer |
 | --- | --- |
-| `GET /me` | `{ user: { id, name, email, role: "admin" \| "member" }, appName, counts, labels: LabelRef[], preferences: { layout, undoSendSeconds, pageSize }, driveUsed: bytes, github: { connected }, colleagues: [{ id, name, email }], suggestions: string[] }`. `counts` is `{ inboxUnread, spamUnread, snoozed, drafts, scheduled, labels: { <labelId>: unread } }`; `suggestions` are the Assistant's opening questions. |
+| `GET /me` | `{ user: { id, name, email, role: "admin" \| "member" }, appName, counts, labels: LabelRef[], preferences: { layout, undoSendSeconds, pageSize }, driveUsed: bytes, github: { connected }, colleagues: [{ id, name, email }], assistant: { enabled }, suggestions: string[] }`. `counts` is `{ inboxUnread, spamUnread, snoozed, drafts, scheduled, labels: { <labelId>: unread } }`; `assistant.enabled` is false while the workspace's AI is off (`AI_FEATURES`); `suggestions` are the Assistant's opening questions, none while it is off. |
 
 ### Mail
 
@@ -204,6 +204,8 @@ interface Issue { repo: string; number: number; title: string; url: string; stat
 | `GET /assistant/conversations/:id` | | `{ conversation: { id, title, updatedAt }, messages: [{ id, role: "user" \| "assistant", parts: Part[] }] }` oldest first |
 | `DELETE /assistant/conversations/:id` | | `{ ok: true }` |
 | `POST /assistant/chat` | `{ conversationId: string \| null, message: { role: "user", parts: [{ type: "text", text }] } }` | `text/event-stream`: the answer as it comes (below) |
+
+While the workspace's AI is off (`AI_FEATURES` is `off`; `GET /me` answers `assistant.enabled: false`), every route of this section is `404` with `{ ok: false, error: "The Assistant is off in this workspace." }`.
 
 A stored `Part` is `{ type: "text", text }`, `{ type: "step-start" }`, or a tool's step `{ type: "tool-<name>", toolCallId, state: "output-available", input, output }` with `<name>` one of `search_mail`, `read_conversation`, `search_drive`, `read_file`, `create_draft`. The answer's text is Markdown, with links on paths of the console (`/mail/t/<id>`, `/drive/d/<id>`); a client shows the step as "Searched mail", "Read a conversation", "Searched Drive", "Read a file", "Prepared a draft".
 

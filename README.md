@@ -114,6 +114,7 @@ Workspace is an open-source workspace that runs on Cloudflare: **Mail** (receivi
 - **A conversation** at `/assistant` (`⌘J`, or `g h`), the recent ones in the sidebar, each a document of your questions and the assistant's answers with the steps it took in between ("Searched mail for “the plan” · 3 conversations", with a link). Answers stream as they are written; **Stop** cuts one short; a conversation can be deleted for good.
 - **What it can do**: search mail in the search box's language over All mail or a folder, read a conversation, search Drive by name or list the recent files, read a text file (plain text, Markdown, CSV, JSON, code, up to 256 KB), and **prepare a draft**: a reply to a conversation or a new message, left in Drafts with a link to the composer. It never sends mail and changes nothing else. **Ask the assistant** in a conversation's menu in Mail opens it with a question about that conversation.
 - **The model**: `AI_PROVIDER` in `wrangler.jsonc` names it: `workers-ai` runs `AI_CHAT_MODEL` (Llama 3.3 70B by default) on Workers AI through AI Gateway, `anthropic` a Claude model through the gateway's provider-native endpoint (the gateway holds the key), `mock` a deterministic stand-in for the tests and local development. What the assistant reads to answer goes to that model; the gateway's log is off for every call.
+- **Turning AI off**: `AI_FEATURES` in `wrangler.jsonc` is `on`; `off` turns every AI feature off at once. The Assistant's pages only say it is off, its module, shortcuts and **Ask the assistant** disappear, and its routes (`/api/assistant/chat`, `/api/v1/assistant/*`) answer 404, so nothing a person keeps reaches a model. The conversations already kept stay in D1 and come back when it is on again.
 
 ## Calendar and Tasks
 
@@ -221,6 +222,7 @@ Then clone the copy, run `pnpm install` and `wrangler login`, and continue with 
    | `APP_URL` | The Worker's address, with scheme: the origin of every link in a mail, of every passkey and of the sign-in forms. A custom domain through `routes` (`"routes": [{ "pattern": "workspace.example.com", "custom_domain": true }]`; Wrangler creates the DNS record and certificate on deploy), or the Worker's workers.dev address with `"workers_dev": true`. One origin either way; preview URLs stay off. |
    | `MAIL_DOMAIN` | The domain every mailbox is an address on. |
    | `SES_REGION` | Amazon SES's region, when SES sends ([Amazon SES](#amazon-ses)). |
+   | `AI_FEATURES` | `off` turns every AI feature off: the Assistant, its API and every link to it ([Assistant](#assistant)). Anything else leaves them on. |
    | `AI_PROVIDER`, `AI_GATEWAY_ID`, `AI_CHAT_MODEL` | The Assistant's model ([Assistant](#assistant)). `mock` runs the workspace without a model. |
    | `AI_TEXT_ANALYTICS` | `on` sends the Assistant's prompts and answers to PostHog AI observability beside the counts; anything else sends counts only ([PostHog](#posthog)). |
    | `POSTHOG_PROJECT_TOKEN`, `POSTHOG_HOST` | PostHog, optional; an empty token keeps it off. |

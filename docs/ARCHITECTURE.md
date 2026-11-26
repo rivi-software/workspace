@@ -113,6 +113,7 @@ app/
   lib/drive/signing-actions.ts  the server functions signing's pages call: send a request, cancel, remind, sign, the saved signature
   lib/drive/actions.ts    the server functions the Drive components call: an intent on nodes, the move targets, sharing, Settings → Drive
   lib/workspace-settings.server.ts  workspace-wide settings an admin changes: sharing outside the workspace on or off
+  lib/ai.ts                   AI_FEATURES: whether the AI features are on, for the server and the pages alike
   lib/assistant/assistant.ts  the Assistant's vocabulary: the tools' names, the limits, a message as stored, a tool step as the page shows it
   lib/assistant/provider.server.ts  the model from AI_PROVIDER: Workers AI or Anthropic through AI Gateway, or the mock
   lib/assistant/tools.server.ts     what the assistant can do: search mail, read a conversation, search Drive, read a text file, prepare a draft

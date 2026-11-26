@@ -1,6 +1,7 @@
 import {
   Link,
   createFileRoute,
+  getRouteApi,
   notFound,
   useHydrated,
   useNavigate,
@@ -674,6 +675,8 @@ const StateMenuItems = ({ thread, act }: { thread: ThreadInfo; act: Act }) => (
   </>
 );
 
+const appRoute = getRouteApi("/_app");
+
 const ThreadMenu = ({
   thread,
   messages,
@@ -687,6 +690,8 @@ const ThreadMenu = ({
 }) => {
   const last = messages.at(-1);
   const { allOpen, toggleAll, print } = reading;
+  // "Ask the assistant" only while AI is on (`AI_FEATURES`).
+  const { ai } = appRoute.useLoaderData();
 
   return (
     <Menu
@@ -725,15 +730,17 @@ const ThreadMenu = ({
       >
         Print
       </MenuItem>
-      <MenuLink
-        icon={<Sparkles className="h-3.5 w-3.5" />}
-        to="/assistant"
-        search={{
-          prompt: `Summarize the conversation “${thread.subject}” (${thread.id}).`,
-        }}
-      >
-        Ask the assistant
-      </MenuLink>
+      {ai && (
+        <MenuLink
+          icon={<Sparkles className="h-3.5 w-3.5" />}
+          to="/assistant"
+          search={{
+            prompt: `Summarize the conversation “${thread.subject}” (${thread.id}).`,
+          }}
+        >
+          Ask the assistant
+        </MenuLink>
+      )}
       {last?.hasRaw && (
         <MenuAnchor
           icon={<Download className="h-3.5 w-3.5" />}

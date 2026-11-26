@@ -23,5 +23,7 @@ SES_SECRET_ACCESS_KEY=
 # named …", "read conversation th_…", "draft a reply to th_… saying …"); workers-ai or anthropic run the real one through
 # the AI binding, which needs `wrangler login`.
 AI_PROVIDER=mock
+# Every AI feature at once: `off` hides the Assistant and refuses its routes.
+AI_FEATURES=on
 # PostHog stays off locally and in CI. Set a project token to send local errors.
 POSTHOG_PROJECT_TOKEN=

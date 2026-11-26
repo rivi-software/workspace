@@ -1,4 +1,5 @@
 /** `GET /api/v1/me`: the person, their counts, labels and preferences, and what the tabs need to start (docs/API.md). */
+import { aiEnabled } from "~/lib/ai";
 import { SUGGESTIONS } from "~/lib/assistant/assistant";
 import { colleagues, storageUsed } from "~/lib/drive/drive.server";
 import { listLabels } from "~/lib/mail/labels.server";
@@ -22,6 +23,8 @@ export const meRoutes: ApiRoute[] = [
         githubConnection(db, user.id),
       ]);
 
+      const ai = aiEnabled(env);
+
       return json({
         user: {
           id: user.id,
@@ -36,7 +39,8 @@ export const meRoutes: ApiRoute[] = [
         driveUsed,
         github: { connected: github !== null },
         colleagues: people,
-        suggestions: [...SUGGESTIONS],
+        assistant: { enabled: ai },
+        suggestions: ai ? [...SUGGESTIONS] : [],
       });
     },
   },
