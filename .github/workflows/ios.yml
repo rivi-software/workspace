@@ -1,0 +1,72 @@
+# Workspace for iPhone (ios/), on a pull request that changes it: WorkspaceKit's tests on Linux in Swift's own image,
+# then the package's tests and the app's build for the iOS Simulator (unsigned) on a Mac with the newest Xcode. Nothing
+# is signed or published (ios/README.md, Releases).
+name: iOS
+
+on:
+  pull_request:
+    paths:
+      - "ios/**"
+      - "!ios/**/*.md"
+      - ".github/workflows/ios.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ios-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  package:
+    name: Test WorkspaceKit on Linux
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    container: swift:6.2
+    defaults:
+      run:
+        working-directory: ios/WorkspaceKit
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - run: swift test
+
+  app:
+    name: Test the package and build the app on a Mac
+    runs-on: macos-26
+    timeout-minutes: 40
+    defaults:
+      run:
+        working-directory: ios
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      # iOS 26 and Liquid Glass need Xcode 26 or later; a runner with an older one fails here, plainly.
+      - name: Select the newest Xcode
+        run: |
+          set -euo pipefail
+          newest=$(find /Applications -maxdepth 1 -name 'Xcode*.app' | sort -V | tail -1)
+          sudo xcode-select -s "$newest"
+          version=$(xcodebuild -version | head -1 | awk '{print $2}')
+          echo "Using $newest ($version)"
+          if [ "${version%%.*}" -lt 26 ]; then
+            echo "::error::The app needs Xcode 26 or later for iOS 26 and Liquid Glass; this runner has $version."
+            exit 1
+          fi
+      - name: Test the Swift package
+        working-directory: ios/WorkspaceKit
+        run: swift test
+      - name: Build the app for the iOS Simulator
+        run: |
+          set -euo pipefail
+          xcodebuild \
+            -project RIVIWorkspace.xcodeproj \
+            -scheme Workspace \
+            -destination 'generic/platform=iOS Simulator' \
+            -configuration Debug \
+            CODE_SIGNING_ALLOWED=NO \
+            -quiet \
+            build

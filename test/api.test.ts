@@ -10,6 +10,7 @@ import { beforeAll, describe, expect, it, onTestFinished } from "vitest";
 import { spamTokens } from "~/db/schema";
 import type { User } from "~/db/schema";
 import { revoke } from "~/lib/auth.server";
+import { groupsIntent, groupsSettings } from "~/lib/groups.server";
 import { isJsonObject, stringOrNull } from "~/lib/guards";
 import { addImageSender } from "~/lib/mail/images.server";
 import { ingestInboundEmail } from "~/lib/mail/ingest.server";
@@ -18,10 +19,13 @@ import { TOTAL_TOKEN } from "~/lib/mail/spam";
 import { trainTokens } from "~/lib/mail/spam.server";
 
 import { createWorker } from "../workers/worker";
+import { enrolAuthenticator } from "./authenticator";
 import {
   PASSWORD,
+  adminMailbox,
   db,
   defined,
+  formOf,
   mail,
   mailbox,
   parseJson,
@@ -1324,5 +1328,214 @@ describe("the Workspace API", () => {
     const after = await call(token, "GET", "/me");
 
     expect(after.status).toBe(401);
+  });
+});
+
+describe("a shared group inbox over the Workspace API", () => {
+  it("lists it in /me, reads and answers it with ?box= for a member, and refuses anyone else", async () => {
+    const admin = await adminMailbox("api-group-admin");
+    const member = await mailbox("api-group-member", "Mo Member");
+    const outsider = await mailbox("api-group-outsider");
+
+    const act = (fields: Record<string, string>) =>
+      groupsIntent(db, env, admin, formOf(fields));
+
+    await act({
+      intent: "create",
+      email: "api-help",
+      name: "Help desk",
+      mode: "shared",
+    });
+
+    const settings = await groupsSettings(db, env, admin);
+
+    const group = defined(
+      settings.groups.find((g) => g.email === `api-help@${env.MAIL_DOMAIN}`),
+      "the group"
+    );
+
+    await act({
+      intent: "add",
+      id: group.id,
+      email: member.email,
+      role: "member",
+    });
+
+    const arrived = await ingestInboundEmail(
+      env,
+      null,
+      mail({ subject: "Printer on fire" }),
+      group.email
+    );
+
+    expect(arrived.status).toBe("stored");
+
+    const token = await signInAsApp(member);
+    const box = `box=${encodeURIComponent(group.id)}`;
+
+    const me = await call(token, "GET", "/me");
+
+    const boxes = list(me.data.mailboxes).map((row) => {
+      const b = obj(row);
+
+      return {
+        id: b.id,
+        name: b.name,
+        email: b.email,
+        unread: obj(b.counts).inboxUnread,
+      };
+    });
+
+    const own = await call(token, "GET", "/mail/threads");
+    const shared = await call(token, "GET", `/mail/threads?${box}`);
+    const threadId = str(obj(list(shared.data.threads)[0]).id);
+
+    // The reply goes out from the group's address, and the group's copy keeps who wrote it.
+    const { fetchFn } = workerWithMail();
+    const opened = await call(token, "GET", `/mail/threads/${threadId}?${box}`);
+    const replyTo = str(obj(list(opened.data.messages)[0]).id);
+
+    const compose = await call(
+      token,
+      "GET",
+      `/mail/compose?reply=${encodeURIComponent(replyTo)}&mode=reply&${box}`
+    );
+
+    const sent = await call(
+      token,
+      "POST",
+      `/mail/send?${box}`,
+      {
+        from: group.email,
+        to: "someone@acme.com",
+        cc: "",
+        bcc: "",
+        subject: "",
+        text: "On it.",
+        inReplyToId: replyTo,
+      },
+      fetchFn
+    );
+
+    const after = await call(token, "GET", `/mail/threads/${threadId}?${box}`);
+    const reply = obj(list(after.data.messages).at(-1));
+
+    // A member's own mailbox does not hold the group's conversation, by id either.
+    const ownOpen = await call(token, "GET", `/mail/threads/${threadId}`);
+
+    const outsiderToken = await signInAsApp(outsider);
+    const refused = await call(outsiderToken, "GET", `/mail/threads?${box}`);
+    const outsiderMe = await call(outsiderToken, "GET", "/me");
+
+    expect({
+      boxes,
+      own: names(own.data.threads, "subject"),
+      shared: names(shared.data.threads, "subject"),
+      froms: list(compose.data.froms).map((f) => obj(f).email),
+      sent: sent.status,
+      replyFrom: obj(reply.from).email,
+      sentBy: reply.sentBy,
+      ownOpen: ownOpen.status,
+      refused: { status: refused.status, error: refused.data.error },
+      outsiderBoxes: list(outsiderMe.data.mailboxes),
+    }).toStrictEqual({
+      boxes: [
+        { id: group.id, name: "Help desk", email: group.email, unread: 1 },
+      ],
+      own: [],
+      shared: ["Printer on fire"],
+      froms: [group.email],
+      sent: 200,
+      replyFrom: group.email,
+      sentBy: "Mo Member",
+      ownOpen: 404,
+      refused: { status: 404, error: "You are not in that group inbox." },
+      outsiderBoxes: [],
+    });
+  });
+});
+
+/** A JSON post to Better Auth with no cookie store: the headers given, and nothing else. */
+const post = (path: string, body: Json, headers: Record<string, string> = {}) =>
+  exports.default.fetch(`${issuer}/api/auth${path}`, {
+    method: "POST",
+    headers: { "content-type": "application/json", ...headers },
+    body: JSON.stringify(body),
+  });
+
+/** `name=value` of the two-factor cookie the password step set, as ios/WorkspaceKit's `twoFactorCookie` picks it. */
+const twoFactorCookie = (res: Response) =>
+  res.headers
+    .getSetCookie()
+    .map((cookie) => cookie.split(";")[0] ?? "")
+    .find((pair) => pair.split("=")[0]?.endsWith("workspace.two_factor"));
+
+describe("signing in as the phone app does, with an authenticator app", () => {
+  it("takes the password with no Origin, then the code with the cookie and the workspace's origin, and answers a token the API takes", async () => {
+    const user = await mailbox("phone-2fa", "Tess Two");
+    const app = await enrolAuthenticator(user);
+
+    const first = await post("/sign-in/email", {
+      email: user.email,
+      password: PASSWORD,
+    });
+
+    const firstBody = obj(await first.json());
+    const cookie = defined(twoFactorCookie(first), "the two-factor cookie");
+
+    const wrong = await post(
+      "/two-factor/verify-totp",
+      { code: "000000" },
+      { cookie, origin: new URL(env.APP_URL).origin }
+    );
+
+    const right = await post(
+      "/two-factor/verify-totp",
+      { code: await app.code() },
+      { cookie, origin: new URL(env.APP_URL).origin }
+    );
+
+    const token = defined(right.headers.get("set-auth-token"), "the token");
+    const me = await call(token, "GET", "/me");
+
+    expect({
+      first: first.status,
+      redirect: firstBody.twoFactorRedirect,
+      tokenBeforeCode: first.headers.get("set-auth-token"),
+      wrong: wrong.status,
+      right: right.status,
+      me: obj(me.data.user).email,
+    }).toStrictEqual({
+      first: 200,
+      redirect: true,
+      tokenBeforeCode: null,
+      wrong: 401,
+      right: 200,
+      me: user.email,
+    });
+  });
+
+  it("takes a backup code the same way", async () => {
+    const user = await mailbox("phone-backup", "Bo Backup");
+    const app = await enrolAuthenticator(user);
+
+    const first = await post("/sign-in/email", {
+      email: user.email,
+      password: PASSWORD,
+    });
+
+    const cookie = defined(twoFactorCookie(first), "the two-factor cookie");
+
+    const res = await post(
+      "/two-factor/verify-backup-code",
+      { code: defined(app.backupCodes[0], "a backup code") },
+      { cookie, origin: new URL(env.APP_URL).origin }
+    );
+
+    const token = defined(res.headers.get("set-auth-token"), "the token");
+
+    const me = await call(token, "GET", "/me");
+
+    expect(me.status).toBe(200);
   });
 });

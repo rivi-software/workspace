@@ -36,9 +36,11 @@ client ── POST /api/auth/sign-out, Authorization: Bearer <token> ──▶ 2
 
 | Method and path | Answer |
 | --- | --- |
-| `GET /me` | `{ user: { id, name, email, role: "admin" \| "member" }, appName, counts, labels: LabelRef[], preferences: { layout, undoSendSeconds, pageSize }, driveUsed: bytes, github: { connected }, colleagues: [{ id, name, email }], assistant: { enabled }, suggestions: string[] }`. `counts` is `{ inboxUnread, spamUnread, snoozed, drafts, scheduled, labels: { <labelId>: unread } }`; `assistant.enabled` is false while the workspace's AI is off (`AI_FEATURES`); `suggestions` are the Assistant's opening questions, none while it is off. |
+| `GET /me` | `{ user: { id, name, email, role: "admin" \| "member" }, appName, counts, labels: LabelRef[], mailboxes: [{ id, name, email, counts, labels: LabelRef[] }], preferences: { layout, undoSendSeconds, pageSize }, driveUsed: bytes, github: { connected }, colleagues: [{ id, name, email }], assistant: { enabled }, suggestions: string[] }`. `counts` is `{ inboxUnread, spamUnread, snoozed, drafts, scheduled, labels: { <labelId>: unread } }`; `mailboxes` are the shared group inboxes the person is in, by name, each with its own counts and labels (open one with `?box=<id>` on the Mail routes); `assistant.enabled` is false while the workspace's AI is off (`AI_FEATURES`); `suggestions` are the Assistant's opening questions, none while it is off. |
 
 ### Mail
+
+Every Mail route takes `?box=<id>`: the id of a shared group inbox the person is in (`GET /me`'s `mailboxes`), whose mail the route then reads and changes as if it were the person's own, as the console's `/mail?box=` does. Without it the route acts in the person's own mailbox. A box the person is not in, a group that is off, a distribution group or another person's mailbox is `404` with `{ ok: false, error: "You are not in that group inbox." }`. In a shared inbox `GET /mail/compose` offers the group's addresses to send from, and `POST /mail/send` keeps who wrote the message (`MessageView.sentBy`) for the other members. A distribution group needs none of this: its mail lands in each member's own inbox, and its address is among `ComposeData.froms`.
 
 | Method and path | Request | Answer |
 | --- | --- | --- |
@@ -85,7 +87,7 @@ interface MessageView {
   deliveryStatus: "received" | "sent" | "failed"; deliveryError: string | null;
   spam: boolean;             // the spam filter put it in Spam when it arrived
   pgp: PgpStatus | null;     // what OpenPGP did to it; null for mail without OpenPGP
-  sentBy: string | null;     // the member who wrote it, for a message a shared group inbox sent; null otherwise
+  sentBy: string | null;     // the name of the member who wrote it, for a message a shared group inbox sent; null otherwise
   attachments: [{ id: string; filename: string; contentType: string; size: number; inline: boolean; contentId: string | null; url: string }];
 }
 interface PgpStatus {
