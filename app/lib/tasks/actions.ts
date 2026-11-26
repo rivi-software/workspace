@@ -9,12 +9,8 @@ import { formData, formPost } from "~/lib/forms";
 import { field } from "~/lib/guards";
 import { appContext } from "~/lib/request.server";
 
-import {
-  GitHubError,
-  connectGitHub,
-  disconnectGitHub,
-  githubErrorMessage,
-} from "./github.server";
+import { githubIntent } from "./settings.server";
+import type { GitHubConnectResult } from "./settings.server";
 import { parseIssueRef } from "./tasks";
 import type { TaskRow } from "./tasks";
 import {
@@ -150,53 +146,14 @@ export const taskAction = createServerFn({ method: "POST" })
     }
   });
 
-export interface GitHubConnectResult {
-  error?: string;
-  message?: string;
-}
+export type { GitHubConnectResult } from "./settings.server";
 
-/** Settings → Tasks: `connect` with a `token` of the person's own, or `disconnect`. */
+/** Settings → Tasks' form, which `githubIntent` does. */
 export const githubAction = createServerFn({ method: "POST" })
   .middleware([formPost])
   .validator(formData)
   .handler(async ({ data }): Promise<GitHubConnectResult> => {
     const { db, env, user } = await appContext();
-    const intent = field(data, "intent");
 
-    try {
-      if (intent === "connect") {
-        const me = await connectGitHub(env, db, user.id, field(data, "token"));
-        console.log(
-          JSON.stringify({
-            event: "github.connected",
-            by: user.id,
-            login: me.login,
-          })
-        );
-
-        return {
-          message: `Connected as ${me.login}. Your assigned issues are on the Tasks page.`,
-        };
-      }
-
-      if (intent === "disconnect") {
-        await disconnectGitHub(db, user.id);
-        console.log(
-          JSON.stringify({ event: "github.disconnected", by: user.id })
-        );
-
-        return {
-          message:
-            "Disconnected. The token is gone; your tasks stay, their issues untouched.",
-        };
-      }
-    } catch (error) {
-      if (error instanceof GitHubError) {
-        return { error: githubErrorMessage(error) };
-      }
-
-      throw error;
-    }
-
-    return { error: "Unknown action." };
+    return githubIntent(db, env, user, data);
   });

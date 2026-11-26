@@ -149,8 +149,8 @@ export const LabelPicker = ({
     }
 
     setBusy(true);
-    const made = await onCreate(q.trim());
-    setBusy(false);
+    // A call that fails must not leave the button busy for good.
+    const made = await onCreate(q.trim()).finally(() => setBusy(false));
 
     if (made) {
       onToggle(made, true);

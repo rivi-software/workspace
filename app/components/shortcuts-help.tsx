@@ -103,11 +103,11 @@ const GROUPS: { title: string; keys: [string[], string][] }[] = [
 export const ShortcutsHelp = ({
   open,
   onClose,
-  ai,
+  assistant,
 }: {
   open: boolean;
   onClose: () => void;
-  ai: boolean;
+  assistant: boolean;
 }) => (
   <Dialog
     open={open}
@@ -123,7 +123,7 @@ export const ShortcutsHelp = ({
           </h3>
           <dl className="space-y-1">
             {g.keys
-              .filter(([, what]) => ai || what !== "Assistant")
+              .filter(([, what]) => assistant || what !== "Assistant")
               .map(([keys, what]) => (
                 <div
                   key={what}

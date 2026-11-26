@@ -31,7 +31,7 @@ import {
   DRIVE_VIEW_LABEL,
   canEdit,
   formatSize,
-  servesInline,
+  opensInTab,
 } from "~/lib/drive/drive";
 import type {
   DriveCrumb,
@@ -41,6 +41,7 @@ import type {
   DriveSort,
   DriveView,
 } from "~/lib/drive/drive";
+import { useAndroidApp } from "~/lib/mobile-app";
 
 import { useListNavigation, useShortcuts } from "../keyboard";
 import { useSelection } from "../mail-selection";
@@ -517,6 +518,7 @@ const RowMenuItems = ({
 }) => {
   const fileUrl = `/api/drive/files/${row.id}`;
   const editable = canEdit(row.role);
+  const androidApp = useAndroidApp();
 
   if (inTrash) {
     return (
@@ -546,7 +548,7 @@ const RowMenuItems = ({
       >
         Open
       </MenuItem>
-      {row.kind === "file" && servesInline(row.contentType) && (
+      {row.kind === "file" && opensInTab(row.contentType, !androidApp) && (
         <MenuAnchor
           href={fileUrl}
           target="_blank"

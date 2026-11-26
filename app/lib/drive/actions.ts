@@ -10,7 +10,7 @@ import { formData, formPost } from "~/lib/forms";
 import { field, stringList, stringOrNull } from "~/lib/guards";
 import type { AppContext } from "~/lib/request.server";
 import { appContext } from "~/lib/request.server";
-import { setExternalSharing } from "~/lib/workspace-settings.server";
+import type { SettingsResult } from "~/lib/settings";
 
 import { EVERYONE, isShareRole } from "./drive";
 import {
@@ -37,6 +37,7 @@ import {
   revokeExternalShare,
 } from "./links.server";
 import type { ExternalSharing } from "./links.server";
+import { driveSettingsIntent } from "./settings.server";
 
 /** The node ids a form names: `ids` as a JSON array, or `id` once. */
 const readIds = (data: FormData): string[] => {
@@ -372,30 +373,12 @@ export const driveFolderPath = createServerFn({ method: "POST" })
     }
   );
 
-/** Settings → Drive, for an admin: `external-sharing` turns sharing outside the workspace on (`on` checked) or off. */
+/** Settings → Drive's form, for an admin, which `driveSettingsIntent` does. */
 export const driveAdminAction = createServerFn({ method: "POST" })
   .middleware([formPost])
   .validator(formData)
-  .handler(async ({ data }): Promise<{ error?: string; message?: string }> => {
-    const { db, user } = await appContext();
+  .handler(async ({ data }): Promise<SettingsResult> => {
+    const { db, env, user } = await appContext();
 
-    if (user.role !== "admin") {
-      return { error: "Only an admin can change this." };
-    }
-
-    if (field(data, "intent") !== "external-sharing") {
-      return { error: "Unknown action." };
-    }
-
-    const on = data.get("on") === "on";
-    await setExternalSharing(db, user.id, on);
-    console.log(
-      JSON.stringify({ event: "drive.external-sharing", on, by: user.id })
-    );
-
-    return {
-      message: on
-        ? "Sharing outside the workspace is on."
-        : "Sharing outside the workspace is off. Existing links stay off until it is on again.",
-    };
+    return driveSettingsIntent(db, env, user, data);
   });

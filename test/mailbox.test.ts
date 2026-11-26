@@ -181,17 +181,17 @@ describe("a page of a list", () => {
     });
     await applyThreadAction(db, env, user.id, [a], { intent: "archive" });
 
-    const labelled = await listPage(db, env, user, {
+    const labelled = await listPage(db, user, {
       label: label.id,
       folder: "inbox",
     });
 
-    const otherLabel = await listPage(db, env, user, {
+    const otherLabel = await listPage(db, user, {
       label: "lbl_not_theirs",
       folder: "archive",
     });
 
-    const unknown = await listPage(db, env, user, { folder: "nowhere" });
+    const unknown = await listPage(db, user, { folder: "nowhere" });
 
     expect({
       labelled: {
@@ -229,35 +229,32 @@ describe("a page of a list", () => {
     });
   });
 
-  it("clamps the page, takes a page size it offers, trims the search and prunes a few times a day", async () => {
+  it("clamps the page, takes a page size it offers, trims the search and leaves the pruning to the cron", async () => {
     const user = await mailbox("paula", "Paula Pages");
     await deliver(user.email, { subject: "Pizza on Friday" });
-    await env.KV.delete(`prune:${user.id}`);
 
     const asked = [null, "0", "-3", "2.7", "lots", "99999"];
 
     const pages = await Promise.all(
-      asked.map((page) => listPage(db, env, user, { page }))
+      asked.map((page) => listPage(db, user, { page }))
     );
 
     const sized = await Promise.all(
       [undefined, "25", 100, "30"].map((pageSize) =>
-        listPage(db, env, user, { pageSize })
+        listPage(db, user, { pageSize })
       )
     );
 
-    const search = await listPage(db, env, user, { q: "  pizza  " });
+    const search = await listPage(db, user, { q: "  pizza  " });
 
     expect({
       pages: pages.map((p) => p.page),
       sizes: sized.map((p) => p.pageSize),
       search: [search.q, search.total],
-      pruned: await env.KV.get(`prune:${user.id}`),
     }).toStrictEqual({
       pages: [1, 1, 1, 2, 1, 10_000],
       sizes: [50, 25, 100, 50],
       search: ["pizza", 1],
-      pruned: "1",
     });
   });
 
@@ -275,8 +272,8 @@ describe("a page of a list", () => {
       text: `Hello\n\n   there,   ${"word ".repeat(40)}`,
     });
 
-    const drafts = await listPage(db, env, user, { folder: "drafts" });
-    const scheduled = await listPage(db, env, user, { folder: "scheduled" });
+    const drafts = await listPage(db, user, { folder: "drafts" });
+    const scheduled = await listPage(db, user, { folder: "scheduled" });
 
     expect({
       drafts: [drafts.total, drafts.threads, drafts.drafts],
@@ -310,9 +307,9 @@ describe("a page of a list", () => {
       until: minutes(60, now).toISOString(),
     });
 
-    const early = await listPage(db, env, user, {}, minutes(59, now));
+    const early = await listPage(db, user, {}, minutes(59, now));
     const at = minutes(61, now);
-    const due = await listPage(db, env, user, {}, at);
+    const due = await listPage(db, user, {}, at);
 
     expect({
       early: early.threads.map((t) => t.id),

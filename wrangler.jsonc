@@ -24,16 +24,20 @@
     // SES_ACCESS_KEY_ID and SES_SECRET_ACCESS_KEY are set too (README, Amazon SES), and through the EMAIL binding
     // until then.
     "SES_REGION": "eu-central-1",
-    // Every AI feature at once (app/lib/ai.ts): "off" turns the Assistant off, its pages, its API and every link to it,
-    // so nothing a person keeps reaches a model; anything else leaves them on.
+    // Every AI feature at once (app/lib/ai.ts): "off" turns the Assistant off (its pages, its API and every link to
+    // it), Mail's summary and draft, and the search by meaning's indexing, so nothing a person keeps reaches a model;
+    // anything else leaves them on.
     "AI_FEATURES": "on",
     // The Assistant's model (app/lib/assistant/provider.server.ts): "workers-ai" runs AI_CHAT_MODEL on Workers AI
-    // through the AI binding and AI Gateway, "anthropic" a Claude model through the gateway's provider-native
-    // endpoint (the gateway holds the key), "mock" a deterministic stand-in (the tests, local dev). Every call turns
-    // the gateway's log off: it would hold the person's mail.
+    // through the AI binding and AI Gateway; "anthropic" runs AI_CHAT_MODEL as a Claude model (Claude Sonnet 5.5
+    // when it names none) through the gateway's provider-native endpoint, on the Anthropic key stored on the gateway;
+    // "mock" a deterministic stand-in (local dev, the smoke). Each keeps to a model of its own, so a switch needs only
+    // this var. Without the AI binding the first two fail the request rather than answer from the mock. Every call
+    // turns the gateway's log off: it would hold the person's mail.
     "AI_PROVIDER": "workers-ai",
     "AI_GATEWAY_ID": "default",
-    // Llama 3.3 70B (fast fp8) calls tools and answers in a few seconds; the reasoning models think for 15-25 s first.
+    // Llama 3.3 70B (fast fp8) calls tools and answers in a few seconds; with "anthropic", "claude-sonnet-5-5" thinks
+    // first at the effort `claudeOptions` sets.
     "AI_CHAT_MODEL": "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
     // PostHog AI observability gets what each of the Assistant's calls was asked and answered, credentials masked,
     // beside its counts (app/lib/assistant/telemetry.server.ts): a turn reads as the conversation. PostHog deletes
@@ -62,8 +66,8 @@
   "addresses": [],
 
   // The cron: every minute the Worker wakes the snoozed conversations that are due, sends the scheduled messages
-  // that are due and takes a batch of each running mailbox import (workers/scheduled.ts). Wrangler sets the schedule
-  // on deploy; nothing to create beforehand.
+  // that are due, takes a batch of each running mailbox import and reads a few conversations and files into the
+  // search index (workers/scheduled.ts). Wrangler sets the schedule on deploy; nothing to create beforehand.
   "triggers": { "crons": ["* * * * *"] },
 
   // Email Service sending binding: what `@rivi-software/workers-mail` sends with while SES has no key (local dev, the
@@ -71,9 +75,16 @@
   // writes every sent message under .wrangler/tmp/email instead.
   "send_email": [{ "name": "EMAIL" }],
 
-  // Workers AI, for the Assistant: the model runs through AI Gateway (`AI_GATEWAY_ID`), which the first call
-  // creates. Nothing to make beforehand; the binding is free until a model is called.
+  // The AI binding, for the Assistant: the model runs through the AI Gateway `AI_GATEWAY_ID` names. Workers AI's
+  // first call makes the `default` gateway; a Claude model (AI_PROVIDER "anthropic") needs a gateway holding an
+  // Anthropic key under Provider Keys, or its call fails (README, Deploy). The binding is free until a model is called.
   "ai": { "binding": "AI" },
+
+  // The index of the search by meaning (app/lib/search/): one vector per conversation and per Drive file, made by
+  // Workers AI's bge-m3 (1024 dimensions, cosine). The index must exist before the deploy that binds it, as the
+  // buckets must (README, Deploy): `wrangler vectorize create workspace-search --dimensions=1024 --metric=cosine`.
+  // Vectorize has no local simulator: in local dev and the tests the Assistant searches by words.
+  "vectorize": [{ "binding": "SEARCH", "index_name": "workspace-search" }],
 
   // The database: `wrangler d1 create workspace-db` once, then paste its id here (README, Deploy); the Deploy to
   // Cloudflare button makes it and writes the id itself. The scripts name it by its binding, DB, never by this name.

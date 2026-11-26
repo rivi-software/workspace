@@ -1,16 +1,21 @@
+import { installPostHogForTests } from "@rivi-software/posthog-tanstack-start/server";
 // The Workspace API for native clients (#3569, docs/API.md): the app on a phone signs in with the person's password
 // through Better Auth (`POST /api/auth/sign-in/email`), keeps the session token it answers, and reads and changes
 // the person's mail, files, calendar, tasks and conversations with the Assistant over `/api/v1` with it as a bearer
 // token.
 import { env, exports } from "cloudflare:workers";
-import { beforeAll, describe, expect, it } from "vitest";
+import { asc, eq } from "drizzle-orm";
+import { beforeAll, describe, expect, it, onTestFinished } from "vitest";
 
+import { spamTokens } from "~/db/schema";
 import type { User } from "~/db/schema";
 import { revoke } from "~/lib/auth.server";
 import { isJsonObject, stringOrNull } from "~/lib/guards";
 import { addImageSender } from "~/lib/mail/images.server";
 import { ingestInboundEmail } from "~/lib/mail/ingest.server";
 import { addDraftFiles } from "~/lib/mail/send.server";
+import { TOTAL_TOKEN } from "~/lib/mail/spam";
+import { trainTokens } from "~/lib/mail/spam.server";
 
 import { createWorker } from "../workers/worker";
 import {
@@ -88,19 +93,29 @@ const call = async (
   return { res, status: res.status, data: obj(data) };
 };
 
-/** The Worker with the recording mail binding, so a send never reaches Email Service. */
-const workerWithMail = () => {
-  const recording = recordingEmail();
+/** The Assistant's provider and its binding, as a test lays them over the Worker's env. */
+interface AssistantVars {
+  AI_PROVIDER: string;
+  AI?: Ai;
+}
+
+/** The Worker on an env of the test's own, as the `fetch` that `call` takes. */
+const workerOn = (laid: Env): typeof fetch => {
   const worker = createWorker(() => new Response("no start", { status: 404 }));
 
-  const fetchFn: typeof fetch = (input, init) =>
+  return (input, init) =>
     worker.fetch(
       // SAFETY: nothing in the Worker reads `request.cf`; a plain Request stands in for Workers' own.
       new Request(input, init) as Request<unknown, IncomingRequestCfProperties>,
-      recording.env
+      laid
     );
+};
 
-  return { fetchFn, sent: recording.sent };
+/** The Worker with the recording mail binding, so a send never reaches Email Service. */
+const workerWithMail = () => {
+  const recording = recordingEmail();
+
+  return { fetchFn: workerOn(recording.env), sent: recording.sent };
 };
 
 /** The ids of the rows a list answer holds. */
@@ -129,6 +144,8 @@ describe("the Workspace API", () => {
       suggestions: [
         "What arrived in my inbox today?",
         "Summarize my unread conversations",
+        "What is on my calendar this week?",
+        "Which tasks are overdue?",
         "Which files did I work on last?",
         "Help me write an email",
       ],
@@ -406,6 +423,27 @@ describe("the Workspace API", () => {
     });
   });
 
+  it("leaves the spam filter's words to the cron when it lists the mail", async () => {
+    const wren = await mailbox("wren", "Wren Words");
+    const app = await signInAsApp(wren);
+    // A word whose one message was taken back counts nowhere: the cron's prune forgets it, a list leaves it.
+    await trainTokens(db, wren.id, ["wallet"], { spam: 1, ham: 0 });
+    await trainTokens(db, wren.id, ["wallet"], { spam: -1, ham: 0 });
+
+    const listed = await call(app, "GET", "/mail/threads");
+
+    const words = await db
+      .select({ token: spamTokens.token })
+      .from(spamTokens)
+      .where(eq(spamTokens.userId, wren.id))
+      .orderBy(asc(spamTokens.token));
+
+    expect({
+      listed: listed.status,
+      words: words.map((w) => w.token),
+    }).toStrictEqual({ listed: 200, words: [TOTAL_TOKEN, "wallet"] });
+  });
+
   it("starts a reply from the original, sends it with a file, and keeps drafts", async () => {
     const arrived = await ingestInboundEmail(
       env,
@@ -619,6 +657,57 @@ describe("the Workspace API", () => {
       sentDraft: true,
       sentFiles: ["plan.txt"],
       draftsAfter: 0,
+    });
+  });
+
+  it("reads From as the address or the typed form the app's picker holds", async () => {
+    const compose = await call(token, "GET", "/mail/compose");
+    const own = obj(list(compose.data.froms)[0]);
+    // A client's From picker may hold `Address.typed`: the name and the address, as a To field does.
+    const typed = `${str(own.name)} <${str(own.email)}>`;
+    const { fetchFn } = workerWithMail();
+
+    const sent = await call(
+      token,
+      "POST",
+      "/mail/send",
+      {
+        from: typed,
+        to: "sam@acme.com",
+        subject: "From the phone",
+        text: "Sent from the app.",
+      },
+      fetchFn
+    );
+
+    const thread = await call(
+      token,
+      "GET",
+      `/mail/threads/${str(sent.data.threadId)}`
+    );
+
+    const draft = await call(token, "POST", "/mail/drafts", {
+      mode: "new",
+      from: typed,
+      to: "sam@acme.com",
+      subject: "Typed From",
+      text: "Later.",
+    });
+
+    const draftId = str(draft.data.draftId);
+    const reopened = await call(token, "GET", `/mail/compose?draft=${draftId}`);
+    await call(token, "DELETE", `/mail/drafts/${draftId}`);
+
+    expect({
+      typed,
+      sent: sent.data,
+      from: obj(list(thread.data.messages)[0]).from,
+      draftFrom: obj(reopened.data.prefill).from,
+    }).toMatchObject({
+      typed: `Pia Phone <${user.email}>`,
+      sent: { ok: true },
+      from: { email: user.email },
+      draftFrom: user.email,
     });
   });
 
@@ -1089,6 +1178,8 @@ describe("the Workspace API", () => {
         suggestions: [
           "What arrived in my inbox today?",
           "Summarize my unread conversations",
+          "What is on my calendar this week?",
+          "Which tasks are overdue?",
           "Which files did I work on last?",
           "Help me write an email",
         ],
@@ -1134,31 +1225,16 @@ describe("the Workspace API", () => {
   });
 
   it("answers no Assistant while AI_FEATURES is off, and /me says so", async () => {
-    const worker = createWorker(
-      () => new Response("no start", { status: 404 })
-    );
-
-    const off = stubEnv({ ...env, AI_FEATURES: "off" });
-
-    const fetchFn: typeof fetch = (input, init) =>
-      worker.fetch(
-        // SAFETY: nothing in the Worker reads `request.cf`; a plain Request stands in for Workers' own.
-        new Request(input, init) as Request<
-          unknown,
-          IncomingRequestCfProperties
-        >,
-        off
-      );
-
+    const off = workerOn(stubEnv({ ...env, AI_FEATURES: "off" }));
     const before = await call(token, "GET", "/me");
-    const me = await call(token, "GET", "/me", undefined, fetchFn);
+    const me = await call(token, "GET", "/me", undefined, off);
 
     const conversations = await call(
       token,
       "GET",
       "/assistant/conversations",
       undefined,
-      fetchFn
+      off
     );
 
     const chat = await call(
@@ -1169,7 +1245,7 @@ describe("the Workspace API", () => {
         conversationId: null,
         message: { role: "user", parts: [{ type: "text", text: "Hello" }] },
       },
-      fetchFn
+      off
     );
 
     const refused = {
@@ -1187,6 +1263,59 @@ describe("the Workspace API", () => {
       me: [{ enabled: false }, []],
       conversations: [404, refused],
       chat: [404, refused],
+    });
+  });
+
+  it("fails a question with a 500 and files nothing when its provider has no AI binding", async () => {
+    const reported: string[] = [];
+
+    installPostHogForTests({
+      captureImmediate: () => Promise.resolve(),
+      captureExceptionImmediate: (error) => {
+        reported.push(error instanceof Error ? error.message : String(error));
+
+        return Promise.resolve();
+      },
+    });
+    onTestFinished(() => installPostHogForTests(null));
+
+    // Production's provider with its binding missing.
+    const missing: AssistantVars = { AI_PROVIDER: "workers-ai", AI: undefined };
+
+    // SAFETY: test-only: the var is typed as `wrangler.jsonc`'s literal, and the module reads it as any string.
+    const unbound = { ...env, ...missing } as Env;
+    const before = await call(token, "GET", "/assistant/conversations");
+
+    const chat = await call(
+      token,
+      "POST",
+      "/assistant/chat",
+      {
+        conversationId: null,
+        message: {
+          role: "user",
+          parts: [{ type: "text", text: "Anything new?" }],
+        },
+      },
+      workerOn(unbound)
+    );
+
+    const after = await call(token, "GET", "/assistant/conversations");
+
+    // Never the mock's answer, never a 400 in the person's words: the Worker is misconfigured, and PostHog hears of it.
+    expect({
+      status: chat.status,
+      body: chat.data,
+      reported,
+      conversations: after.data.conversations,
+    }).toStrictEqual({
+      status: 500,
+      body: {
+        ok: false,
+        error: "Something went wrong. Try again in a moment.",
+      },
+      reported: [expect.stringContaining("no AI binding")],
+      conversations: before.data.conversations,
     });
   });
 

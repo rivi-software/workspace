@@ -62,8 +62,10 @@ import {
 } from "~/components/ui";
 import { aiEnabled } from "~/lib/ai";
 import { listConversations } from "~/lib/assistant/chat.server";
+import { assistantReady } from "~/lib/assistant/provider.server";
 import { colleagues, storageUsed } from "~/lib/drive/drive.server";
 import { isJsonObject, stringOrNull } from "~/lib/guards";
+import { FAVICON_HREF } from "~/lib/icons";
 import { keepShown } from "~/lib/keep-shown";
 import type { Folder, LabelRef } from "~/lib/mail/folders";
 import { listLabels } from "~/lib/mail/labels.server";
@@ -76,7 +78,7 @@ import { githubConnection } from "~/lib/tasks/github.server";
 
 const getLayout = createServerFn().handler(async () => {
   const { db, user, env } = await appContext();
-  const ai = aiEnabled(env);
+  const assistant = aiEnabled(env);
 
   const [counts, labels, newest, driveUsed, conversations, people, github] =
     await Promise.all([
@@ -86,7 +88,7 @@ const getLayout = createServerFn().handler(async () => {
       // What the person's files in Drive take, for the sidebar.
       storageUsed(db, user.id),
       // The person's recent conversations with the Assistant, for its sidebar.
-      ai ? listConversations(db, user.id, 30) : [],
+      assistant ? listConversations(db, user.id, 30) : [],
       // Whom a new event from the sidebar can invite (#3111).
       colleagues(db, user.id),
       // Whether a new task from the sidebar can name a GitHub issue.
@@ -108,12 +110,14 @@ const getLayout = createServerFn().handler(async () => {
       : null,
     preferences: parsePreferences(user.preferencesJson),
     appName: env.APP_NAME,
+    // Whether this Worker has a model and AI is on, and so offers AI where a person reads and writes mail.
+    ai: assistantReady(env),
     driveUsed,
     conversations,
     colleagues: people,
     githubConnected: github !== null,
     // Whether the Assistant and every way to it show (`AI_FEATURES`).
-    ai,
+    assistant,
   };
 });
 
@@ -165,6 +169,15 @@ const useNewMailNotice = (
   const navigate = useNavigate();
   const seen = useRef<{ id: string; at: string } | null>(null);
   const since = useRef<string | null>(null);
+  // A notification's click opens its thread while the console is mounted: every refresh reruns the effect below,
+  // so the listeners end with the console, not with the run that added them.
+  const clicks = useRef<AbortSignal | null>(null);
+  useEffect(() => {
+    const controller = new AbortController();
+    clicks.current = controller.signal;
+
+    return () => controller.abort();
+  }, []);
   useEffect(() => {
     // The tab's opening, which only mail that arrived after it is told of.
     const opened = since.current ?? new Date().toISOString();
@@ -188,18 +201,22 @@ const useNewMailNotice = (
     const n = new Notification(newest.people, {
       body: newest.subject,
       tag: `mail-${newest.id}`,
-      icon: "/favicon.svg",
+      icon: FAVICON_HREF,
     });
 
-    n.addEventListener("click", () => {
-      window.focus();
-      void navigate({
-        to: "/mail/t/$threadId",
-        params: { threadId: newest.id },
-        search: {},
-      });
-      n.close();
-    });
+    n.addEventListener(
+      "click",
+      () => {
+        window.focus();
+        void navigate({
+          to: "/mail/t/$threadId",
+          params: { threadId: newest.id },
+          search: {},
+        });
+        n.close();
+      },
+      { signal: clicks.current ?? undefined }
+    );
   }, [newest, navigate]);
 };
 
@@ -423,11 +440,11 @@ const useNotifications = () => {
 const useShellShortcuts = ({
   toggleSidebar,
   showHelp,
-  ai,
+  assistant,
 }: {
   toggleSidebar: () => void;
   showHelp: () => void;
-  ai: boolean;
+  assistant: boolean;
 }) => {
   const navigate = useNavigate();
   const toast = useToast();
@@ -493,7 +510,7 @@ const useShellShortcuts = ({
       },
     },
     // The Assistant's, only while AI is on.
-    ...(ai
+    ...(assistant
       ? [
           {
             keys: "g h",
@@ -601,25 +618,25 @@ const AccountMenu = ({
 );
 
 /** The modules the strip and the tab bar show: the Assistant only while AI is on. */
-const shownModules = (ai: boolean) =>
-  MODULES.filter((m) => ai || m.module !== "assistant");
+const shownModules = (assistant: boolean) =>
+  MODULES.filter((m) => assistant || m.module !== "assistant");
 
 // On a phone the tab bar at the bottom of the screen takes its place (`TabBar`).
 const ModuleStrip = ({
   current,
-  ai,
+  assistant,
 }: {
   current: ShellModule | null;
-  ai: boolean;
+  assistant: boolean;
 }) => (
   <nav
     className={cx(
       "bg-hover mx-3 mb-3 grid gap-0.5 rounded-md p-0.5 max-sm:hidden",
-      ai ? "grid-cols-5" : "grid-cols-4"
+      assistant ? "grid-cols-5" : "grid-cols-4"
     )}
     aria-label="Modules"
   >
-    {shownModules(ai).map((m) => (
+    {shownModules(assistant).map((m) => (
       <Link
         key={m.to}
         to={m.to}
@@ -647,18 +664,18 @@ const ModuleStrip = ({
  */
 const TabBar = ({
   current,
-  ai,
+  assistant,
 }: {
   current: ShellModule | null;
-  ai: boolean;
+  assistant: boolean;
 }) => (
   <nav
     data-tab-bar
     aria-label="Modules"
     className="border-line bg-sidebar/95 px-safe pb-safe print-hidden fixed inset-x-0 bottom-0 z-20 border-t backdrop-blur-sm sm:hidden"
   >
-    <ul className={cx("grid h-12", ai ? "grid-cols-5" : "grid-cols-4")}>
-      {shownModules(ai).map((m) => (
+    <ul className={cx("grid h-12", assistant ? "grid-cols-5" : "grid-cols-4")}>
+      {shownModules(assistant).map((m) => (
         <li key={m.to} className="min-w-0">
           <Link
             to={m.to}
@@ -932,7 +949,7 @@ const AppShell = () => {
   useRefresh();
 
   const layout = Route.useLoaderData();
-  const { user, newest, appName, ai } = layout;
+  const { user, newest, appName, assistant } = layout;
   const loading = useRouterState({ select: (s) => s.isLoading });
   const { pathname, search } = useLocation();
   const [theme, setTheme] = useTheme();
@@ -953,7 +970,11 @@ const AppShell = () => {
 
   const { notify, toggle: toggleNotify } = useNotifications();
   useNewMailNotice(newest);
-  useShellShortcuts({ toggleSidebar, showHelp: () => setHelp(true), ai });
+  useShellShortcuts({
+    toggleSidebar,
+    showHelp: () => setHelp(true),
+    assistant,
+  });
 
   // People are PostHog persons by their user id, so an error shows who it happened to.
   useEffect(() => {
@@ -968,7 +989,7 @@ const AppShell = () => {
 
   // With AI off, `/assistant` only says so (routes/_app/assistant.tsx), beside Mail's sidebar.
   const module = moduleOf(pathname);
-  const current = module === "assistant" && !ai ? null : module;
+  const current = module === "assistant" && !assistant ? null : module;
 
   return (
     <div className="bg-bg text-fg flex h-dvh overflow-hidden print:h-auto print:overflow-visible">
@@ -1023,7 +1044,7 @@ const AppShell = () => {
           </button>
         </div>
 
-        <ModuleStrip current={current} ai={ai} />
+        <ModuleStrip current={current} assistant={assistant} />
 
         <ModuleSidebar
           layout={layout}
@@ -1060,8 +1081,12 @@ const AppShell = () => {
         </button>
         <Outlet />
       </main>
-      <TabBar current={current} ai={ai} />
-      <ShortcutsHelp open={help} onClose={() => setHelp(false)} ai={ai} />
+      <TabBar current={current} assistant={assistant} />
+      <ShortcutsHelp
+        open={help}
+        onClose={() => setHelp(false)}
+        assistant={assistant}
+      />
       <UploadPanel />
       <NewVersionNotice />
     </div>

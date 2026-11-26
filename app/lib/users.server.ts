@@ -22,19 +22,14 @@ export class PeopleError extends Error {
 }
 
 export const listPeople = async (db: Database) => {
-  const people = await db.query.users.findMany({
-    orderBy: (u, { asc }) => [asc(u.name)],
-  });
-
-  const aliasRows = await db.query.aliases.findMany();
-
-  const recoveryRows = await db.query.recoveryAddresses.findMany({
-    orderBy: (r, { asc }) => [asc(r.createdAt)],
-  });
-
-  const passkeyRows = await db
-    .select({ userId: passkeys.userId })
-    .from(passkeys);
+  const [people, aliasRows, recoveryRows, passkeyRows] = await Promise.all([
+    db.query.users.findMany({ orderBy: (u, { asc }) => [asc(u.name)] }),
+    db.query.aliases.findMany(),
+    db.query.recoveryAddresses.findMany({
+      orderBy: (r, { asc }) => [asc(r.createdAt)],
+    }),
+    db.select({ userId: passkeys.userId }).from(passkeys),
+  ]);
 
   return people.map((p) => ({
     id: p.id,

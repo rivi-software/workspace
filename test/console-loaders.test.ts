@@ -63,13 +63,6 @@ const loaders = [...routes].flatMap(([name, source]) => {
   return loader === undefined ? [] : [{ name, loader, serverFns, source }];
 });
 
-/** The layouts above a route in `/_app`: `drive.sign.new` and `drive.sign` and `drive` for `drive.sign.new.$nodeId`. */
-const layoutsOf = (name: string): string[] =>
-  name
-    .split(".")
-    .slice(0, -1)
-    .map((_, index, parts) => parts.slice(0, index + 1).join("."));
-
 describe("a console loader whose minute's refresh fails (#3547, #3548)", () => {
   it("reads every section's loader", () => {
     expect(loaders.map(({ name }) => name)).toStrictEqual(
@@ -112,17 +105,12 @@ describe("a console loader whose minute's refresh fails (#3547, #3548)", () => {
     }
   );
 
+  // Its own: on a first load the server renders the failing route's error component, never a layout's, which catches
+  // only in the browser (#3557: a conversation that failed there showed TanStack's bare error page).
   it.each(loaders.filter(({ name }) => name !== "route"))(
-    "$name fails a first load into an error state inside the console, not the root error page",
-    ({ name, source }) => {
-      const caught = [
-        source,
-        ...layoutsOf(name).map((layout) => routes.get(layout)),
-      ]
-        .filter((code) => code !== undefined)
-        .some((code) => code.includes("errorComponent:"));
-
-      expect(caught).toBeTruthy();
+    "$name fails a first load into an error state of its own inside the console, not the root error page",
+    ({ source }) => {
+      expect(source).toContain("errorComponent:");
     }
   );
 });

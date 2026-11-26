@@ -524,3 +524,12 @@ export const servesInline = (contentType: string): boolean => {
     type === "application/json"
   );
 };
+
+/**
+ * Whether Open in a new tab shows the file: the file route serves it inline, and the web view can show it.
+ * `pdfViewer` is false in a phone app on Android (`useAndroidApp`), whose web view has no PDF viewer, so a PDF opened
+ * in place there does nothing.
+ */
+export const opensInTab = (contentType: string, pdfViewer: boolean): boolean =>
+  servesInline(contentType) &&
+  (pdfViewer || contentType.toLowerCase() !== "application/pdf");

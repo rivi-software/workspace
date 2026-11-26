@@ -15,6 +15,20 @@
       "when": 1794066159143,
       "tag": "0001_openpgp",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1795709152842,
+      "tag": "0002_assistant_undos",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1795709495082,
+      "tag": "0003_search_by_meaning",
+      "breakpoints": true
     }
   ]
 }

@@ -2,7 +2,9 @@ import { createFileRoute } from "@tanstack/react-router";
 import { env, waitUntil } from "cloudflare:workers";
 
 import { createDb } from "~/db";
+import { AI_OFF, aiEnabled } from "~/lib/ai";
 import { AssistantError, answerChat } from "~/lib/assistant/chat.server";
+import { assistantModel } from "~/lib/assistant/provider.server";
 import { getSessionUser } from "~/lib/auth.server";
 import { isJsonObject, stringOrNull } from "~/lib/guards";
 
@@ -13,7 +15,8 @@ const problem = (error: string, status = 400) =>
  * A question for the Assistant (`app/components/assistant/chat.tsx`): `POST /api/assistant/chat` with the
  * conversation (null for a new one) and the person's message, answered as a UI message stream (server-sent
  * events) the page renders as it comes. The session cookie is the gate (`SameSite=Lax` keeps another site's
- * form post out), and the answer is stored after the stream, which `waitUntil` keeps the Worker alive for.
+ * form post out), and the answer is stored after the stream, which `waitUntil` keeps the Worker alive for. The
+ * model is `AI_PROVIDER`'s (`assistantModel`); a Worker without its AI binding answers 500 rather than the mock.
  */
 export const Route = createFileRoute("/api/assistant/chat")({
   server: {
@@ -48,12 +51,24 @@ export const Route = createFileRoute("/api/assistant/chat")({
 
         const message = isJsonObject(body) ? body.message : undefined;
 
+        const timeZone = isJsonObject(body)
+          ? stringOrNull(body.timeZone)
+          : null;
+
+        // With AI off there is no model to resolve: the Assistant is not there.
+        if (!aiEnabled(env)) {
+          return problem(AI_OFF, 404);
+        }
+
+        const model = await assistantModel(env);
+
         try {
           const answer = await answerChat(
             env,
             db,
             user,
-            { conversationId, message },
+            model,
+            { conversationId, message, timeZone },
             request.signal
           );
 

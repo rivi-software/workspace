@@ -37,10 +37,10 @@ const getMail = createServerFn()
   .validator((d: ListDeps) => d)
   .handler(
     async ({ data }): Promise<MailListData & { layout: "split" | "full" }> => {
-      const { db, env, user } = await appContext();
+      const { db, user } = await appContext();
 
       // The page size is the person's preference: the console never asks for another.
-      const list = await listPage(db, env, user, {
+      const list = await listPage(db, user, {
         folder: data.folder,
         label: data.label,
         q: data.q,

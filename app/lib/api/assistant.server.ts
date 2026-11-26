@@ -9,6 +9,7 @@ import {
   getConversation,
   listConversations,
 } from "~/lib/assistant/chat.server";
+import { assistantModel } from "~/lib/assistant/provider.server";
 
 import { fieldOrNull, readBody } from "./body.server";
 import { ApiRequestError, json } from "./routing.server";
@@ -44,7 +45,10 @@ const remove = async (context: ApiContext): Promise<Response> => {
   return json({ ok: true });
 };
 
-/** A question, answered as server-sent events; the answer is stored after the stream, which `waitUntil` keeps the Worker alive for. */
+/**
+ * A question, answered as server-sent events on `AI_PROVIDER`'s model (`assistantModel`, a `500` without its AI
+ * binding); the answer is stored after the stream, which `waitUntil` keeps the Worker alive for.
+ */
 const chat = async (context: ApiContext): Promise<Response> => {
   const { db, env, user, request } = context;
   const body = await readBody(request);
@@ -53,9 +57,11 @@ const chat = async (context: ApiContext): Promise<Response> => {
     env,
     db,
     user,
+    await assistantModel(env),
     {
       conversationId: fieldOrNull(body, "conversationId"),
       message: body.message,
+      timeZone: fieldOrNull(body, "timeZone"),
     },
     request.signal
   );

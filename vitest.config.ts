@@ -1,3 +1,4 @@
+import { createRequire } from "node:module";
 import path from "node:path";
 
 import { cloudflareTest, readD1Migrations } from "@cloudflare/vitest-plugin";
@@ -5,7 +6,15 @@ import { defineConfig } from "vitest/config";
 import { unstable_readConfig } from "wrangler";
 
 export default defineConfig({
-  resolve: { alias: { "~": path.resolve(import.meta.dirname, "app") } },
+  resolve: {
+    alias: {
+      "~": path.resolve(import.meta.dirname, "app"),
+      // The icons as lucide-react's CommonJS build, one module: its ES entry re-exports some 2,300, each a round trip
+      // over the pool's socket, which a test that renders a component such as `test/signing-editor.test.ts` loads
+      // all of. The app's build keeps the ES entry and tree-shakes it.
+      "lucide-react": createRequire(import.meta.url).resolve("lucide-react"),
+    },
+  },
   plugins: [
     cloudflareTest(async () => {
       const migrations = await readD1Migrations(
@@ -33,7 +42,8 @@ export default defineConfig({
             // Mail goes through the recording binding, never Amazon SES, whatever `.dev.vars` holds.
             SES_ACCESS_KEY_ID: "",
             SES_SECRET_ACCESS_KEY: "",
-            // The Assistant's tests run on the mock model; nothing calls Workers AI.
+            // The Assistant's tests script their own models (test/scripted-model.ts); a request through
+            // `exports.default` answers from the mock model. Nothing calls Workers AI.
             AI_PROVIDER: "mock",
             AI_FEATURES: "on",
             // An empty PostHog token keeps the tests from sending exceptions anywhere.
@@ -42,6 +52,15 @@ export default defineConfig({
         },
       };
     }),
+    // A dependency's source map only slows the pool down: the tests' stack traces point into the app's own code.
+    {
+      name: "workspace:no-dependency-source-maps",
+      enforce: "post",
+      transform: {
+        filter: { id: /\/node_modules\//u },
+        handler: (code) => ({ code, map: { mappings: "" } }),
+      },
+    },
   ],
   test: {
     include: ["test/**/*.test.ts"],
@@ -53,5 +72,8 @@ export default defineConfig({
     // Some tests file a hundred messages through D1 or run a whole import: on CI they take up to 4.7 seconds, and on a
     // runner busy with the other files they went past the 5-second default.
     testTimeout: 20_000,
+    // A file's first Better Auth sign-in (a `beforeAll`) loads its module graph, which on a runner busy with the other
+    // files took past the hooks' 10-second default.
+    hookTimeout: 20_000,
   },
 });

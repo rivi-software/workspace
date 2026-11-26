@@ -11,9 +11,9 @@ const appRoute = getRouteApi("/_app");
  * bookmark still lands.
  */
 const AssistantSection = () => {
-  const { ai } = appRoute.useLoaderData();
+  const { assistant } = appRoute.useLoaderData();
 
-  if (!ai) {
+  if (!assistant) {
     return (
       <div className="flex min-w-0 flex-1 flex-col">
         <Empty

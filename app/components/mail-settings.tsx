@@ -3,7 +3,7 @@ import { useEffect, useId, useRef, useState } from "react";
 
 import { useAction } from "~/lib/action";
 import { mailSettingsAction } from "~/lib/mail/actions";
-import type { SettingsResult } from "~/lib/mail/actions";
+import type { MailSettingsResult } from "~/lib/mail/actions";
 import { describeFilter } from "~/lib/mail/filters";
 import type { FilterView } from "~/lib/mail/filters.server";
 import type { LabelRef } from "~/lib/mail/folders";
@@ -57,7 +57,7 @@ const Feedback = ({
   result,
   error,
 }: {
-  result?: SettingsResult;
+  result?: MailSettingsResult;
   error: string | null;
 }) => {
   const message = (result && !result.ok && result.error) || error;
@@ -74,7 +74,10 @@ const Feedback = ({
 };
 
 /** Calls `then` in the render that first sees a saved answer of an action: a form that closes, or starts afresh, once its save went through. */
-const useWhenSaved = (data: SettingsResult | undefined, then: () => void) => {
+const useWhenSaved = (
+  data: MailSettingsResult | undefined,
+  then: () => void
+) => {
   const [seen, setSeen] = useState(data);
 
   if (seen !== data) {
