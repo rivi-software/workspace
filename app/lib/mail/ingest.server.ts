@@ -229,8 +229,8 @@ export const openPgpMail = async (
   };
 };
 
-/** The mailbox an address is delivered to: a person's own address or one of their aliases, `+tags` ignored. */
-export const resolveMailbox = async (
+/** Whose address it is: a person's own address or one of their aliases, `+tags` ignored. */
+const addressOwner = async (
   db: Database,
   address: string
 ): Promise<User | null> => {
@@ -256,6 +256,19 @@ export const resolveMailbox = async (
     (await db.query.users.findFirst({ where: eq(users.id, alias.userId) })) ??
     null
   );
+};
+
+/**
+ * The mailbox an address is delivered to: its owner's, or nobody's while they are being removed, so the sender gets
+ * a bounce rather than mail filed into what is being deleted.
+ */
+export const resolveMailbox = async (
+  db: Database,
+  address: string
+): Promise<User | null> => {
+  const user = await addressOwner(db, address);
+
+  return user && !user.removingSince ? user : null;
 };
 
 export type IngestResult =

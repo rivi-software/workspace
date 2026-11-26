@@ -15,6 +15,13 @@
       "when": 1794066159143,
       "tag": "0001_openpgp",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1795731288160,
+      "tag": "0002_person_removal",
+      "breakpoints": true
     }
   ]
 }

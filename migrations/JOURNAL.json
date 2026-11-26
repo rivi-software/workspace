@@ -8,6 +8,10 @@
     {
       "name": "0001_openpgp.sql",
       "sha256": "74aa2a5f303b0bcd67273ecb2713bc6b0de18f678cea99d389399ece304b6993"
+    },
+    {
+      "name": "0002_person_removal.sql",
+      "sha256": "9e681b1ffcb76af7f84fdf1be5bb29ae4944450ab609f864b158e0efc3f1c0e7"
     }
   ]
 }

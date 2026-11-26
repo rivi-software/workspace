@@ -142,7 +142,7 @@ Workspace is an open-source workspace that runs on Cloudflare: **Mail** (receivi
 | Settings → Mail | The reading layout, the undo-send delay, the page size, labels, filters, the spam filter's blocked and allowed senders, the senders whose images always load, your OpenPGP key and the keys of the people you write to, the vacation responder, the Microsoft 365 import. |
 | Settings → Drive | Sharing outside the workspace on or off, and every link and invitation with who made it and how often it was opened (admins). |
 | Settings → Tasks | The GitHub connection. |
-| Settings → People | Mailboxes, aliases, roles, one-time passwords, deactivation, each person's passkeys, authenticator app, recovery addresses and sessions (admins). |
+| Settings → People | Mailboxes, aliases, a new primary address, roles, one-time passwords, deactivation and removal for good, each person's passkeys, authenticator app, recovery addresses and sessions (admins). |
 
 ## Sign-in and accounts
 

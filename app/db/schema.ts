@@ -38,6 +38,9 @@ export const users = sqliteTable(
       .notNull()
       .default("member"),
     active: integer("active", { mode: "boolean" }).notNull().default(true),
+    // When an admin removed the person (`removePerson`): from then on mail to them is refused, and the cron deletes
+    // everything of theirs a batch at a time (`app/lib/removal.server.ts`), this row last, which frees the address.
+    removingSince: text("removing_since"),
     // Whether a password sign-in asks for the code of an authenticator app (Better Auth's two-factor plugin).
     twoFactorEnabled: integer("two_factor_enabled", { mode: "boolean" })
       .notNull()

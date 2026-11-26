@@ -4,11 +4,13 @@ import { createDb } from "~/db";
 import { runImports } from "~/lib/mail/import/import.server";
 import { sendDueDrafts } from "~/lib/mail/schedule.server";
 import { wakeSnoozed } from "~/lib/mail/threads.server";
+import { runRemovals } from "~/lib/removal.server";
 
 /**
  * The cron (`triggers` in wrangler.jsonc, every minute): snoozed conversations whose time came wake in every mailbox,
- * the scheduled messages that are due go out, then each running mailbox import takes a batch. Each part fails on
- * its own, so a broken import never holds back the mail.
+ * the scheduled messages that are due go out, each running mailbox import takes a batch, then the people an admin
+ * removed lose another batch of what was theirs. Each part fails on its own, so a broken import never holds back
+ * the mail.
  */
 export const handleScheduled = async (env: Env): Promise<void> => {
   const db = createDb(env.DB);
@@ -60,6 +62,21 @@ export const handleScheduled = async (env: Env): Promise<void> => {
     );
     captureServerException(error, {
       properties: { handler: "scheduled", job: "import" },
+    });
+  }
+
+  try {
+    const removed = await runRemovals(env, db);
+
+    if (removed) {
+      console.log(JSON.stringify({ event: "people.removed", removed }));
+    }
+  } catch (error) {
+    console.error(
+      JSON.stringify({ event: "people.removal_error", error: String(error) })
+    );
+    captureServerException(error, {
+      properties: { handler: "scheduled", job: "removal" },
     });
   }
 };

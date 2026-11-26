@@ -1,0 +1,1 @@
+ALTER TABLE `users` ADD `removing_since` text;
