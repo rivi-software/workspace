@@ -39,6 +39,7 @@
     "deploy": "pnpm run db:migrate:remote && pnpm run deploy:assets && wrangler deploy",
     "deploy:production": "pnpm run deploy",
     "deploy:production:dry-run": "wrangler deploy --dry-run",
+    "update:upstream": "node scripts/upstream-update.mjs",
     "clean": "rm -rf dist .wrangler/deploy worker-configuration.d.ts tsconfig.node.tsbuildinfo tsconfig.cloudflare.tsbuildinfo seed/seed.generated.sql"
   },
   "dependencies": {

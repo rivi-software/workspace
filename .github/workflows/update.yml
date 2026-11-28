@@ -1,0 +1,103 @@
+# Keeps a deployment's copy of the repository up to date with rivi-software/workspace (README, Updates): once a day,
+# and by hand from the Actions tab, it merges the newest upstream commit whose CI passed, runs the checks on the
+# result, and pushes it to the default branch, which deploys it (Workers Builds for a copy the Deploy to Cloudflare
+# button made, .github/workflows/deploy.yml for one that deploys from Actions). Off unless the repository variable
+# AUTO_UPDATE_ENABLED is "true"; never runs in rivi-software/workspace itself. A conflict, or a check that fails,
+# pushes nothing and fails the run with what to do.
+name: Update
+
+on:
+  schedule:
+    - cron: "23 5 * * *"
+  workflow_dispatch:
+    inputs:
+      base:
+        description: The upstream commit to merge from, when the run asks for one
+        required: false
+
+concurrency:
+  group: upstream-update
+  cancel-in-progress: false
+
+permissions:
+  # Push the merge, and start the Deploy workflow (a push with this token starts no workflow by itself).
+  contents: write
+  actions: write
+
+jobs:
+  update:
+    name: Update from upstream
+    if: vars.AUTO_UPDATE_ENABLED == 'true' && github.repository != 'rivi-software/workspace'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      WRANGLER_SEND_METRICS: "false"
+      DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          # The whole history, for the merge base.
+          fetch-depth: 0
+          persist-credentials: false
+
+      # The merge, checked out; the summary lists the upstream commits it brings, or the files that conflict.
+      - id: merge
+        run: node scripts/upstream-update.mjs ${BASE:+--base "$BASE"}
+        env:
+          BASE: ${{ inputs.base }}
+          GITHUB_TOKEN: ${{ github.token }}
+          UPSTREAM_REPOSITORY: ${{ vars.UPSTREAM_REPOSITORY }}
+          UPSTREAM_BRANCH: ${{ vars.UPSTREAM_BRANCH }}
+          GIT_AUTHOR_NAME: github-actions[bot]
+          GIT_AUTHOR_EMAIL: 41898283+github-actions[bot]@users.noreply.github.com
+          GIT_COMMITTER_NAME: github-actions[bot]
+          GIT_COMMITTER_EMAIL: 41898283+github-actions[bot]@users.noreply.github.com
+
+      # GitHub refuses a push that changes a workflow from the workflow's own token.
+      - name: A token for the workflows
+        if: steps.merge.outputs.changed == 'true' && steps.merge.outputs.workflows == 'true'
+        env:
+          UPDATE_TOKEN: ${{ secrets.UPDATE_TOKEN }}
+        run: |
+          if [ -z "$UPDATE_TOKEN" ]; then
+            echo "::error::This update changes .github/workflows, which only a token with the Workflows permission may push. Add the secret UPDATE_TOKEN (README, Updates) and run the workflow again."
+            exit 1
+          fi
+
+      # The same checks as CI, on the merged commit.
+      - if: steps.merge.outputs.changed == 'true'
+        uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+
+      - if: steps.merge.outputs.changed == 'true'
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+
+      - if: steps.merge.outputs.changed == 'true'
+        run: |
+          pnpm install --frozen-lockfile
+          cp .dev.vars.local.example .dev.vars
+          pnpm run verify:static
+          pnpm run test
+          pnpm run build
+          pnpm run build:check
+
+      # A plain push: if the branch moved since the checkout, it is refused, and the next run merges again.
+      - name: Push
+        if: steps.merge.outputs.changed == 'true'
+        env:
+          TOKEN: ${{ secrets.UPDATE_TOKEN || github.token }}
+        run: git push "https://x-access-token:${TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "HEAD:refs/heads/${DEFAULT_BRANCH}"
+
+      # A push with UPDATE_TOKEN starts the Deploy workflow itself; one with the workflow's own token does not.
+      - name: Deploy
+        if: steps.merge.outputs.changed == 'true' && vars.DEPLOYMENTS_ENABLED == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          UPDATE_TOKEN: ${{ secrets.UPDATE_TOKEN }}
+        run: |
+          if [ -z "$UPDATE_TOKEN" ]; then
+            gh workflow run deploy.yml --ref "$DEFAULT_BRANCH" --repo "$GITHUB_REPOSITORY"
+          fi
