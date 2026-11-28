@@ -236,8 +236,18 @@ data: [DONE]
 
 `start` names the conversation (a new one's id when the request named none); `error` carries `errorText`. An error before the stream starts is a JSON problem with its status (`400` for an empty or too long question, `404` for a conversation that is not the person's).
 
+### Push
+
+Push notifications to the app, through the push relay the workspace names ([docs/PUSH.md](PUSH.md), which also says how an app opens one).
+
+| Method and path | Request | Answer |
+| --- | --- | --- |
+| `GET /push` | | `{ enabled: true, relay, applicationServerKey }`, the relay's origin and the workspace's VAPID public key (65 bytes, base64url) to register with it; `{ enabled: false, relay: null, applicationServerKey: null }` while `PUSH_RELAY_URL` is empty |
+| `POST /push/subscriptions` | `{ endpoint, keys: { p256dh, auth } }`, a browser's `PushSubscription.toJSON()`: the endpoint the relay answered, under `<relay>/v1/push/`, and the app's P-256 public key (65 bytes) and auth secret (16 bytes), base64url | `201 { ok: true, id }`. One subscription a session: this one replaces the session's last. `400` while push is off, for an endpoint on any other address, or for malformed keys. |
+| `DELETE /push/subscriptions/:id` | | `{ ok: true }`; `404` for a subscription that is not the person's. Signing out ends the session's subscription by itself. |
+
 ## In this repository
 
-- `app/lib/api/api.server.ts` is the entry: the bearer token (`getSessionUser`), the person, the routes, the JSON answers and the problems; one module per section beside it (`me`, `mail`, `drive`, `calendar`, `tasks`, `assistant`), each a list of routes over the server modules the console's loaders call.
+- `app/lib/api/api.server.ts` is the entry: the bearer token (`getSessionIdentity`: the person and the session, `ApiContext.sessionId`), the person, the routes, the JSON answers and the problems; one module per section beside it (`me`, `mail`, `drive`, `calendar`, `tasks`, `assistant`, `push`), each a list of routes over the server modules the console's loaders call.
 - `test/api.test.ts` signs in as a client does (`POST /api/auth/sign-in/email`, the token from `set-auth-token`) and calls every section through `exports.default.fetch` with it as a bearer token; `test/sessions.test.ts` covers what ends a session.
 - A new endpoint: a route in its section's module, a row above, and a test.

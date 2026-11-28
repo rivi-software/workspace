@@ -31,6 +31,11 @@
     // While Duo is set up (the DUO_* secrets) but cannot take sign-ins: "true" lets the password alone in for someone
     // without an authenticator app; anything else refuses them until Duo answers again (docs/SSO.md).
     "DUO_FAIL_OPEN": "false",
+    // Push notifications to the workspace's apps (docs/PUSH.md), optional: the address of a push relay (relay/), which
+    // holds the Apple and Google keys of the apps people use and hands each notification on encrypted, unread. An app
+    // takes notifications only from a relay with its own app's keys, so name the relay its builder runs. Empty keeps
+    // push off: no subscriptions, nothing sent.
+    "PUSH_RELAY_URL": "",
     // The Assistant's model (app/lib/assistant/provider.server.ts): "workers-ai" runs AI_CHAT_MODEL on Workers AI
     // through the AI binding and AI Gateway; "anthropic" runs AI_CHAT_MODEL as a Claude model (Claude Sonnet 5.5
     // when it names none) through the gateway's provider-native endpoint, on the Anthropic key stored on the gateway;

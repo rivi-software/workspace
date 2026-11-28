@@ -48,6 +48,9 @@ jobs:
       # Vitest inside workerd, with the migrations applied to a fresh database.
       - run: pnpm run test
 
+      # The push relay (relay/): its typecheck, Oxlint, its tests with Apple and Google in memory, and a dry-run deploy.
+      - run: pnpm --filter rivi-workspace-push-relay run verify
+
       # The production build, a dry-run deploy of it, and what it must not carry (workers-bundle-check.config.ts).
       - run: pnpm run build && pnpm run build:check
 

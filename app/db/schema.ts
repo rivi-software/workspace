@@ -1406,3 +1406,34 @@ export const oauthCodes = sqliteTable(
 export type OauthClient = typeof oauthClients.$inferSelect;
 
 export type OauthSigningKey = typeof oauthSigningKeys.$inferSelect;
+
+/**
+ * Where a signed-in app takes its push notifications (`app/lib/push/push.server.ts`, docs/API.md): a Web Push
+ * subscription, the endpoint on the push relay `PUSH_RELAY_URL` names and the keys the app opens a message with. It
+ * belongs to the session that made it, so whatever ends the session (signing out, a new password, a deactivation, a
+ * removal) ends its notifications with it; one session holds one subscription.
+ */
+export const pushSubscriptions = sqliteTable(
+  "push_subscriptions",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    sessionId: text("session_id")
+      .notNull()
+      .references(() => sessions.id, { onDelete: "cascade" }),
+    endpoint: text("endpoint").notNull(),
+    // The app's P-256 public key (65 bytes) and its 16-byte authentication secret, base64url (RFC 8291).
+    p256dh: text("p256dh").notNull(),
+    auth: text("auth").notNull(),
+    createdAt: text("created_at").notNull().default(now()),
+  },
+  (t) => [
+    uniqueIndex("push_subscriptions_session_idx").on(t.sessionId),
+    uniqueIndex("push_subscriptions_endpoint_idx").on(t.endpoint),
+    index("push_subscriptions_user_idx").on(t.userId),
+  ]
+);
+
+export type PushSubscription = typeof pushSubscriptions.$inferSelect;

@@ -6,6 +6,7 @@ import type { Database } from "~/db";
 import { messages } from "~/db/schema";
 import type { Address, User } from "~/db/schema";
 import { defined, errorMessage } from "~/lib/guards";
+import { notifyNewMail } from "~/lib/push/push.server";
 
 import { htmlToText } from "../text";
 import { parseAddress } from "./addresses";
@@ -391,6 +392,21 @@ const fileInMailbox = async (
         })
       );
     }
+  }
+
+  // The owner's apps hear of it (docs/PUSH.md) when it is news; a failing relay never fails the delivery.
+  if (!judged.spam) {
+    await notifyNewMail(
+      env,
+      db,
+      user,
+      {
+        threadId: filed.threadId,
+        from: p.from.name || p.from.email,
+        subject: p.subject,
+      },
+      options
+    );
   }
 
   return {

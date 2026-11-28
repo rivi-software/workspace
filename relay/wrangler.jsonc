@@ -1,0 +1,31 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "rivi-workspace-push-relay",
+  "main": "./src/index.ts",
+  "compatibility_date": "2026-10-19",
+  // Workers Logs: the relay logs each push's platform and outcome, never a token, a workspace or a message.
+  "observability": { "enabled": true },
+  "workers_dev": true,
+  "preview_urls": false,
+  // "routes": [{ "pattern": "push.example.com", "custom_domain": true }],
+
+  // Public settings. The secrets (RELAY_SECRET, the APNS_* key, FCM_SERVICE_ACCOUNT) are named in .dev.vars.example
+  // and set with `wrangler secret put` (README).
+  "vars": {
+    // The relay's own address: every endpoint it gives out is under it, and a workspace's VAPID token must name it.
+    // Empty: the address each request came to.
+    "RELAY_URL": "",
+    // The app's bundle id, the topic of every APNs push. Empty with the APNS_* secrets keeps iPhones off.
+    "APNS_TOPIC": "",
+    // What a notification says until the app's extension opens the message, or when it cannot.
+    "ALERT_TITLE": "Workspace",
+    "ALERT_BODY": "You have a new notification."
+  },
+
+  // A brake on a stolen endpoint or a busy client: pushes per endpoint and registrations per address, a minute each.
+  // The namespace ids are any number unique on the account.
+  "ratelimits": [
+    { "name": "PUSH_LIMIT", "namespace_id": "4101", "simple": { "limit": 120, "period": 60 } },
+    { "name": "REGISTER_LIMIT", "namespace_id": "4102", "simple": { "limit": 30, "period": 60 } }
+  ]
+}

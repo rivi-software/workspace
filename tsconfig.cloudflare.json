@@ -4,6 +4,7 @@
     "app/**/*",
     "workers/**/*",
     "test/**/*",
+    "relay/src/**/*",
     "worker-configuration.d.ts"
   ],
   "compilerOptions": {

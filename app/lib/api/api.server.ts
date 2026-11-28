@@ -10,7 +10,7 @@ import { captureServerException } from "@rivi-software/posthog-tanstack-start/se
  */
 import type { Database } from "~/db";
 import { AssistantError } from "~/lib/assistant/chat.server";
-import { getSessionUser } from "~/lib/auth.server";
+import { getSessionIdentity } from "~/lib/auth.server";
 import { CalendarError } from "~/lib/calendar/calendar.server";
 import { DriveError } from "~/lib/drive/drive.server";
 import { errorMessage } from "~/lib/guards";
@@ -19,6 +19,7 @@ import { LabelError } from "~/lib/mail/labels.server";
 import { ScheduleError } from "~/lib/mail/schedule.server";
 import { SendError } from "~/lib/mail/send.server";
 import { ThreadActionError } from "~/lib/mail/threads.server";
+import { PushError } from "~/lib/push/push.server";
 import { TaskError } from "~/lib/tasks/tasks.server";
 
 import { assistantRoutes } from "./assistant.server";
@@ -26,6 +27,7 @@ import { calendarRoutes } from "./calendar.server";
 import { driveRoutes } from "./drive.server";
 import { mailRoutes } from "./mail.server";
 import { meRoutes } from "./me.server";
+import { pushRoutes } from "./push.server";
 import { ApiRequestError, matchRoute, problem } from "./routing.server";
 import type { ApiContext, ApiRoute } from "./routing.server";
 import { tasksRoutes } from "./tasks.server";
@@ -48,6 +50,7 @@ const ROUTES: ApiRoute[] = [
   ...calendarRoutes,
   ...tasksRoutes,
   ...assistantRoutes,
+  ...pushRoutes,
 ];
 
 const unauthorized = (request: Request): Response =>
@@ -79,7 +82,8 @@ const problemOf = (error: unknown): Response | null => {
     error instanceof LabelError ||
     error instanceof DriveError ||
     error instanceof CalendarError ||
-    error instanceof TaskError
+    error instanceof TaskError ||
+    error instanceof PushError
   ) {
     return problem(error.message, 400);
   }
@@ -101,10 +105,10 @@ export const handleApi = async (
     return problem("No such endpoint.", 404);
   }
 
-  // The bearer token (or a session cookie) names the person, while they are active.
-  const user = await getSessionUser(request, env, db);
+  // The bearer token (or a session cookie) names the person, while they are active, and the session.
+  const identity = await getSessionIdentity(request, env, db);
 
-  if (!user) {
+  if (!identity) {
     return unauthorized(request);
   }
 
@@ -119,7 +123,8 @@ export const handleApi = async (
     url,
     env,
     db,
-    user,
+    user: identity.user,
+    sessionId: identity.sid,
     params,
     query: url.searchParams,
   };
@@ -141,7 +146,7 @@ export const handleApi = async (
         error: errorMessage(error),
       })
     );
-    captureServerException(error, { request, distinctId: user.id });
+    captureServerException(error, { request, distinctId: identity.user.id });
 
     return problem("Something went wrong. Try again in a moment.", 500);
   }

@@ -1,0 +1,9 @@
+# The relay's secrets: `wrangler secret put <NAME>` each, or copy to .dev.vars for `wrangler dev`. Never commit .dev.vars.
+# Required. Seals every endpoint: `openssl rand -base64 48`. Changing it forgets every device until its app registers again.
+RELAY_SECRET=
+# iPhone (APNs): the key's id, the team's id and the .p8 key's PEM from developer.apple.com → Keys. Empty: no iPhones.
+APNS_KEY_ID=
+APNS_TEAM_ID=
+APNS_PRIVATE_KEY=
+# Android (FCM HTTP v1): the JSON key of a service account allowed to send for the Firebase project. Empty: no Android.
+FCM_SERVICE_ACCOUNT=
