@@ -14,6 +14,8 @@ export interface ApiContext {
   env: Env;
   db: Database;
   user: User;
+  /** The session the request signed in with: what a push subscription belongs to. */
+  sessionId: string;
   /** The route's `:name` segments. */
   params: Record<string, string>;
   query: URLSearchParams;

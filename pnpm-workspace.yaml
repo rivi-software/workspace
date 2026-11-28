@@ -1,6 +1,7 @@
-# The phone app (mobile/) is a package of its own: its scripts, the Tauri CLI and its tests.
+# The phone app (mobile/) and the push relay (relay/) are packages of their own: their scripts, tools and tests.
 packages:
   - mobile
+  - relay
 
 # Dependency build scripts are blocked unless listed here (pnpm 12).
 allowBuilds:

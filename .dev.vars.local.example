@@ -25,6 +25,9 @@ SES_SECRET_ACCESS_KEY=
 DUO_CLIENT_ID=
 DUO_CLIENT_SECRET=
 DUO_API_HOST=
+# Optional: push notifications to the apps through a push relay (docs/PUSH.md), such as `cd relay && pnpm run dev`'s
+# http://localhost:8787 behind an HTTPS tunnel. Empty: push is off.
+PUSH_RELAY_URL=
 # The Assistant's model: mock answers without a model (and calls its tools on "search my mail for …", "find files
 # named …", "read conversation th_…", "draft a reply to th_… saying …"); workers-ai or anthropic run the real one through
 # the AI binding, which needs `wrangler login`, and fail the request without it.

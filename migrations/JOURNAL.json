@@ -28,6 +28,10 @@
     {
       "name": "0006_person_removal.sql",
       "sha256": "9e681b1ffcb76af7f84fdf1be5bb29ae4944450ab609f864b158e0efc3f1c0e7"
+    },
+    {
+      "name": "0007_push_notifications.sql",
+      "sha256": "a84fc2d73e1c5a4c0bfa8f0d95e64fbaff5037b2909f04e42eada8fbd7468a55"
     }
   ]
 }

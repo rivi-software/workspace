@@ -50,7 +50,7 @@ Start the workspace (`pnpm run dev` in the repository's root; its README has the
 
 ## Notifications
 
-Settings has a **Notifications** section: **Calendar events** with how long before they start, **Tasks due today**, and the time of the morning reminders (all-day events and the tasks due that day). They are reminders the phone schedules itself from the coming week's events (not the ones declined) and open tasks, planned again each time the app comes to the front. A tap opens the event, or Tasks. The workspace's Worker sends no push, so there is no notification of new mail.
+Settings has a **Notifications** section: **Calendar events** with how long before they start, **Tasks due today**, and the time of the morning reminders (all-day events and the tasks due that day). They are reminders the phone schedules itself from the coming week's events (not the ones declined) and open tasks, planned again each time the app comes to the front. A tap opens the event, or Tasks. The app does not subscribe to push yet, so there is no notification of new mail: a workspace can send one through a push relay ([docs/PUSH.md](../docs/PUSH.md)), which the app will take once it registers its device and opens notices in a notification service extension.
 
 ## Releases
 

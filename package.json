@@ -157,6 +157,9 @@
       "SES_REGION": {
         "description": "Amazon SES's region, used only once the two SES secrets are set."
       },
+      "PUSH_RELAY_URL": {
+        "description": "Optional, for [push notifications](https://github.com/rivi-software/workspace/blob/main/docs/PUSH.md) to the workspace's apps: the `https://` address of a push relay holding your apps' Apple and Google keys. Empty keeps push off."
+      },
       "DUO_FAIL_OPEN": {
         "description": "`true` lets the password alone in while Duo cannot take sign-ins, for someone without an authenticator app. Anything else refuses them until Duo answers."
       },

@@ -109,6 +109,16 @@ Mail that arrived encrypted and was decrypted with the owner's key; its text, HT
 **Signature verdict**:
 What checking a message's OpenPGP signature came to: good, bad, an unknown key, or a key for other addresses than the sender's.
 
+**Push relay**:
+The Worker in `relay/` that holds an app's Apple and Google keys and hands the workspace's push notifications to the phones, encrypted and unread. Optional: a workspace names one in `PUSH_RELAY_URL`, or sends no push.
+
+**Push subscription**:
+Where one signed-in app takes its push notifications: an endpoint on the push relay and the keys only the app can open a notice with. It belongs to its session and ends with it.
+_Avoid_: device, registration (what the app does with the relay)
+
+**Notice**:
+What a push notification says once the app opens it: the kind (`mail`), a title, a line, and the conversation it opens.
+
 ### Drive
 
 **Node**:
